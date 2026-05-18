@@ -40,12 +40,16 @@ SUPABASE_SERVICE_ROLE_KEY=...   # server-side only (api/ functions)
 `index.html` → `src/main.tsx` → `AuthProvider` → `App.tsx`
 
 Routes:
-- `/`             → `Landing.tsx` (public)
-- `/login`        → `Login.tsx` (public)
-- `/register`     → `Register.tsx` (public)
-- `/dashboard`    → `ProtectedRoute` → `AppLayout` (sidebar) + nested:
+- `/`                      → `Landing.tsx` (public)
+- `/login`                 → `Login.tsx` (public)
+- `/register`              → `Register.tsx` (public)
+- `/dashboard`             → `ProtectedRoute` → `AppLayout` (sidebar) + nested:
   - `/dashboard`           → `Overview.tsx`
+  - `/dashboard/events`    → `Events.tsx`
+  - `/dashboard/queue`     → `Queue.tsx`
+  - `/dashboard/rules`     → `Rules.tsx`
   - `/dashboard/api-keys`  → `ApiKeys.tsx`
+  - `/dashboard/webhooks`  → `Webhooks.tsx`
 
 ### Auth (`src/contexts/AuthContext.tsx`)
 `AuthProvider` wraps the full app in `main.tsx`. Exposes `useAuth()` with: `user`, `session`, `loading`, `signIn`, `signUp`, `signOut`. Backed by Supabase Auth.
@@ -56,7 +60,7 @@ Routes:
 Single exported `supabase` client. Credentials from `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`.
 
 ### Database (`supabase/schema.sql`)
-9 tables with full RLS:
+Schema v1 (9 tables) + Schema v2 migration (`webhook_deliveries`):
 
 | Table | Purpose |
 |---|---|
@@ -69,13 +73,14 @@ Single exported `supabase` client. Credentials from `VITE_SUPABASE_URL` / `VITE_
 | `review_queue` | Events needing manual review |
 | `webhooks` | Outbound webhook endpoints |
 | `audit_logs` | Action history for compliance |
+| `webhook_deliveries` | One row per webhook attempt — v2 migration |
 
 RLS helpers: `current_org_id()` and `current_user_role()` (SECURITY DEFINER functions).
 
 Role matrix: owner > admin > member. Only owners can manage API keys and webhooks.
 
 ### Types (`src/types/index.ts`)
-Mirrors DB schema. Key types: `RiskEvent`, `ApiKey`, `Organization`, `Profile`, `Rule`, `ReviewQueueItem`, `Webhook`, `AuditLog`, `DashboardMetrics`.
+Mirrors DB schema. Key types: `RiskEvent`, `ApiKey`, `Organization`, `Profile`, `Rule`, `ReviewQueueItem`, `Webhook`, `WebhookDelivery`, `AuditLog`, `DashboardMetrics`.
 Shared enums: `RiskLevel`, `Decision`, `EventType`.
 
 ### Risk Engine (`src/lib/riskEngine.ts`)
@@ -92,31 +97,83 @@ Decision thresholds:
 
 The public API maps `allow` → `approve` in responses.
 
+### Custom Rules (`src/lib/riskEngine.ts` + `api/risk/check.ts`)
+Rules run **after** the base Risk Engine score. First matching active rule overrides the final decision.
+
+Evaluated in `applyCustomRules()` inside `api/risk/check.ts` (step 4.5 in the handler). Rules fetched from `rules` table ordered by `created_at ASC` — oldest first.
+
+`condition_value` stored as `"operator:value"` string (e.g. `"gt:80"`, `"eq:BR"`).
+
+Supported condition types: `fraud_score`, `trust_score`, `risk_level`, `event_type`, `country`, `ip_user_count_1h`, `ip_signup_count_1h`, `device_user_count`.
+
 ### API Endpoints (`api/`)
 
 **`POST /api/risk/check`** — Production endpoint for client integrations.
 - Auth: `Authorization: Bearer <api_key>` — key is SHA-256 hashed and matched against `api_keys.key_hash`
 - Fetches 6 parallel historical context queries from Supabase
-- Runs `analyze()` from risk engine
+- Runs `analyze()` from risk engine, then evaluates custom rules (`applyCustomRules`)
 - Upserts `users_checked`, inserts `risk_events`
 - Fire-and-forget: `review_queue` (if decision=review) + webhook dispatch with HMAC-SHA256 signature (`X-Genuinux-Signature: sha256=<sig>`)
+- Webhook dispatch logs to `webhook_deliveries` (fire-and-forget, table optional)
 - Response maps `allow` → `approve`
+
+Webhook payload format:
+```json
+{
+  "event": "risk.check.completed",
+  "event_id": "...",
+  "external_user_id": "...",
+  "trust_score": 82,
+  "fraud_score": 18,
+  "risk_level": "low",
+  "decision": "approve",
+  "signals": [...],
+  "summary": "...",
+  "created_at": "..."
+}
+```
 
 Valid `event_type` values: `signup`, `login`, `transaction`, `withdrawal`, `referral`, `checkout`, `custom`.
 
+**`POST /api/webhooks/test`** — Dashboard test delivery.
+- Auth: `Authorization: Bearer <supabase_access_token>` (user JWT, verified via `supabase.auth.getUser()`)
+- Body: `{ webhook_id: string }`
+- Sends signed test payload to the webhook URL, logs to `webhook_deliveries`, returns `{ success, status, duration_ms }`
+
 **`POST /api/analyze`** — Internal prototype (uses `x-organization-id` header, no API key auth). Kept for internal testing.
 
-### Dashboard Overview (`src/pages/dashboard/Overview.tsx`)
-Fetches real data from Supabase on mount: resolves `organization_id` from `profiles`, then loads last 24h of `risk_events`. Subscribes to `postgres_changes` for real-time updates. Metrics derived client-side: `totalRequests`, `blocked`, `blockRate`, `avgTrust`. Ticks every 30s to keep relative timestamps fresh.
+### Dashboard Pages
+
+**`Overview.tsx`** — Real-time metrics for last 24h. Subscribes to `postgres_changes` on `risk_events`. Charts: events over time (area), decisions (donut), fraud score distribution (histogram), risk level bars, top signals, top countries. Recent events table.
+
+**`Events.tsx`** — Full risk events table. Client-side filtering on up to 500 events: search (user/email/IP/device), risk level, decision, event type, date range. 480px slide-out detail panel with signals, AI summary, related events (same user / IP / device). `key={selected.id}` forces panel remount on selection change.
+
+**`Queue.tsx`** — Manual review interface. Status tabs: pending / approved / rejected / escalated. 500px detail panel with action buttons (Approve / Block / Escalate / Reopen / Add Note). Each action writes to `audit_logs`. Optimistic state updates.
+
+**`Rules.tsx`** — CRUD for custom fraud rules. Toggle active/paused (optimistic). Inline delete confirmation. `RuleModal` with condition builder (optgroup select), operator/value inputs, live rule sentence preview. `condition_value` stored as `"operator:value"`.
+
+**`ApiKeys.tsx`** — API key management. Generate keys (prefix shown, full key shown once on creation). Revoke with confirmation. Shows `requests_count` and `last_used_at`.
+
+**`Webhooks.tsx`** — Webhook endpoint management.
+- Cards per webhook: status toggle (active/disabled, optimistic), masked secret with show/hide/copy, test delivery button
+- Test calls `POST /api/webhooks/test` with Supabase session JWT
+- Expandable delivery history (lazy-fetches `webhook_deliveries`; shows migration notice if table missing)
+- Modal: auto-generated secret on create (`whsec_` + 32 random bytes hex), rotate button in edit mode
+- Node.js signature verification snippet shown when webhooks exist
 
 ### Components
-- `src/components/layout/AppLayout.tsx` — fixed 240px sidebar + `<Outlet />`
+- `src/components/layout/AppLayout.tsx` — fixed 220px sidebar + sticky 52px top header with breadcrumb and org/plan badge. NAV_TOP has 7 items: Overview, Risk Events, Users, Review Queue, Rules, API Keys, Webhooks.
 - `src/components/ProtectedRoute.tsx` — auth guard, shows spinner while loading
 
 ### GitHub & Deployment
 - **GitHub**: `https://github.com/BlackKawa87/genuinux`
 - **Vercel**: `https://genuinux.vercel.app` (auto-deploys on push to `main`)
 - **Auto-sync hook**: `.claude/settings.json` Stop hook runs `.claude/sync.sh` after every Claude session — commits staged changes, pushes to GitHub, deploys to Vercel production. `VERCEL_TOKEN` is stored in the gitignored `.claude/settings.local.json`.
+
+### Pending / Not Yet Built
+- `/dashboard/users` — Users page (nav item exists, no route)
+- `/dashboard/settings` — Settings page (nav item exists, no route)
+- `webhook_deliveries` Supabase migration — run the v2 block at the bottom of `supabase/schema.sql`
 
 ## TypeScript Config
 
