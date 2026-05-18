@@ -25,11 +25,14 @@ No test framework is configured.
 
 ## Environment Variables
 
-Copy `.env.example` → `.env.local` and fill in Supabase credentials:
+Copy `.env.example` → `.env.local`:
 ```
 VITE_SUPABASE_URL=...
 VITE_SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_ROLE_KEY=...   # server-side only (api/ functions)
 ```
+
+`SUPABASE_SERVICE_ROLE_KEY` is required by Vercel serverless functions. It bypasses RLS — never expose it to the frontend.
 
 ## Architecture
 
@@ -75,9 +78,45 @@ Role matrix: owner > admin > member. Only owners can manage API keys and webhook
 Mirrors DB schema. Key types: `RiskEvent`, `ApiKey`, `Organization`, `Profile`, `Rule`, `ReviewQueueItem`, `Webhook`, `AuditLog`, `DashboardMetrics`.
 Shared enums: `RiskLevel`, `Decision`, `EventType`.
 
+### Risk Engine (`src/lib/riskEngine.ts`)
+Pure TypeScript function — no side effects, no DB calls. Takes `RiskEngineInput` + optional `RiskEngineContext` (pre-fetched historical counts), returns `RiskEngineOutput`.
+
+Signal categories analyzed: **email** (disposable domain, format), **IP** (velocity, distinct users, signup surge), **device** (multi-user device, prior block), **velocity** (rapid repeated events), **behavioral** (headless UA, private browser hints).
+
+Scoring: starts at `trust_score=100, fraud_score=0`. Each detected signal applies `fraud_impact` (+) and `trust_impact` (−). Multipliers apply for extreme cases (e.g. 20+ users on same IP).
+
+Decision thresholds:
+- `fraud_score ≥ 70` → `block`
+- `fraud_score ≥ 40 && risk_level=medium` → `review`
+- Otherwise → `allow`
+
+The public API maps `allow` → `approve` in responses.
+
+### API Endpoints (`api/`)
+
+**`POST /api/risk/check`** — Production endpoint for client integrations.
+- Auth: `Authorization: Bearer <api_key>` — key is SHA-256 hashed and matched against `api_keys.key_hash`
+- Fetches 6 parallel historical context queries from Supabase
+- Runs `analyze()` from risk engine
+- Upserts `users_checked`, inserts `risk_events`
+- Fire-and-forget: `review_queue` (if decision=review) + webhook dispatch with HMAC-SHA256 signature (`X-Genuinux-Signature: sha256=<sig>`)
+- Response maps `allow` → `approve`
+
+Valid `event_type` values: `signup`, `login`, `transaction`, `withdrawal`, `referral`, `checkout`, `custom`.
+
+**`POST /api/analyze`** — Internal prototype (uses `x-organization-id` header, no API key auth). Kept for internal testing.
+
+### Dashboard Overview (`src/pages/dashboard/Overview.tsx`)
+Fetches real data from Supabase on mount: resolves `organization_id` from `profiles`, then loads last 24h of `risk_events`. Subscribes to `postgres_changes` for real-time updates. Metrics derived client-side: `totalRequests`, `blocked`, `blockRate`, `avgTrust`. Ticks every 30s to keep relative timestamps fresh.
+
 ### Components
 - `src/components/layout/AppLayout.tsx` — fixed 240px sidebar + `<Outlet />`
 - `src/components/ProtectedRoute.tsx` — auth guard, shows spinner while loading
+
+### GitHub & Deployment
+- **GitHub**: `https://github.com/BlackKawa87/genuinux`
+- **Vercel**: `https://genuinux.vercel.app` (auto-deploys on push to `main`)
+- **Auto-sync hook**: `.claude/settings.json` Stop hook runs `.claude/sync.sh` after every Claude session — commits staged changes, pushes to GitHub, deploys to Vercel production. `VERCEL_TOKEN` is stored in the gitignored `.claude/settings.local.json`.
 
 ## TypeScript Config
 
