@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /Users/cesarnogueira/Desktop/Genuinux/.claude/sync.sh",
+            "timeout": 120,
+            "statusMessage": "Syncing to GitHub and Vercel..."
+          }
+        ]
+      }
+    ]
+  }
+}

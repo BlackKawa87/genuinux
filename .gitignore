@@ -16,6 +16,9 @@ dist/
 .firecrawl/*.png
 .firecrawl/*.jpg
 
+# Claude Code local settings (contains secrets)
+.claude/settings.local.json
+
 # macOS
 .DS_Store
 **/.DS_Store
