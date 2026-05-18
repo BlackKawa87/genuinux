@@ -12,7 +12,7 @@ export type EventType =
 export type Plan = 'free' | 'starter' | 'pro' | 'enterprise'
 export type ApiKeyStatus = 'active' | 'revoked'
 export type RuleStatus = 'active' | 'paused'
-export type ReviewStatus = 'pending' | 'approved' | 'rejected'
+export type ReviewStatus = 'pending' | 'approved' | 'rejected' | 'escalated'
 
 export interface Organization {
   id: string
