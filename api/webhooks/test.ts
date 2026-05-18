@@ -110,7 +110,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const responseBody = await response.text().catch(() => '')
 
     // Log delivery (fire-and-forget — table may not exist yet)
-    supabase.from('webhook_deliveries').insert({
+    void supabase.from('webhook_deliveries').insert({
       webhook_id:      webhook.id,
       organization_id: orgId,
       event_type:      'risk.check.completed',
@@ -118,7 +118,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       response_body:   responseBody.slice(0, 500),
       duration_ms:     duration,
       success:         response.ok,
-    }).then(() => {}).catch(() => {})
+    })
 
     return res.status(200).json({
       success:     response.ok,
@@ -129,14 +129,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const duration = Date.now() - start
     const message = err instanceof Error ? err.message : 'Unknown error'
 
-    supabase.from('webhook_deliveries').insert({
+    void supabase.from('webhook_deliveries').insert({
       webhook_id:      webhook.id,
       organization_id: orgId,
       event_type:      'risk.check.completed',
       response_body:   message,
       duration_ms:     duration,
       success:         false,
-    }).then(() => {}).catch(() => {})
+    })
 
     return res.status(200).json({
       success:     false,

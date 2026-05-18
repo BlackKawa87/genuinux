@@ -197,63 +197,77 @@ async function fetchContext(
   const h1ago  = new Date(now - 60 * 60_000).toISOString()
   const h24ago = new Date(now - 24 * 60 * 60_000).toISOString()
 
+  // Wrap each builder with Promise.resolve() — Supabase builders are PromiseLike
+  // (have .then but not .catch/.finally), which TypeScript 5.9+ rejects as Promise<unknown>.
   const queries: Promise<unknown>[] = [
     // Eventos deste user nos últimos 10min
-    supabase
-      .from('risk_events')
-      .select('id', { count: 'exact', head: true })
-      .eq('organization_id', orgId)
-      .eq('external_user_id', payload.external_user_id)
-      .gte('created_at', m10ago),
+    Promise.resolve(
+      supabase
+        .from('risk_events')
+        .select('id', { count: 'exact', head: true })
+        .eq('organization_id', orgId)
+        .eq('external_user_id', payload.external_user_id)
+        .gte('created_at', m10ago),
+    ),
 
     // Usuários distintos neste IP nas últimas 24h
     payload.ip_address
-      ? supabase
-          .from('risk_events')
-          .select('external_user_id')
-          .eq('organization_id', orgId)
-          .eq('ip_address', payload.ip_address)
-          .gte('created_at', h24ago)
+      ? Promise.resolve(
+          supabase
+            .from('risk_events')
+            .select('external_user_id')
+            .eq('organization_id', orgId)
+            .eq('ip_address', payload.ip_address)
+            .gte('created_at', h24ago),
+        )
       : Promise.resolve({ data: [] }),
 
     // Signups deste IP na última hora
     payload.ip_address
-      ? supabase
-          .from('risk_events')
-          .select('id', { count: 'exact', head: true })
-          .eq('organization_id', orgId)
-          .eq('ip_address', payload.ip_address)
-          .eq('event_type', 'signup')
-          .gte('created_at', h1ago)
+      ? Promise.resolve(
+          supabase
+            .from('risk_events')
+            .select('id', { count: 'exact', head: true })
+            .eq('organization_id', orgId)
+            .eq('ip_address', payload.ip_address)
+            .eq('event_type', 'signup')
+            .gte('created_at', h1ago),
+        )
       : Promise.resolve({ count: 0 }),
 
     // Usuários distintos neste device
     payload.device_id
-      ? supabase
-          .from('risk_events')
-          .select('external_user_id')
-          .eq('organization_id', orgId)
-          .eq('device_id', payload.device_id)
+      ? Promise.resolve(
+          supabase
+            .from('risk_events')
+            .select('external_user_id')
+            .eq('organization_id', orgId)
+            .eq('device_id', payload.device_id),
+        )
       : Promise.resolve({ data: [] }),
 
     // Device já bloqueado antes
     payload.device_id
-      ? supabase
-          .from('risk_events')
-          .select('id', { count: 'exact', head: true })
-          .eq('organization_id', orgId)
-          .eq('device_id', payload.device_id)
-          .eq('decision', 'block')
-          .limit(1)
+      ? Promise.resolve(
+          supabase
+            .from('risk_events')
+            .select('id', { count: 'exact', head: true })
+            .eq('organization_id', orgId)
+            .eq('device_id', payload.device_id)
+            .eq('decision', 'block')
+            .limit(1),
+        )
       : Promise.resolve({ count: 0 }),
 
     // Contas com este e-mail
     payload.email
-      ? supabase
-          .from('users_checked')
-          .select('id', { count: 'exact', head: true })
-          .eq('organization_id', orgId)
-          .eq('email', payload.email)
+      ? Promise.resolve(
+          supabase
+            .from('users_checked')
+            .select('id', { count: 'exact', head: true })
+            .eq('organization_id', orgId)
+            .eq('email', payload.email),
+        )
       : Promise.resolve({ count: 0 }),
   ]
 
@@ -424,26 +438,26 @@ async function dispatchWebhooks(
         .then(r => {
           const duration = Date.now() - start
           if (!r.ok) console.warn(`[webhook] ${wh.endpoint_url} responded ${r.status}`)
-          supabase.from('webhook_deliveries').insert({
+          void supabase.from('webhook_deliveries').insert({
             webhook_id:      wh.id,
             organization_id: orgId,
             event_type:      'risk.check.completed',
             response_status: r.status,
             duration_ms:     duration,
             success:         r.ok,
-          }).then(() => {}).catch(() => {})
+          })
         })
         .catch((err: Error) => {
           const duration = Date.now() - start
           console.error(`[webhook] ${wh.endpoint_url} failed:`, err.message)
-          supabase.from('webhook_deliveries').insert({
+          void supabase.from('webhook_deliveries').insert({
             webhook_id:      wh.id,
             organization_id: orgId,
             event_type:      'risk.check.completed',
             response_body:   err.message,
             duration_ms:     duration,
             success:         false,
-          }).then(() => {}).catch(() => {})
+          })
         })
     }),
   )
@@ -608,9 +622,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     risk_level:         result.risk_level,
     event_type:         payload.event_type,
     country:            payload.country,
-    ip_user_count:      context.ip_distinct_users_last_24h,
-    ip_signup_count_1h: context.ip_signup_count_last_1h,
-    device_user_count:  context.device_distinct_users,
+    ip_user_count:      context.ip_distinct_users_last_24h ?? 0,
+    ip_signup_count_1h: context.ip_signup_count_last_1h    ?? 0,
+    device_user_count:  context.device_distinct_users       ?? 0,
   }, result.decision)
 
   const effectiveResult = { ...result, decision: finalDecision }
