@@ -10,6 +10,7 @@ import Events from './pages/dashboard/Events'
 import Queue from './pages/dashboard/Queue'
 import Rules from './pages/dashboard/Rules'
 import Webhooks from './pages/dashboard/Webhooks'
+import UsersPage from './pages/dashboard/Users'
 
 export default function App() {
   return (
@@ -32,6 +33,7 @@ export default function App() {
           <Route path="rules" element={<Rules />} />
           <Route path="api-keys" element={<ApiKeys />} />
           <Route path="webhooks" element={<Webhooks />} />
+          <Route path="users" element={<UsersPage />} />
         </Route>
       </Routes>
     </BrowserRouter>
