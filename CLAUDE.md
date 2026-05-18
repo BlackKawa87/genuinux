@@ -46,6 +46,7 @@ Routes:
 - `/dashboard`             → `ProtectedRoute` → `AppLayout` (sidebar) + nested:
   - `/dashboard`           → `Overview.tsx`
   - `/dashboard/events`    → `Events.tsx`
+  - `/dashboard/users`     → `Users.tsx`
   - `/dashboard/queue`     → `Queue.tsx`
   - `/dashboard/rules`     → `Rules.tsx`
   - `/dashboard/api-keys`  → `ApiKeys.tsx`
@@ -161,6 +162,22 @@ Valid `event_type` values: `signup`, `login`, `transaction`, `withdrawal`, `refe
 - Modal: auto-generated secret on create (`whsec_` + 32 random bytes hex), rotate button in edit mode
 - Node.js signature verification snippet shown when webhooks exist
 
+**`Users.tsx`** — End-user intelligence table.
+- Loads up to 500 `users_checked` + 2000 `risk_events` (lightweight fields), merges client-side to compute per-user aggregates
+- Table columns: User ID (with suspicious flag icon), email, country, total events, fraud peak (color-coded), latest decision badge, distinct IP count, distinct device count, first seen
+- Suspicious flag: `has_block || highest_fraud_score > 60 || distinct_ips > 2 || distinct_devices > 2`
+- Search: client-side across user ID, email, phone, IP address (including all historical IPs seen across events)
+- "Suspicious only" toggle filter
+- 520px slide-out detail panel (`key={user.id}` forces remount):
+  - Stat bar: total events, fraud peak, IPs, devices
+  - Red banner explaining the suspicion reason
+  - **Profile** — user ID, email, phone, country, first/last seen
+  - **Decision history** — allow/review/block with percentage bars
+  - **Risk timeline** — last 30 events with badges and trust/fraud scores (lazy-loaded on panel open)
+  - **IP addresses** — distinct IPs with per-IP event counts
+  - **Devices** — distinct device IDs with event counts
+  - **Recurring signals** — signals in 2+ events, sorted by frequency, with severity badge and `×N` count
+
 ### Components
 - `src/components/layout/AppLayout.tsx` — fixed 220px sidebar + sticky 52px top header with breadcrumb and org/plan badge. NAV_TOP has 7 items: Overview, Risk Events, Users, Review Queue, Rules, API Keys, Webhooks.
 - `src/components/ProtectedRoute.tsx` — auth guard, shows spinner while loading
@@ -171,7 +188,6 @@ Valid `event_type` values: `signup`, `login`, `transaction`, `withdrawal`, `refe
 - **Auto-sync hook**: `.claude/settings.json` Stop hook runs `.claude/sync.sh` after every Claude session — commits staged changes, pushes to GitHub, deploys to Vercel production. `VERCEL_TOKEN` is stored in the gitignored `.claude/settings.local.json`.
 
 ### Pending / Not Yet Built
-- `/dashboard/users` — Users page (nav item exists, no route)
 - `/dashboard/settings` — Settings page (nav item exists, no route)
 - `webhook_deliveries` Supabase migration — run the v2 block at the bottom of `supabase/schema.sql`
 
