@@ -108,6 +108,18 @@ export interface Webhook {
   created_at: string
 }
 
+export interface WebhookDelivery {
+  id: string
+  webhook_id: string
+  organization_id: string
+  event_type: string
+  response_status: number | null
+  response_body: string | null
+  duration_ms: number | null
+  success: boolean
+  created_at: string
+}
+
 export interface AuditLog {
   id: string
   organization_id: string

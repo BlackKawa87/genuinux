@@ -390,39 +390,60 @@ async function dispatchWebhooks(
 
   if (!webhooks || webhooks.length === 0) return
 
+  const createdAt = new Date().toISOString()
   const body = JSON.stringify({
-    event_id:           eventId,
-    external_user_id:   payload.external_user_id,
-    event_type:         payload.event_type,
-    trust_score:        result.trust_score,
-    fraud_score:        result.fraud_score,
-    risk_level:         result.risk_level,
-    decision:           result.decision === 'allow' ? 'approve' : result.decision,
-    signals:            result.signals.map(s => ({ code: s.code, label: s.label, severity: s.severity })),
-    summary:            result.ai_summary,
-    timestamp:          new Date().toISOString(),
+    event:            'risk.check.completed',
+    event_id:         eventId,
+    external_user_id: payload.external_user_id,
+    event_type:       payload.event_type,
+    trust_score:      result.trust_score,
+    fraud_score:      result.fraud_score,
+    risk_level:       result.risk_level,
+    decision:         result.decision === 'allow' ? 'approve' : result.decision,
+    signals:          result.signals.map(s => ({ code: s.code, label: s.label, severity: s.severity })),
+    summary:          result.ai_summary,
+    created_at:       createdAt,
   })
 
   await Promise.allSettled(
     (webhooks as WebhookRecord[]).map(wh => {
       const signature = signPayload(wh.secret, body)
+      const start = Date.now()
 
       return fetch(wh.endpoint_url, {
         method: 'POST',
         headers: {
           'Content-Type':         'application/json',
           'X-Genuinux-Signature': `sha256=${signature}`,
-          'X-Genuinux-Event':     payload.event_type,
+          'X-Genuinux-Event':     'risk.check.completed',
           'User-Agent':           'Genuinux-Webhook/1.0',
         },
         body,
         signal: AbortSignal.timeout(WEBHOOK_TIMEOUT_MS),
       })
         .then(r => {
+          const duration = Date.now() - start
           if (!r.ok) console.warn(`[webhook] ${wh.endpoint_url} responded ${r.status}`)
+          supabase.from('webhook_deliveries').insert({
+            webhook_id:      wh.id,
+            organization_id: orgId,
+            event_type:      'risk.check.completed',
+            response_status: r.status,
+            duration_ms:     duration,
+            success:         r.ok,
+          }).then(() => {}).catch(() => {})
         })
-        .catch(err => {
+        .catch((err: Error) => {
+          const duration = Date.now() - start
           console.error(`[webhook] ${wh.endpoint_url} failed:`, err.message)
+          supabase.from('webhook_deliveries').insert({
+            webhook_id:      wh.id,
+            organization_id: orgId,
+            event_type:      'risk.check.completed',
+            response_body:   err.message,
+            duration_ms:     duration,
+            success:         false,
+          }).then(() => {}).catch(() => {})
         })
     }),
   )

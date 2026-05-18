@@ -9,6 +9,7 @@ import ApiKeys from './pages/dashboard/ApiKeys'
 import Events from './pages/dashboard/Events'
 import Queue from './pages/dashboard/Queue'
 import Rules from './pages/dashboard/Rules'
+import Webhooks from './pages/dashboard/Webhooks'
 
 export default function App() {
   return (
@@ -30,6 +31,7 @@ export default function App() {
           <Route path="queue" element={<Queue />} />
           <Route path="rules" element={<Rules />} />
           <Route path="api-keys" element={<ApiKeys />} />
+          <Route path="webhooks" element={<Webhooks />} />
         </Route>
       </Routes>
     </BrowserRouter>
