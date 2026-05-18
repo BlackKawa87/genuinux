@@ -429,6 +429,95 @@ async function dispatchWebhooks(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// 4.5. Custom rule evaluation
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface RuleRow {
+  condition_type:  string
+  condition_value: string
+  action:          'allow' | 'review' | 'block'
+}
+
+interface RuleData {
+  fraud_score:        number
+  trust_score:        number
+  risk_level:         string
+  event_type:         string
+  country:            string | undefined
+  ip_user_count:      number
+  ip_signup_count_1h: number
+  device_user_count:  number
+}
+
+function parseRuleCondition(cv: string): { operator: string; value: string } {
+  const idx = cv.indexOf(':')
+  return idx === -1
+    ? { operator: 'eq', value: cv }
+    : { operator: cv.slice(0, idx), value: cv.slice(idx + 1) }
+}
+
+function evalNumeric(a: number, op: string, bStr: string): boolean {
+  const b = parseFloat(bStr)
+  if (isNaN(b)) return false
+  switch (op) {
+    case 'gt':  return a > b
+    case 'gte': return a >= b
+    case 'lt':  return a < b
+    case 'lte': return a <= b
+    case 'eq':  return a === b
+    default:    return false
+  }
+}
+
+function evalString(a: string | undefined, op: string, b: string): boolean {
+  if (a === undefined) return false
+  const al = a.toLowerCase()
+  const bl = b.toLowerCase()
+  switch (op) {
+    case 'eq':  return al === bl
+    case 'neq': return al !== bl
+    default:    return false
+  }
+}
+
+function matchRule(rule: RuleRow, data: RuleData): boolean {
+  const { operator, value } = parseRuleCondition(rule.condition_value)
+  switch (rule.condition_type) {
+    case 'fraud_score':        return evalNumeric(data.fraud_score,        operator, value)
+    case 'trust_score':        return evalNumeric(data.trust_score,        operator, value)
+    case 'risk_level':         return evalString(data.risk_level,          operator, value)
+    case 'event_type':         return evalString(data.event_type,          operator, value)
+    case 'country':            return evalString(data.country,             operator, value)
+    case 'ip_user_count_1h':   return evalNumeric(data.ip_user_count,      operator, value)
+    case 'ip_signup_count_1h': return evalNumeric(data.ip_signup_count_1h, operator, value)
+    case 'device_user_count':  return evalNumeric(data.device_user_count,  operator, value)
+    default:                   return false
+  }
+}
+
+async function applyCustomRules(
+  supabase: SupabaseClient,
+  orgId: string,
+  data: RuleData,
+  baseDecision: 'allow' | 'review' | 'block',
+): Promise<'allow' | 'review' | 'block'> {
+  const { data: rules } = await supabase
+    .from('rules')
+    .select('condition_type, condition_value, action')
+    .eq('organization_id', orgId)
+    .eq('status', 'active')
+    .order('created_at', { ascending: true })
+
+  if (!rules || rules.length === 0) return baseDecision
+
+  for (const rule of rules as RuleRow[]) {
+    if (matchRule(rule, data)) return rule.action
+  }
+
+  return baseDecision
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Handler principal
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -491,36 +580,50 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const result = analyze(input)
 
+  // ── 4.5. Custom rules ───────────────────────────────────────
+  const finalDecision = await applyCustomRules(supabase, orgId, {
+    fraud_score:        result.fraud_score,
+    trust_score:        result.trust_score,
+    risk_level:         result.risk_level,
+    event_type:         payload.event_type,
+    country:            payload.country,
+    ip_user_count:      context.ip_distinct_users_last_24h,
+    ip_signup_count_1h: context.ip_signup_count_last_1h,
+    device_user_count:  context.device_distinct_users,
+  }, result.decision)
+
+  const effectiveResult = { ...result, decision: finalDecision }
+
   // ── 5 & 6. Persistência (paralela onde possível) ────────────
   await upsertUserChecked(supabase, orgId, payload)
 
-  const eventId = await insertRiskEvent(supabase, orgId, payload, result)
+  const eventId = await insertRiskEvent(supabase, orgId, payload, effectiveResult)
 
   // ── 7. Review queue ─────────────────────────────────────────
-  if (result.decision === 'review' && eventId) {
+  if (effectiveResult.decision === 'review' && eventId) {
     // Não bloqueia a resposta
     createReviewQueueItem(supabase, orgId, eventId).catch(() => {})
   }
 
   // ── 8. Webhooks (fire-and-forget) ───────────────────────────
   if (eventId) {
-    dispatchWebhooks(supabase, orgId, eventId, payload, result).catch(() => {})
+    dispatchWebhooks(supabase, orgId, eventId, payload, effectiveResult).catch(() => {})
   }
 
   // ── 9. Resposta ─────────────────────────────────────────────
   const response: CheckResponse = {
     event_id:            eventId ?? `evt_${Date.now()}`,
-    trust_score:         result.trust_score,
-    fraud_score:         result.fraud_score,
-    risk_level:          result.risk_level,
-    decision:            result.decision === 'allow' ? 'approve' : result.decision,
-    signals:             result.signals.map(s => ({
+    trust_score:         effectiveResult.trust_score,
+    fraud_score:         effectiveResult.fraud_score,
+    risk_level:          effectiveResult.risk_level,
+    decision:            effectiveResult.decision === 'allow' ? 'approve' : effectiveResult.decision,
+    signals:             effectiveResult.signals.map(s => ({
       code:     s.code,
       label:    s.label,
       severity: s.severity,
     })),
-    summary:             result.ai_summary,
-    processing_time_ms:  result.processing_time_ms,
+    summary:             effectiveResult.ai_summary,
+    processing_time_ms:  effectiveResult.processing_time_ms,
   }
 
   return res.status(200).json(response)

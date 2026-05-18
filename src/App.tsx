@@ -8,6 +8,7 @@ import Overview from './pages/dashboard/Overview'
 import ApiKeys from './pages/dashboard/ApiKeys'
 import Events from './pages/dashboard/Events'
 import Queue from './pages/dashboard/Queue'
+import Rules from './pages/dashboard/Rules'
 
 export default function App() {
   return (
@@ -27,6 +28,7 @@ export default function App() {
           <Route index element={<Overview />} />
           <Route path="events" element={<Events />} />
           <Route path="queue" element={<Queue />} />
+          <Route path="rules" element={<Rules />} />
           <Route path="api-keys" element={<ApiKeys />} />
         </Route>
       </Routes>
