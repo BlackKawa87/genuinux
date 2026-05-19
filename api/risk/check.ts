@@ -18,7 +18,7 @@
 
 import crypto from 'crypto'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { analyze } from '../../src/lib/riskEngine'
+import { analyze, SIGNAL_CATEGORY } from '../../src/lib/riskEngine'
 import type { RiskEngineContext, RiskEngineInput } from '../../src/lib/riskEngine'
 import { generateSummary } from '../../src/lib/aiSummary'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
@@ -41,15 +41,18 @@ interface CheckPayload {
 
 interface CheckResponse {
   event_id: string
+  external_user_id: string
+  decision: 'approve' | 'review' | 'block'
+  risk_level: string
   trust_score: number
   fraud_score: number
-  risk_level: string
-  decision: 'approve' | 'review' | 'block'
   confidence_level: string
+  shadow_mode: boolean
   signals: Array<{
-    code: string
-    label: string
+    key: string
+    category: string
     severity: string
+    label: string
   }>
   risk_reasons: Array<{
     category: string
@@ -57,11 +60,14 @@ interface CheckResponse {
     reason: string
   }>
   recommended_action: string
-  applied_rule: { id: string; name: string } | null
+  applied_rules: Array<{ id: string; name: string }>
   summary: string
-  processing_time_ms: number
-  // Shadow mode (only present when org.shadow_mode = true)
-  shadow_mode?: boolean
+  metadata: {
+    engine_version: string
+    processed_at: string
+    processing_time_ms: number
+  }
+  // Shadow mode — only present when org.shadow_mode = true
   suggested_decision?: 'approve' | 'review' | 'block'
   live_decision?: 'approve'
   message?: string
@@ -457,21 +463,29 @@ async function dispatchWebhooks(
   const timestamp    = Math.floor(Date.now() / 1000).toString()
 
   const basePayload = {
-    event_id:         eventId,
-    external_user_id: payload.external_user_id,
-    event_type:       payload.event_type,
-    trust_score:      result.trust_score,
-    fraud_score:      result.fraud_score,
-    risk_level:       result.risk_level,
-    decision:         ruleMatch.decision === 'allow' ? 'approve' : ruleMatch.decision,
-    signals:          result.signals.map(s => ({ code: s.code, label: s.label, severity: s.severity })),
-    applied_rule:     ruleMatch.applied_rule_id
-                        ? { id: ruleMatch.applied_rule_id, name: ruleMatch.applied_rule_name! }
-                        : null,
-    summary:          result.ai_summary,
-    created_at:       createdAt,
+    event_id:           eventId,
+    external_user_id:   payload.external_user_id,
+    event_type:         payload.event_type,
+    trust_score:        result.trust_score,
+    fraud_score:        result.fraud_score,
+    risk_level:         result.risk_level,
+    decision:           ruleMatch.decision === 'allow' ? 'approve' : ruleMatch.decision,
+    confidence_level:   result.confidence_level,
+    signals:            result.signals.map(s => ({
+      key:      s.code,
+      category: SIGNAL_CATEGORY[s.code] ?? 'behavioral',
+      severity: s.severity,
+      label:    s.label,
+    })),
+    risk_reasons:       result.risk_reasons,
+    recommended_action: result.recommended_action,
+    applied_rules:      ruleMatch.applied_rule_id
+                          ? [{ id: ruleMatch.applied_rule_id, name: ruleMatch.applied_rule_name! }]
+                          : [],
+    summary:            result.ai_summary,
+    shadow_mode:        shadowMode,
+    created_at:         createdAt,
     ...(shadowMode && {
-      shadow_mode:        true,
       suggested_decision: suggestedDecision === 'allow' ? 'approve' : suggestedDecision,
       live_decision:      'approve',
     }),
@@ -845,27 +859,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // ── 9. Resposta ─────────────────────────────────────────────
   const shadowSuggestedLabel = suggestedDecision === 'allow' ? 'approve' : suggestedDecision
+  const processedAt = new Date().toISOString()
   const response: CheckResponse = {
-    event_id:            eventId ?? `evt_${Date.now()}`,
-    trust_score:         effectiveResult.trust_score,
-    fraud_score:         effectiveResult.fraud_score,
-    risk_level:          effectiveResult.risk_level,
-    decision:            effectiveResult.decision === 'allow' ? 'approve' : effectiveResult.decision,
-    confidence_level:    effectiveResult.confidence_level,
-    signals:             effectiveResult.signals.map(s => ({
-      code:     s.code,
-      label:    s.label,
+    event_id:           eventId ?? `evt_${Date.now()}`,
+    external_user_id:   payload.external_user_id,
+    decision:           effectiveResult.decision === 'allow' ? 'approve' : effectiveResult.decision,
+    risk_level:         effectiveResult.risk_level,
+    trust_score:        effectiveResult.trust_score,
+    fraud_score:        effectiveResult.fraud_score,
+    confidence_level:   effectiveResult.confidence_level,
+    shadow_mode:        isShadowMode,
+    signals: effectiveResult.signals.map(s => ({
+      key:      s.code,
+      category: SIGNAL_CATEGORY[s.code] ?? 'behavioral',
       severity: s.severity,
+      label:    s.label,
     })),
-    risk_reasons:        effectiveResult.risk_reasons,
-    recommended_action:  effectiveResult.recommended_action,
-    applied_rule:        ruleMatch.applied_rule_id
-                           ? { id: ruleMatch.applied_rule_id, name: ruleMatch.applied_rule_name! }
-                           : null,
-    summary:             effectiveResult.ai_summary,
-    processing_time_ms:  effectiveResult.processing_time_ms,
+    risk_reasons:       effectiveResult.risk_reasons,
+    recommended_action: effectiveResult.recommended_action,
+    applied_rules:      ruleMatch.applied_rule_id
+                          ? [{ id: ruleMatch.applied_rule_id, name: ruleMatch.applied_rule_name! }]
+                          : [],
+    summary:            effectiveResult.ai_summary,
+    metadata: {
+      engine_version:     'risk-engine-v1',
+      processed_at:       processedAt,
+      processing_time_ms: effectiveResult.processing_time_ms,
+    },
     ...(isShadowMode && {
-      shadow_mode:        true,
       suggested_decision: shadowSuggestedLabel as 'approve' | 'review' | 'block',
       live_decision:      'approve',
       message:            suggestedDecision === 'block'

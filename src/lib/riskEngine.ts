@@ -503,7 +503,7 @@ function getDecision(riskLevel: RiskLevel, fraudScore: number): Decision {
 // Explainability — mapeamentos de signal → razão legível
 // ─────────────────────────────────────────────────────────────────────────────
 
-const SIGNAL_CATEGORY: Record<string, RiskCategory> = {
+export const SIGNAL_CATEGORY: Record<string, RiskCategory> = {
   EMAIL_ABSENT:         'email',
   EMAIL_DISPOSABLE:     'email',
   EMAIL_DUPLICATE:      'email',

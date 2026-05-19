@@ -130,20 +130,29 @@ const CURL_FULL = `curl -X POST https://genuinux.vercel.app/api/risk/check \\
 const RESPONSE_EXAMPLE = `{
   "event_id": "9f4e2a1b-c3d7-4e8f-a2b1-3c4d5e6f7a8b",
   "external_user_id": "user_123",
+  "decision": "approve",
+  "risk_level": "low",
   "trust_score": 78,
   "fraud_score": 22,
-  "risk_level": "low",
-  "decision": "approve",
+  "confidence_level": "high",
+  "shadow_mode": false,
   "signals": [
     {
-      "code": "IP_NEW_USER",
-      "label": "First event from this IP",
-      "severity": "info",
-      "fraud_impact": 5
+      "key": "DEVICE_ABSENT",
+      "category": "device",
+      "severity": "low",
+      "label": "No device fingerprint provided"
     }
   ],
+  "risk_reasons": [],
+  "recommended_action": "Allow this user to continue. No significant risk signals detected.",
+  "applied_rules": [],
   "summary": "This signup appears legitimate. The user's trust score is strong at 78/100. No action required.",
-  "created_at": "2026-05-19T14:22:03.000Z"
+  "metadata": {
+    "engine_version": "risk-engine-v1",
+    "processed_at": "2026-05-19T14:22:03.412Z",
+    "processing_time_ms": 142
+  }
 }`
 
 const JS_EXAMPLE = `async function checkRisk(userId, eventType, userData) {
@@ -227,13 +236,21 @@ const WEBHOOK_PAYLOAD = `{
   "event": "risk.check.completed",
   "event_id": "9f4e2a1b-c3d7-4e8f-a2b1-3c4d5e6f7a8b",
   "external_user_id": "user_123",
+  "event_type": "signup",
+  "decision": "approve",
+  "risk_level": "low",
   "trust_score": 78,
   "fraud_score": 22,
-  "risk_level": "low",
-  "decision": "approve",
-  "signals": [...],
+  "confidence_level": "high",
+  "signals": [
+    { "key": "EMAIL_DISPOSABLE", "category": "email", "severity": "medium", "label": "Disposable email domain" }
+  ],
+  "risk_reasons": [],
+  "recommended_action": "Allow this user to continue.",
+  "applied_rules": [],
   "summary": "This signup appears legitimate...",
-  "created_at": "2026-05-19T14:22:03.000Z"
+  "shadow_mode": false,
+  "created_at": "2026-05-19T14:22:03.412Z"
 }`
 
 export default function Docs() {
@@ -427,14 +444,21 @@ export default function Docs() {
             <CodeBlock lang="json" code={RESPONSE_EXAMPLE} />
             <Table>
               <ParamRow name="event_id" type="string" desc="UUID of the stored risk event. Use this to reference the event in your dashboard." />
-              <ParamRow name="external_user_id" type="string" desc="The user ID you provided." />
+              <ParamRow name="external_user_id" type="string" desc="The user ID you provided in the request." />
+              <ParamRow name="decision" type="string" desc="approve, review, or block. This is the primary action signal for your system." />
+              <ParamRow name="risk_level" type="string" desc="low, medium, high, or critical — derived from fraud_score." />
               <ParamRow name="trust_score" type="number" desc="0–100. Higher means more trustworthy." />
               <ParamRow name="fraud_score" type="number" desc="0–100. Higher means more suspicious." />
-              <ParamRow name="risk_level" type="string" desc="low, medium, high, or critical." />
-              <ParamRow name="decision" type="string" desc="approve, review, or block. This is the main action signal for your system." />
-              <ParamRow name="signals" type="array" desc="List of detected signals. Each has code, label, severity, and fraud_impact." />
-              <ParamRow name="summary" type="string" desc="Human-readable explanation of the risk assessment. Safe to display to internal teams." />
-              <ParamRow name="created_at" type="string" desc="ISO 8601 timestamp of when the event was processed." />
+              <ParamRow name="confidence_level" type="string" desc="low, medium, or high. How certain the engine is about the decision." />
+              <ParamRow name="shadow_mode" type="boolean" desc="Always present. true when your org is in Shadow Mode — the live decision is always approve regardless of engine output." />
+              <ParamRow name="signals" type="array" desc="Detected risk signals. Each has key (machine-readable), category (email, ip, device, velocity, behavioral), severity, and label." />
+              <ParamRow name="risk_reasons" type="array" desc="Human-readable explanations for each detected signal. Empty for clean events. Always populated on review or block." />
+              <ParamRow name="recommended_action" type="string" desc="A plain-English recommendation for your team based on the decision." />
+              <ParamRow name="applied_rules" type="array" desc="Custom rules that overrode the engine decision. Empty if no rule matched. Contains id and name." />
+              <ParamRow name="summary" type="string" desc="AI-generated narrative summary of the risk assessment. Safe to display to internal teams." />
+              <ParamRow name="metadata.engine_version" type="string" desc="Risk engine version that processed this event." />
+              <ParamRow name="metadata.processed_at" type="string" desc="ISO 8601 timestamp of when the event was processed." />
+              <ParamRow name="metadata.processing_time_ms" type="number" desc="End-to-end engine processing time in milliseconds." />
             </Table>
           </Section>
 
