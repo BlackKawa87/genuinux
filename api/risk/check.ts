@@ -20,6 +20,7 @@ import crypto from 'crypto'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { analyze } from '../../src/lib/riskEngine'
 import type { RiskEngineContext, RiskEngineInput } from '../../src/lib/riskEngine'
+import { generateSummary } from '../../src/lib/aiSummary'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -627,7 +628,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     device_user_count:  context.device_distinct_users       ?? 0,
   }, result.decision)
 
-  const effectiveResult = { ...result, decision: finalDecision }
+  // ── 4.6. AI Summary ────────────────────────────────────────
+  // Generates a human-readable summary using the template engine (default)
+  // or OpenAI GPT-4o-mini when OPENAI_API_KEY is set.
+  const ai_summary = await generateSummary({
+    event_type:  payload.event_type,
+    trust_score: result.trust_score,
+    fraud_score: result.fraud_score,
+    risk_level:  result.risk_level,
+    decision:    finalDecision,
+    signals:     result.signals,
+    metadata:    payload.metadata,
+  })
+
+  const effectiveResult = { ...result, decision: finalDecision, ai_summary }
 
   // ── 5 & 6. Persistência (paralela onde possível) ────────────
   await upsertUserChecked(supabase, orgId, payload)

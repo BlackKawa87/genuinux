@@ -13,6 +13,7 @@
  */
 
 import type { RiskLevel, Decision, EventType } from '../types'
+import { templateSummary } from './aiSummary'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Tipos públicos
@@ -483,47 +484,6 @@ function getDecision(riskLevel: RiskLevel, fraudScore: number): Decision {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Resumo em linguagem natural
-// ─────────────────────────────────────────────────────────────────────────────
-
-function buildSummary(
-  input: RiskEngineInput,
-  scores: { trust_score: number; fraud_score: number },
-  riskLevel: RiskLevel,
-  decision: Decision,
-  signals: DetectedSignal[],
-): string {
-  const { external_user_id, event_type, country } = input
-  const { trust_score, fraud_score } = scores
-
-  const origin     = country ? ` from ${country.toUpperCase()}` : ''
-  const decisionTx = { allow: 'ALLOWED', review: 'FLAGGED FOR REVIEW', block: 'BLOCKED' }[decision]
-
-  const intro = [
-    `User ${external_user_id} attempted a ${event_type}${origin}.`,
-    `Trust score: ${trust_score}/100 — fraud score: ${fraud_score}/100 (${riskLevel} risk).`,
-    `Decision: ${decisionTx}.`,
-  ].join(' ')
-
-  if (signals.length === 0) {
-    return `${intro} No suspicious signals detected.`
-  }
-
-  const high     = signals.filter(s => s.severity === 'critical' || s.severity === 'high')
-  const moderate = signals.filter(s => s.severity === 'low' || s.severity === 'medium')
-  const parts: string[] = []
-
-  if (high.length > 0) {
-    parts.push(`High-severity signals: ${high.map(s => s.label).join('; ')}.`)
-  }
-  if (moderate.length > 0) {
-    parts.push(`Additional signals: ${moderate.map(s => s.label).join('; ')}.`)
-  }
-
-  return `${intro} ${parts.join(' ')}`.trim()
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Ponto de entrada público
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -572,7 +532,7 @@ export function analyze(input: RiskEngineInput): RiskEngineOutput {
   const { trust_score, fraud_score } = calculateScores(signals)
   const risk_level = getRiskLevel(fraud_score)
   const decision   = getDecision(risk_level, fraud_score)
-  const ai_summary = buildSummary(input, { trust_score, fraud_score }, risk_level, decision, signals)
+  const ai_summary = templateSummary({ event_type: input.event_type, trust_score, fraud_score, risk_level, decision, signals, metadata: input.metadata })
 
   return {
     trust_score,
