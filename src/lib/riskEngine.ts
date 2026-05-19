@@ -117,6 +117,7 @@ const DISPOSABLE_DOMAINS: ReadonlySet<string> = new Set([
   'discard.email', 'mailnull.com', '10minutemail.com', 'tempinbox.com',
   'fakemail.net', 'mailnesia.com', 'trashmail.me', 'throwam.com',
   'burnermail.io', 'inboxbear.com', 'mailnull.com', 'spamcannon.com',
+  'mailtemp.org', 'mailtemp.net',
 ])
 
 /**
