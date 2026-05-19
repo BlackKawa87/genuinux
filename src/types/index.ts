@@ -128,6 +128,10 @@ export interface AuditLog {
   organization_id: string
   user_id: string | null
   action: string
+  target_type: string | null
+  target_id: string | null
+  ip_address: string | null
+  user_agent: string | null
   metadata_json: Record<string, unknown> | null
   created_at: string
 }

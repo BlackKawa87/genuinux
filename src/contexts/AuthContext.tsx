@@ -35,7 +35,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+    if (!error && data.user) {
+      void (async () => {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('organization_id')
+          .eq('user_id', data.user.id)
+          .single()
+        if (profile?.organization_id) {
+          await supabase.from('audit_logs').insert({
+            organization_id: profile.organization_id as string,
+            user_id: data.user.id,
+            action: 'auth.login',
+            user_agent: navigator.userAgent,
+            metadata_json: { email },
+          })
+        }
+      })()
+    }
     return { error }
   }
 
@@ -45,6 +63,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signOut = async () => {
+    if (user) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('organization_id')
+        .eq('user_id', user.id)
+        .single()
+      if (profile?.organization_id) {
+        await supabase.from('audit_logs').insert({
+          organization_id: profile.organization_id as string,
+          user_id: user.id,
+          action: 'auth.logout',
+          user_agent: navigator.userAgent,
+          metadata_json: null,
+        })
+      }
+    }
     await supabase.auth.signOut()
   }
 

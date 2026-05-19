@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo, Fragment } from 'react'
 import type { ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
@@ -6,6 +6,7 @@ import {
   RefreshCw, Save, CheckCircle2, AlertTriangle, Info,
   Copy, Check, Cpu, Mail, Send, X,
   Clock, KeyRound, Webhook, ExternalLink, ChevronDown, ChevronUp,
+  ClipboardList,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
@@ -13,7 +14,9 @@ import type { Organization, Profile, AuditLog } from '../../types'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type TabId = 'org' | 'team' | 'risk' | 'billing' | 'security'
+type TabId = 'org' | 'team' | 'risk' | 'billing' | 'security' | 'audit'
+type AuditCategory = 'all' | 'auth' | 'api_key' | 'rule' | 'webhook' | 'review' | 'org'
+type AuditDateRange = 'today' | '7d' | '30d' | 'all'
 
 interface RiskPrefs {
   medium_action:    'allow' | 'review' | 'block'
@@ -34,11 +37,29 @@ const DEFAULT_PREFS: RiskPrefs = {
 }
 
 const TABS: { id: TabId; label: string; icon: ReactNode }[] = [
-  { id: 'org',      label: 'Organization',     icon: <Building2   size={13} /> },
-  { id: 'team',     label: 'Team',             icon: <Users       size={13} /> },
-  { id: 'risk',     label: 'Risk Preferences', icon: <ShieldCheck size={13} /> },
-  { id: 'billing',  label: 'Billing',          icon: <CreditCard  size={13} /> },
-  { id: 'security', label: 'Security',         icon: <Lock        size={13} /> },
+  { id: 'org',      label: 'Organization',     icon: <Building2    size={13} /> },
+  { id: 'team',     label: 'Team',             icon: <Users        size={13} /> },
+  { id: 'risk',     label: 'Risk Preferences', icon: <ShieldCheck  size={13} /> },
+  { id: 'billing',  label: 'Billing',          icon: <CreditCard   size={13} /> },
+  { id: 'security', label: 'Security',         icon: <Lock         size={13} /> },
+  { id: 'audit',    label: 'Audit Logs',       icon: <ClipboardList size={13} /> },
+]
+
+const AUDIT_CATEGORIES: { id: AuditCategory; label: string }[] = [
+  { id: 'all',      label: 'All' },
+  { id: 'auth',     label: 'Auth' },
+  { id: 'api_key',  label: 'API Keys' },
+  { id: 'rule',     label: 'Rules' },
+  { id: 'webhook',  label: 'Webhooks' },
+  { id: 'review',   label: 'Review Queue' },
+  { id: 'org',      label: 'Organization' },
+]
+
+const DATE_RANGES: { id: AuditDateRange; label: string }[] = [
+  { id: 'today', label: 'Today' },
+  { id: '7d',    label: 'Last 7 days' },
+  { id: '30d',   label: 'Last 30 days' },
+  { id: 'all',   label: 'All time' },
 ]
 
 const PLANS = [
@@ -83,6 +104,8 @@ function relativeTime(iso: string): string {
 
 function formatAction(action: string): string {
   const map: Record<string, string> = {
+    'auth.login':           'Signed in',
+    'auth.logout':          'Signed out',
     'api_key.created':      'API key created',
     'api_key.revoked':      'API key revoked',
     'rule.created':         'Rule created',
@@ -99,6 +122,38 @@ function formatAction(action: string): string {
     'org.updated':          'Organization updated',
   }
   return map[action] ?? action.split('.').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' › ')
+}
+
+function getActionIcon(action: string): ReactNode {
+  if (action.startsWith('auth.'))    return <Lock size={11} />
+  if (action.startsWith('api_key.')) return <KeyRound size={11} />
+  if (action.startsWith('rule.'))    return <ShieldCheck size={11} />
+  if (action.startsWith('webhook.')) return <Webhook size={11} />
+  if (action.startsWith('review.'))  return <CheckCircle2 size={11} />
+  if (action.startsWith('org.'))     return <Building2 size={11} />
+  return <Clock size={11} />
+}
+
+function getActionColor(action: string): string {
+  if (action.startsWith('auth.'))    return '#818CF8'
+  if (action.startsWith('api_key.')) return '#16C784'
+  if (action.startsWith('rule.'))    return '#F59E0B'
+  if (action.startsWith('webhook.')) return '#38BDF8'
+  if (action.startsWith('review.'))  return '#A78BFA'
+  if (action.startsWith('org.'))     return '#94A3B8'
+  return '#475569'
+}
+
+function getTargetFromMetadata(log: AuditLog): string {
+  const m = log.metadata_json
+  if (!m) return ''
+  if (m.key_name)        return `key · ${String(m.key_name)}`
+  if (m.name && m.rule_id) return `rule · ${String(m.name)}`
+  if (m.endpoint_url)    return `${String(m.endpoint_url).replace(/^https?:\/\//, '').slice(0, 40)}`
+  if (m.risk_event_id)   return `event · ${String(m.risk_event_id).slice(0, 8)}…`
+  if (m.queue_item_id)   return `queue · ${String(m.queue_item_id).slice(0, 8)}…`
+  if (m.external_user_id) return `user · ${String(m.external_user_id)}`
+  return ''
 }
 
 // ─── Primitive components ─────────────────────────────────────────────────────
@@ -1026,9 +1081,236 @@ function BillingTab({ plan, billingSuccess }: { plan: string; orgId: string; bil
   )
 }
 
+// ─── Tab: Audit Logs ─────────────────────────────────────────────────────────
+
+function AuditTab({ orgId, members }: { orgId: string; members: Profile[] }) {
+  const [logs,      setLogs]      = useState<AuditLog[]>([])
+  const [loading,   setLoading]   = useState(true)
+  const [category,  setCategory]  = useState<AuditCategory>('all')
+  const [userId,    setUserId]    = useState<string>('all')
+  const [dateRange, setDateRange] = useState<AuditDateRange>('30d')
+  const [expanded,  setExpanded]  = useState<string | null>(null)
+
+  const memberMap = useMemo<Record<string, string>>(() => {
+    const m: Record<string, string> = {}
+    members.forEach(p => { m[p.user_id] = p.email })
+    return m
+  }, [members])
+
+  const fetchLogs = useCallback(async () => {
+    setLoading(true)
+    let since: string | null = null
+    if (dateRange !== 'all') {
+      const d = new Date()
+      if (dateRange === 'today') d.setHours(0, 0, 0, 0)
+      else if (dateRange === '7d') d.setDate(d.getDate() - 7)
+      else d.setDate(d.getDate() - 30)
+      since = d.toISOString()
+    }
+
+    const base = supabase
+      .from('audit_logs')
+      .select('*')
+      .eq('organization_id', orgId)
+      .order('created_at', { ascending: false })
+      .limit(500)
+
+    const { data } = since ? await base.gte('created_at', since) : await base
+    setLogs((data ?? []) as AuditLog[])
+    setLoading(false)
+  }, [orgId, dateRange])
+
+  useEffect(() => { void fetchLogs() }, [fetchLogs])
+
+  const filtered = useMemo(() => logs.filter(log => {
+    if (category !== 'all' && !log.action.startsWith(category === 'api_key' ? 'api_key' : category)) return false
+    if (userId !== 'all' && log.user_id !== userId) return false
+    return true
+  }), [logs, category, userId])
+
+  return (
+    <div className="space-y-5">
+      {/* Filters */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-1 flex-wrap">
+          {AUDIT_CATEGORIES.map(c => (
+            <button
+              key={c.id}
+              onClick={() => setCategory(c.id)}
+              className="px-3 py-1 rounded-full text-[11px] font-semibold transition-colors"
+              style={{
+                background: category === c.id ? 'rgba(22,199,132,0.15)' : 'transparent',
+                color: category === c.id ? '#16C784' : '#475569',
+                border: `1px solid ${category === c.id ? 'rgba(22,199,132,0.3)' : '#1E2D3D'}`,
+              }}
+            >
+              {c.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex-1" />
+
+        <select
+          value={userId}
+          onChange={e => setUserId(e.target.value)}
+          className="g-input text-xs"
+          style={{ width: 180 }}
+        >
+          <option value="all">All users</option>
+          {members.map(m => (
+            <option key={m.user_id} value={m.user_id}>{m.email}</option>
+          ))}
+        </select>
+
+        <select
+          value={dateRange}
+          onChange={e => setDateRange(e.target.value as AuditDateRange)}
+          className="g-input text-xs"
+          style={{ width: 140 }}
+        >
+          {DATE_RANGES.map(d => (
+            <option key={d.id} value={d.id}>{d.label}</option>
+          ))}
+        </select>
+      </div>
+
+      <SectionCard
+        title="Audit Log"
+        subtitle={loading ? 'Loading…' : `${filtered.length} event${filtered.length !== 1 ? 's' : ''}`}
+      >
+        {loading ? (
+          <div className="py-10 flex items-center justify-center gap-2" style={{ color: '#475569' }}>
+            <RefreshCw size={14} className="animate-spin" />
+            <span className="text-sm">Loading logs…</span>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="py-8 text-center">
+            <Clock size={20} className="mx-auto mb-2" style={{ color: '#1E2D3D' }} />
+            <p className="text-sm" style={{ color: '#475569' }}>No audit events found.</p>
+            <p className="text-xs mt-1" style={{ color: '#2D4057' }}>
+              Try changing the date range or category filter.
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto -mx-6">
+            <table className="w-full">
+              <thead>
+                <tr style={{ borderBottom: '1px solid #1E2D3D' }}>
+                  {['Action', 'Actor', 'Target', 'When'].map(h => (
+                    <th key={h} className="px-6 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider"
+                      style={{ color: '#2D4057' }}>
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              {filtered.map((log, i) => {
+                const isLast    = i === filtered.length - 1
+                const isOpen    = expanded === log.id
+                const color     = getActionColor(log.action)
+                const actorEmail = log.user_id
+                  ? (memberMap[log.user_id] ?? log.user_id.slice(0, 8) + '…')
+                  : '—'
+                const target = log.target_type
+                  ? `${log.target_type}${log.target_id ? ` · ${log.target_id.slice(0, 8)}…` : ''}`
+                  : getTargetFromMetadata(log)
+
+                return (
+                  <Fragment key={log.id}>
+                    <tbody>
+                      <tr
+                        onClick={() => setExpanded(isOpen ? null : log.id)}
+                        className="cursor-pointer transition-colors"
+                        style={{
+                          borderBottom: isLast && !isOpen ? 'none' : '1px solid #0D1B2A',
+                          background: isOpen ? 'rgba(22,199,132,0.025)' : undefined,
+                        }}
+                        onMouseEnter={e => { if (!isOpen) (e.currentTarget as HTMLElement).style.background = '#050B14' }}
+                        onMouseLeave={e => { if (!isOpen) (e.currentTarget as HTMLElement).style.background = '' }}
+                      >
+                        <td className="px-6 py-3">
+                          <div className="flex items-center gap-2">
+                            <span style={{ color, flexShrink: 0 }}>{getActionIcon(log.action)}</span>
+                            <span className="text-xs font-medium" style={{ color: '#94A3B8' }}>
+                              {formatAction(log.action)}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-3">
+                          <p className="text-xs mono" style={{ color: '#475569' }}>{actorEmail}</p>
+                        </td>
+                        <td className="px-6 py-3">
+                          {target && (
+                            <p className="text-[10px] mono" style={{ color: '#2D4057' }}>{target}</p>
+                          )}
+                        </td>
+                        <td className="px-6 py-3 whitespace-nowrap">
+                          <p className="text-[10px] mono" style={{ color: '#94A3B8' }}>{formatTs(log.created_at)}</p>
+                          <p className="text-[10px] mono mt-0.5" style={{ color: '#2D4057' }}>{relativeTime(log.created_at)}</p>
+                        </td>
+                      </tr>
+                    </tbody>
+                    {isOpen && (
+                      <tbody>
+                        <tr style={{ borderBottom: isLast ? 'none' : '1px solid #0D1B2A', background: 'rgba(22,199,132,0.02)' }}>
+                          <td colSpan={4} className="px-6 pb-4 pt-1">
+                            <div className="rounded-lg p-3 space-y-2.5"
+                              style={{ background: '#050B14', border: '1px solid #1E2D3D' }}>
+                              <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+                                <div>
+                                  <p className="text-[10px] mb-0.5" style={{ color: '#2D4057' }}>Log ID</p>
+                                  <p className="text-[11px] mono" style={{ color: '#475569' }}>{log.id}</p>
+                                </div>
+                                {log.user_id && (
+                                  <div>
+                                    <p className="text-[10px] mb-0.5" style={{ color: '#2D4057' }}>User ID</p>
+                                    <p className="text-[11px] mono" style={{ color: '#475569' }}>{log.user_id}</p>
+                                  </div>
+                                )}
+                              </div>
+                              {log.user_agent && (
+                                <div>
+                                  <p className="text-[10px] mb-0.5" style={{ color: '#2D4057' }}>User Agent</p>
+                                  <p className="text-[11px] mono break-all leading-relaxed" style={{ color: '#475569' }}>
+                                    {log.user_agent}
+                                  </p>
+                                </div>
+                              )}
+                              {log.metadata_json && Object.keys(log.metadata_json).length > 0 && (
+                                <div>
+                                  <p className="text-[10px] mb-1" style={{ color: '#2D4057' }}>Details</p>
+                                  <pre className="text-[10px] mono leading-relaxed overflow-x-auto"
+                                    style={{ color: '#94A3B8' }}>
+                                    {JSON.stringify(log.metadata_json, null, 2)}
+                                  </pre>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      </tbody>
+                    )}
+                  </Fragment>
+                )
+              })}
+            </table>
+          </div>
+        )}
+      </SectionCard>
+
+      {!loading && filtered.length >= 500 && (
+        <p className="text-[11px] text-center" style={{ color: '#2D4057' }}>
+          Showing up to 500 most recent events. Narrow the date range to see older logs.
+        </p>
+      )}
+    </div>
+  )
+}
+
 // ─── Tab: Security ────────────────────────────────────────────────────────────
 
-function SecurityTab({ auditLogs }: { auditLogs: AuditLog[] }) {
+function SecurityTab() {
   const verifySnippet = `const crypto = require('crypto')
 
 function verifyWebhook(payload, signature, secret) {
@@ -1054,66 +1336,6 @@ app.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
 
   return (
     <div className="space-y-5">
-      {/* Audit log */}
-      <SectionCard
-        title="Audit Log"
-        subtitle="Recent actions performed by team members in this organization."
-      >
-        {auditLogs.length === 0 ? (
-          <div className="py-8 text-center">
-            <Clock size={20} className="mx-auto mb-2" style={{ color: '#1E2D3D' }} />
-            <p className="text-sm" style={{ color: '#475569' }}>No audit events recorded yet.</p>
-            <p className="text-xs mt-1" style={{ color: '#2D4057' }}>
-              Actions like creating API keys, managing rules, and reviewing events will appear here.
-            </p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto -mx-6">
-            <table className="w-full">
-              <thead>
-                <tr style={{ borderBottom: '1px solid #1E2D3D' }}>
-                  {['Action', 'User', 'When'].map(h => (
-                    <th key={h} className="px-6 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider"
-                      style={{ color: '#2D4057' }}>
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {auditLogs.map((log, i) => (
-                  <tr
-                    key={log.id}
-                    style={{ borderBottom: i < auditLogs.length - 1 ? '1px solid #0D1B2A' : 'none' }}
-                  >
-                    <td className="px-6 py-3">
-                      <p className="text-xs font-medium" style={{ color: '#94A3B8' }}>
-                        {formatAction(log.action)}
-                      </p>
-                      {log.metadata_json && Object.keys(log.metadata_json).length > 0 && (
-                        <p className="text-[10px] mono mt-0.5" style={{ color: '#2D4057' }}>
-                          {JSON.stringify(log.metadata_json).slice(0, 60)}
-                          {JSON.stringify(log.metadata_json).length > 60 ? '…' : ''}
-                        </p>
-                      )}
-                    </td>
-                    <td className="px-6 py-3">
-                      <p className="text-[10px] mono" style={{ color: '#475569' }}>
-                        {log.user_id ? log.user_id.slice(0, 8) + '…' : '—'}
-                      </p>
-                    </td>
-                    <td className="px-6 py-3 whitespace-nowrap">
-                      <p className="text-[10px] mono" style={{ color: '#94A3B8' }}>{formatTs(log.created_at)}</p>
-                      <p className="text-[10px] mono mt-0.5" style={{ color: '#2D4057' }}>{relativeTime(log.created_at)}</p>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </SectionCard>
-
       {/* API key security */}
       <SectionCard title="API Key Security" subtitle="How Genuinux protects your API keys.">
         <div className="space-y-3">
@@ -1182,7 +1404,6 @@ export default function SettingsPage() {
   const [org,       setOrg]       = useState<Organization | null>(null)
   const [profile,   setProfile]   = useState<Profile | null>(null)
   const [members,   setMembers]   = useState<Profile[]>([])
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([])
   const [riskPrefs, setRiskPrefs] = useState<RiskPrefs>(DEFAULT_PREFS)
   const [loading,   setLoading]   = useState(true)
   const [error,     setError]     = useState<string | null>(null)
@@ -1206,15 +1427,9 @@ export default function SettingsPage() {
     setProfile(profileData as Profile)
     const orgId = profileData.organization_id as string
 
-    const [orgRes, membersRes, logsRes] = await Promise.all([
+    const [orgRes, membersRes] = await Promise.all([
       supabase.from('organizations').select('*').eq('id', orgId).single(),
       supabase.from('profiles').select('*').eq('organization_id', orgId),
-      supabase
-        .from('audit_logs')
-        .select('*')
-        .eq('organization_id', orgId)
-        .order('created_at', { ascending: false })
-        .limit(20),
     ])
 
     if (orgRes.data) {
@@ -1226,7 +1441,6 @@ export default function SettingsPage() {
     }
 
     if (membersRes.data) setMembers(membersRes.data as Profile[])
-    if (logsRes.data)    setAuditLogs(logsRes.data as AuditLog[])
 
     setLoading(false)
   }, [user])
@@ -1299,7 +1513,10 @@ export default function SettingsPage() {
         <BillingTab plan={org.plan} orgId={org.id} billingSuccess={billingSuccess} />
       )}
       {tab === 'security' && (
-        <SecurityTab auditLogs={auditLogs} />
+        <SecurityTab />
+      )}
+      {tab === 'audit' && (
+        <AuditTab orgId={org.id} members={members} />
       )}
     </div>
   )
