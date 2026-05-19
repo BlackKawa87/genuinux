@@ -124,10 +124,11 @@ type Tab = 'curl' | 'node' | 'python'
 export default function ApiKeys() {
   const { user } = useAuth()
 
-  const [keys, setKeys]     = useState<ApiKey[]>([])
-  const [loading, setLoading] = useState(true)
-  const [orgId, setOrgId]   = useState<string | null>(null)
-  const [error, setError]   = useState<string | null>(null)
+  const [keys,     setKeys]     = useState<ApiKey[]>([])
+  const [loading,  setLoading]  = useState(true)
+  const [orgId,    setOrgId]    = useState<string | null>(null)
+  const [freePlan, setFreePlan] = useState(false)
+  const [error,    setError]    = useState<string | null>(null)
 
   // Create flow
   const [showCreate, setShowCreate]     = useState(false)
@@ -157,12 +158,15 @@ export default function ApiKeys() {
     void (async () => {
       const { data: profile } = await supabase
         .from('profiles')
-        .select('organization_id')
+        .select('organization_id, organizations(plan)')
         .eq('user_id', user.id)
         .single()
 
-      const oid = profile?.organization_id ?? null
+      const oid  = profile?.organization_id ?? null
+      const orgs = profile?.organizations as unknown as { plan: string }[] | { plan: string } | null
+      const plan = Array.isArray(orgs) ? orgs[0]?.plan : orgs?.plan
       setOrgId(oid)
+      setFreePlan(plan === 'free')
 
       if (oid) {
         const { data, error: err } = await supabase
@@ -300,15 +304,28 @@ export default function ApiKeys() {
             Authenticate your server-side integration with Genuinux
           </p>
         </div>
-        {orgId && !showCreate && (
-          <button
-            onClick={() => { setShowCreate(true); setCreateError(null) }}
-            className="btn-trust flex items-center gap-2 px-4 py-2 text-sm rounded-lg"
-          >
-            <Plus size={14} />
-            New API key
-          </button>
-        )}
+        {orgId && !showCreate && (() => {
+          const activeKeys = keys.filter(k => k.status === 'active').length
+          const atLimit    = freePlan && activeKeys >= 1
+          return (
+            <div className="flex items-center gap-3">
+              {atLimit && (
+                <p className="text-xs" style={{ color: '#475569' }}>
+                  Free plan: 1 API key limit.{' '}
+                  <a href="mailto:sales@genuinux.io" style={{ color: '#16C784' }}>Upgrade</a>
+                </p>
+              )}
+              <button
+                onClick={() => { if (!atLimit) { setShowCreate(true); setCreateError(null) } }}
+                disabled={atLimit}
+                className="btn-trust flex items-center gap-2 px-4 py-2 text-sm rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Plus size={14} />
+                New API key
+              </button>
+            </div>
+          )
+        })()}
       </div>
 
       {/* ── Revealed key banner ─────────────────────────────────────────────── */}

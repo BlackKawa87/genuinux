@@ -530,12 +530,15 @@ function Empty({ msg }: { msg: string }) {
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
+const FREE_HISTORY_HOURS = 48 // 2-day history for free plan
+
 export default function Events() {
   const { user } = useAuth()
-  const [orgId,   setOrgId]   = useState<string | null>(null)
-  const [events,  setEvents]  = useState<RiskEvent[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error,   setError]   = useState<string | null>(null)
+  const [orgId,    setOrgId]    = useState<string | null>(null)
+  const [freePlan, setFreePlan] = useState(false)
+  const [events,   setEvents]   = useState<RiskEvent[]>([])
+  const [loading,  setLoading]  = useState(true)
+  const [error,    setError]    = useState<string | null>(null)
 
   // Filters
   const [search,   setSearch]   = useState('')
@@ -552,11 +555,14 @@ export default function Events() {
     void (async () => {
       const { data: profile } = await supabase
         .from('profiles')
-        .select('organization_id')
+        .select('organization_id, organizations(plan)')
         .eq('user_id', user.id)
         .single()
       if (profile?.organization_id) {
         setOrgId(profile.organization_id as string)
+        const orgs = profile.organizations as unknown as { plan: string }[] | { plan: string } | null
+        const plan = Array.isArray(orgs) ? orgs[0]?.plan : orgs?.plan
+        setFreePlan(plan === 'free')
       } else {
         setError('No organization linked to this account.')
         setLoading(false)
@@ -566,7 +572,11 @@ export default function Events() {
 
   const fetchEvents = useCallback(async () => {
     if (!orgId) return
-    const since = new Date(Date.now() - DATE_RANGES[rangeIdx].hours * 3_600_000).toISOString()
+    // Free plan: cap to 2-day history regardless of selected range
+    const hours = freePlan
+      ? Math.min(DATE_RANGES[rangeIdx].hours, FREE_HISTORY_HOURS)
+      : DATE_RANGES[rangeIdx].hours
+    const since = new Date(Date.now() - hours * 3_600_000).toISOString()
     const { data, error: err } = await supabase
       .from('risk_events')
       .select('*')
@@ -577,7 +587,7 @@ export default function Events() {
     if (err) setError(err.message)
     else setEvents((data ?? []) as RiskEvent[])
     setLoading(false)
-  }, [orgId, rangeIdx])
+  }, [orgId, rangeIdx, freePlan])
 
   useEffect(() => { void fetchEvents() }, [fetchEvents])
 
@@ -623,6 +633,25 @@ export default function Events() {
 
   return (
     <div className="p-7">
+
+      {/* Free plan history cap banner */}
+      {freePlan && (
+        <div className="flex items-center justify-between gap-4 px-4 py-3 rounded-xl mb-5"
+          style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)' }}>
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle size={13} style={{ color: '#F59E0B', flexShrink: 0 }} />
+            <p className="text-xs" style={{ color: '#94A3B8' }}>
+              <strong style={{ color: '#F59E0B' }}>Free plan:</strong> event history limited to the last 2 days.
+              Upgrade to Growth for 90-day history.
+            </p>
+          </div>
+          <a href="mailto:sales@genuinux.io"
+            className="text-xs font-semibold whitespace-nowrap"
+            style={{ color: '#F59E0B' }}>
+            Upgrade →
+          </a>
+        </div>
+      )}
 
       {/* Sub-header */}
       <div className="flex items-center justify-between mb-5">

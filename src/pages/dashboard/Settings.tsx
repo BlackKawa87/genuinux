@@ -41,14 +41,12 @@ const TABS: { id: TabId; label: string; icon: ReactNode }[] = [
 ]
 
 const PLANS = [
-  { id: 'free',       name: 'Free',       price: '$0 / mo',   highlight: false,
-    features: ['1,000 events / month',    '1 API key',         '1 webhook',          'Basic signals'] },
-  { id: 'starter',    name: 'Starter',    price: '$49 / mo',  highlight: false,
-    features: ['25,000 events / month',   '5 API keys',        '5 webhooks',         'Custom rules'] },
-  { id: 'pro',        name: 'Pro',        price: '$149 / mo', highlight: true,
-    features: ['250,000 events / month',  'Unlimited API keys','Unlimited webhooks',  'AI summaries', 'Team members'] },
-  { id: 'enterprise', name: 'Enterprise', price: 'Custom',    highlight: false,
-    features: ['Unlimited events',        'Dedicated support', 'SLA guarantee',       'Custom integrations'] },
+  { id: 'free',       name: 'Free',       price: '$0 / mo',    highlight: false,
+    features: ['10,000 events / month', '2-day event history', '1 API key', 'Core RiskScore API', 'Community support'] },
+  { id: 'growth',     name: 'Growth',     price: 'Contact us', highlight: true,
+    features: ['500,000 events / month', '90-day history', 'All modules', 'Webhook delivery', 'Custom rules', 'Team members (up to 25)', 'Email support'] },
+  { id: 'enterprise', name: 'Enterprise', price: 'Contact sales', highlight: false,
+    features: ['Unlimited events', 'Full data retention', 'Dedicated SLA & support', 'SSO & advanced audit logs', 'Custom integrations'] },
 ]
 
 const ROLE_META: Record<string, { color: string; bg: string }> = {
@@ -853,11 +851,11 @@ function BillingTab({ plan }: { plan: string; orgId: string }) {
         </div>
       </SectionCard>
 
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         {PLANS.map(p => {
-          const isCurrent  = p.id === plan
+          const isCurrent   = p.id === plan
           const isUpgrading = upgrading === p.id
-          const isPayable  = p.id === 'starter' || p.id === 'pro'
+          const isContact   = p.id === 'growth' || p.id === 'enterprise'
 
           return (
             <div
@@ -900,21 +898,29 @@ function BillingTab({ plan }: { plan: string; orgId: string }) {
                   </li>
                 ))}
               </ul>
-              <button
-                disabled={isCurrent || isUpgrading || (!isPayable && !isCurrent)}
-                onClick={() => isPayable && !isCurrent ? handleUpgrade(p.id) : undefined}
-                className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-opacity"
-                style={{
-                  background: isCurrent ? '#0F1929' : p.id === 'enterprise' ? '#0F1929' : '#16C784',
-                  color: isCurrent ? '#475569' : p.id === 'enterprise' ? '#94A3B8' : '#050B14',
-                  opacity: isCurrent ? 0.7 : 1,
-                  cursor: isCurrent || p.id === 'enterprise' ? 'not-allowed' : 'pointer',
-                  border: (isCurrent || p.id === 'enterprise') ? '1px solid #1E2D3D' : 'none',
-                }}
-              >
-                {isUpgrading && <RefreshCw size={11} className="animate-spin" />}
-                {isCurrent ? 'Current plan' : p.id === 'enterprise' ? 'Contact us' : 'Upgrade'}
-              </button>
+              {isCurrent ? (
+                <button disabled
+                  className="w-full py-2 rounded-lg text-xs font-semibold"
+                  style={{ background: '#0F1929', color: '#475569', border: '1px solid #1E2D3D', opacity: 0.7 }}>
+                  Current plan
+                </button>
+              ) : isContact ? (
+                <a href="mailto:sales@genuinux.io"
+                  className="w-full flex items-center justify-center py-2 rounded-lg text-xs font-semibold"
+                  style={{ background: '#0F1929', color: '#94A3B8', border: '1px solid #1E2D3D' }}>
+                  Contact us
+                </a>
+              ) : (
+                <button
+                  disabled={isUpgrading}
+                  onClick={() => handleUpgrade(p.id)}
+                  className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold"
+                  style={{ background: '#16C784', color: '#050B14' }}
+                >
+                  {isUpgrading && <RefreshCw size={11} className="animate-spin" />}
+                  Upgrade
+                </button>
+              )}
             </div>
           )
         })}

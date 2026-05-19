@@ -588,6 +588,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const orgId = apiKey.organization_id
 
+  // ── 1.5. Free plan — monthly event limit (10,000 / month) ───
+  const { data: orgRow } = await supabase
+    .from('organizations')
+    .select('plan')
+    .eq('id', orgId)
+    .single()
+
+  if ((orgRow as { plan: string } | null)?.plan === 'free') {
+    const startOfMonth = new Date()
+    startOfMonth.setDate(1)
+    startOfMonth.setHours(0, 0, 0, 0)
+
+    const { count } = await supabase
+      .from('risk_events')
+      .select('id', { count: 'exact', head: true })
+      .eq('organization_id', orgId)
+      .gte('created_at', startOfMonth.toISOString())
+
+    if ((count ?? 0) >= 10_000) {
+      return res.status(429).json({
+        error: 'Monthly event limit reached. Your free plan includes 10,000 events per month. Upgrade to Growth for more.',
+        code: 'PLAN_LIMIT_EXCEEDED',
+        plan: 'free',
+        limit: 10_000,
+      })
+    }
+  }
+
   // ── 2. Validação do payload ─────────────────────────────────
   const validated = validatePayload(req.body)
 
