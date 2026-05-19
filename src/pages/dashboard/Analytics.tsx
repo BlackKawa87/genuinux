@@ -163,8 +163,8 @@ function StackedBarsChart({ buckets, textDim }: { buckets: DayBucket[]; textDim:
 
 // ─── Chart: Trend line ────────────────────────────────────────────────────────
 
-function TrendLine({ points, color = '#F59E0B' }: { points: number[]; color?: string }) {
-  if (points.length < 2) return <EmptyChart label="Not enough data" />
+function TrendLine({ points, color = '#F59E0B', textDim }: { points: number[]; color?: string; textDim: string }) {
+  if (points.length < 2) return <EmptyChart label="Not enough data" textDim={textDim} />
   const W = 600, H = 70, PY = 6
   const max   = Math.max(...points, 1)
   const min   = Math.min(...points, 0)
@@ -479,7 +479,7 @@ export default function Analytics() {
           <EmptyChart label="No events in this period" textDim={T.textDim} />
         ) : (
           <>
-            <StackedBarsChart buckets={buckets} />
+            <StackedBarsChart buckets={buckets} textDim={T.textDim} />
             <div className="flex items-center gap-5 mt-3">
               {[
                 { label: 'Allow',  count: allow,  color: '#16C784' },
@@ -511,7 +511,7 @@ export default function Analytics() {
             <EmptyChart label="No data" textDim={T.textDim} />
           ) : (
             <>
-              <TrendLine points={fraudLine} color={fraudColor} />
+              <TrendLine points={fraudLine} color={fraudColor} textDim={T.textDim} />
               <div className="flex items-center justify-between mt-1">
                 <span className="text-[10px]" style={{ color: T.textDim }}>
                   Min {Math.min(...fraudLine)}

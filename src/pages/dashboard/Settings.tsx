@@ -13,6 +13,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { can, ROLE_META, ROLE_ORDER, ASSIGNABLE_ROLES, ADMIN_ASSIGNABLE_ROLES } from '../../lib/permissions'
 import type { Role } from '../../lib/permissions'
 import type { Organization, Profile, AuditLog } from '../../types'
+import { useT } from '../../lib/themeTokens'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -160,11 +161,12 @@ function getTargetFromMetadata(log: AuditLog): string {
 // ─── Primitive components ─────────────────────────────────────────────────────
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+  const T = useT()
   return (
     <div>
-      <label className="block text-xs font-semibold mb-1.5" style={{ color: '#94A3B8' }}>{label}</label>
+      <label className="block text-xs font-semibold mb-1.5" style={{ color: T.textSec }}>{label}</label>
       {children}
-      {hint && <p className="text-[10px] mt-1.5" style={{ color: '#475569' }}>{hint}</p>}
+      {hint && <p className="text-[10px] mt-1.5" style={{ color: T.textDim }}>{hint}</p>}
     </div>
   )
 }
@@ -172,12 +174,13 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 function SectionCard({ title, subtitle, children, action }: {
   title: string; subtitle?: string; children: ReactNode; action?: ReactNode
 }) {
+  const T = useT()
   return (
     <div className="g-card p-6">
       <div className="flex items-start justify-between mb-5">
         <div>
-          <h3 className="text-sm font-semibold" style={{ color: '#E2E8F0' }}>{title}</h3>
-          {subtitle && <p className="text-xs mt-1" style={{ color: '#475569' }}>{subtitle}</p>}
+          <h3 className="text-sm font-semibold" style={{ color: T.text }}>{title}</h3>
+          {subtitle && <p className="text-xs mt-1" style={{ color: T.textDim }}>{subtitle}</p>}
         </div>
         {action}
       </div>
@@ -207,6 +210,7 @@ function SaveBtn({ loading, saved, disabled }: { loading: boolean; saved: boolea
 }
 
 function CopyButton({ text }: { text: string }) {
+  const T = useT()
   const [copied, setCopied] = useState(false)
   const handleCopy = () => {
     void navigator.clipboard.writeText(text).then(() => {
@@ -218,7 +222,7 @@ function CopyButton({ text }: { text: string }) {
     <button
       onClick={handleCopy}
       className="flex items-center gap-1 px-2 py-1 rounded text-[10px] transition-colors"
-      style={{ border: '1px solid #1E2D3D', color: copied ? '#16C784' : '#475569' }}
+      style={{ border: `1px solid ${T.border}`, color: copied ? '#16C784' : T.textDim }}
     >
       {copied ? <Check size={10} /> : <Copy size={10} />}
       {copied ? 'Copied' : 'Copy'}
@@ -227,13 +231,14 @@ function CopyButton({ text }: { text: string }) {
 }
 
 function InfoBanner({ children }: { children: ReactNode }) {
+  const T = useT()
   return (
     <div
       className="flex items-start gap-3 px-4 py-3 rounded-lg"
       style={{ background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.2)' }}
     >
       <Info size={13} style={{ color: '#818CF8', flexShrink: 0, marginTop: 1 }} />
-      <p className="text-xs" style={{ color: '#94A3B8' }}>{children}</p>
+      <p className="text-xs" style={{ color: T.textSec }}>{children}</p>
     </div>
   )
 }
@@ -247,6 +252,7 @@ function OrgTab({
   isOwner: boolean
   onSaved: (o: Organization) => void
 }) {
+  const T = useT()
   const { user } = useAuth()
   const [name,     setName]     = useState(org.name)
   const [website,  setWebsite]  = useState(org.website   ?? '')
@@ -325,7 +331,7 @@ function OrgTab({
           <p className="text-xs mt-3" style={{ color: '#EF4444' }}>{errMsg}</p>
         )}
         {!isOwner && (
-          <p className="text-xs mt-3" style={{ color: '#475569' }}>
+          <p className="text-xs mt-3" style={{ color: T.textDim }}>
             Only the organization owner can edit these settings.
           </p>
         )}
@@ -340,9 +346,9 @@ function OrgTab({
             { label: 'Member since',    value: formatTs(org.created_at) },
           ].map(({ label, value, copy }) => (
             <div key={label} className="flex items-center justify-between gap-4">
-              <span className="text-xs" style={{ color: '#475569' }}>{label}</span>
+              <span className="text-xs" style={{ color: T.textDim }}>{label}</span>
               <div className="flex items-center gap-2">
-                <span className="text-xs mono" style={{ color: '#94A3B8' }}>{value}</span>
+                <span className="text-xs mono" style={{ color: T.textSec }}>{value}</span>
                 {copy && <CopyButton text={value} />}
               </div>
             </div>
@@ -393,6 +399,7 @@ function TeamTab({ members, currentProfile, onMembersChange }: {
   currentProfile: Profile | null
   onMembersChange: (m: Profile[]) => void
 }) {
+  const T = useT()
   const { session } = useAuth()
   const [showInvite,    setShowInvite]    = useState(false)
   const [showMigration, setShowMigration] = useState(false)
@@ -518,9 +525,9 @@ function TeamTab({ members, currentProfile, onMembersChange }: {
             <button
               onClick={() => { setShowInvite(true); setInvError(null); setInvSuccess(false) }}
               className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-colors"
-              style={{ border: '1px solid #1E2D3D', color: '#94A3B8' }}
+              style={{ border: `1px solid ${T.border}`, color: T.textSec }}
               onMouseEnter={e => (e.currentTarget.style.borderColor = '#16C784')}
-              onMouseLeave={e => (e.currentTarget.style.borderColor = '#1E2D3D')}
+              onMouseLeave={e => (e.currentTarget.style.borderColor = T.border)}
             >
               <Mail size={11} />
               Invite member
@@ -531,10 +538,10 @@ function TeamTab({ members, currentProfile, onMembersChange }: {
         <div className="overflow-x-auto -mx-6">
           <table className="w-full">
             <thead>
-              <tr style={{ borderBottom: '1px solid #1E2D3D' }}>
+              <tr style={{ borderBottom: `1px solid ${T.border}` }}>
                 {['Member', 'Role', 'Joined', ...(showActions ? ['Actions'] : [])].map(h => (
                   <th key={h} className="px-6 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider"
-                    style={{ color: '#2D4057', width: h === 'Actions' ? '120px' : undefined }}>
+                    style={{ color: T.dark ? '#2D4057' : T.textDim, width: h === 'Actions' ? '120px' : undefined }}>
                     {h}
                   </th>
                 ))}
@@ -550,7 +557,9 @@ function TeamTab({ members, currentProfile, onMembersChange }: {
                 return (
                   <tr
                     key={m.id}
-                    style={{ borderBottom: i < sorted.length - 1 ? '1px solid #0D1B2A' : 'none' }}
+                    style={{ borderBottom: i < sorted.length - 1 ? `1px solid ${T.dark ? '#0D1B2A' : T.border}` : 'none' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = T.dark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = '')}
                   >
                     {/* Member */}
                     <td className="px-6 py-3.5">
@@ -562,16 +571,16 @@ function TeamTab({ members, currentProfile, onMembersChange }: {
                           {(m.full_name ?? m.email).charAt(0).toUpperCase()}
                         </div>
                         <div>
-                          <p className="text-sm font-medium" style={{ color: '#E2E8F0' }}>
+                          <p className="text-sm font-medium" style={{ color: T.text }}>
                             {m.full_name ?? '—'}
                             {isMe && (
                               <span className="ml-2 text-[10px] mono px-1.5 py-0.5 rounded"
-                                style={{ background: '#0B1220', color: '#475569', border: '1px solid #1E2D3D' }}>
+                                style={{ background: T.card, color: T.textDim, border: `1px solid ${T.border}` }}>
                                 you
                               </span>
                             )}
                           </p>
-                          <p className="text-xs" style={{ color: '#475569' }}>{m.email}</p>
+                          <p className="text-xs" style={{ color: T.textDim }}>{m.email}</p>
                         </div>
                       </div>
                     </td>
@@ -604,8 +613,8 @@ function TeamTab({ members, currentProfile, onMembersChange }: {
 
                     {/* Joined */}
                     <td className="px-6 py-3.5">
-                      <p className="text-xs mono" style={{ color: '#94A3B8' }}>{formatTs(m.created_at)}</p>
-                      <p className="text-[10px] mono mt-0.5" style={{ color: '#2D4057' }}>{relativeTime(m.created_at)}</p>
+                      <p className="text-xs mono" style={{ color: T.textSec }}>{formatTs(m.created_at)}</p>
+                      <p className="text-[10px] mono mt-0.5" style={{ color: T.dark ? '#2D4057' : T.textDim }}>{relativeTime(m.created_at)}</p>
                     </td>
 
                     {/* Actions */}
@@ -625,7 +634,7 @@ function TeamTab({ members, currentProfile, onMembersChange }: {
                             <button
                               onClick={() => setConfirmRemove(null)}
                               className="text-[10px] px-2 py-0.5 rounded"
-                              style={{ color: '#475569' }}
+                              style={{ color: T.textDim }}
                             >
                               Cancel
                             </button>
@@ -636,10 +645,10 @@ function TeamTab({ members, currentProfile, onMembersChange }: {
                               <button
                                 onClick={() => setEditingRole(m.id)}
                                 className="p-1.5 rounded transition-colors"
-                                style={{ color: '#2D4057' }}
+                                style={{ color: T.dark ? '#2D4057' : T.textDim }}
                                 title="Change role"
                                 onMouseEnter={e => (e.currentTarget.style.color = '#818CF8')}
-                                onMouseLeave={e => (e.currentTarget.style.color = '#2D4057')}
+                                onMouseLeave={e => (e.currentTarget.style.color = T.dark ? '#2D4057' : T.textDim)}
                               >
                                 <Pencil size={11} />
                               </button>
@@ -648,10 +657,10 @@ function TeamTab({ members, currentProfile, onMembersChange }: {
                               <button
                                 onClick={() => setConfirmRemove(m.id)}
                                 className="p-1.5 rounded transition-colors"
-                                style={{ color: '#2D4057' }}
+                                style={{ color: T.dark ? '#2D4057' : T.textDim }}
                                 title="Remove member"
                                 onMouseEnter={e => (e.currentTarget.style.color = '#EF4444')}
-                                onMouseLeave={e => (e.currentTarget.style.color = '#2D4057')}
+                                onMouseLeave={e => (e.currentTarget.style.color = T.dark ? '#2D4057' : T.textDim)}
                               >
                                 <Trash2 size={11} />
                               </button>
@@ -675,14 +684,14 @@ function TeamTab({ members, currentProfile, onMembersChange }: {
             const meta = ROLE_META[role]
             return (
               <div key={role} className="flex items-start gap-3 px-4 py-3 rounded-lg"
-                style={{ background: '#050B14', border: '1px solid #1E2D3D' }}>
+                style={{ background: T.bg, border: `1px solid ${T.border}` }}>
                 <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold flex-shrink-0 mt-0.5"
                   style={{ background: meta.bg, color: meta.color }}>
                   {meta.label}
                 </span>
                 <div className="flex flex-wrap gap-x-3 gap-y-1">
                   {perms.map(p => (
-                    <span key={p} className="text-[11px] flex items-center gap-1" style={{ color: '#475569' }}>
+                    <span key={p} className="text-[11px] flex items-center gap-1" style={{ color: T.textDim }}>
                       <span style={{ color: meta.color }}>·</span> {p}
                     </span>
                   ))}
@@ -694,29 +703,29 @@ function TeamTab({ members, currentProfile, onMembersChange }: {
       </SectionCard>
 
       {/* DB migration hint */}
-      <div className="g-card overflow-hidden" style={{ border: '1px solid #1E2D3D' }}>
+      <div className="g-card overflow-hidden" style={{ border: `1px solid ${T.border}` }}>
         <button
           onClick={() => setShowMigration(v => !v)}
           className="w-full flex items-center justify-between px-5 py-3.5 text-left"
         >
           <div className="flex items-center gap-2">
-            <Info size={12} style={{ color: '#475569' }} />
-            <span className="text-xs font-semibold" style={{ color: '#475569' }}>
+            <Info size={12} style={{ color: T.textDim }} />
+            <span className="text-xs font-semibold" style={{ color: T.textDim }}>
               Required: team invites DB migration
             </span>
           </div>
           {showMigration
-            ? <ChevronUp  size={12} style={{ color: '#475569' }} />
-            : <ChevronDown size={12} style={{ color: '#475569' }} />}
+            ? <ChevronUp  size={12} style={{ color: T.textDim }} />
+            : <ChevronDown size={12} style={{ color: T.textDim }} />}
         </button>
         {showMigration && (
           <div className="px-5 pb-5">
-            <p className="text-xs mb-3" style={{ color: '#475569' }}>
+            <p className="text-xs mb-3" style={{ color: T.textDim }}>
               Run once in your Supabase SQL editor to enable team invites:
             </p>
             <div className="relative">
               <pre className="text-[11px] mono leading-relaxed p-4 rounded-lg overflow-x-auto"
-                style={{ background: '#050B14', color: '#94A3B8', border: '1px solid #1E2D3D' }}>
+                style={{ background: T.codeBg, color: T.codeText, border: `1px solid ${T.border}` }}>
                 {INVITE_MIGRATION_SQL}
               </pre>
               <div className="absolute top-2 right-2">
@@ -736,7 +745,7 @@ function TeamTab({ members, currentProfile, onMembersChange }: {
           />
           <div
             className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 rounded-xl p-6 w-full max-w-md"
-            style={{ background: '#0B1220', border: '1px solid #1E2D3D' }}
+            style={{ background: T.card, border: `1px solid ${T.border}` }}
           >
             <div className="flex items-center justify-between mb-5">
               <div className="flex items-center gap-3">
@@ -745,11 +754,11 @@ function TeamTab({ members, currentProfile, onMembersChange }: {
                   <Mail size={14} style={{ color: '#16C784' }} />
                 </div>
                 <div>
-                  <h3 className="text-sm font-semibold" style={{ color: '#E2E8F0' }}>Invite team member</h3>
-                  <p className="text-xs" style={{ color: '#475569' }}>They'll receive an email to join your workspace</p>
+                  <h3 className="text-sm font-semibold" style={{ color: T.text }}>Invite team member</h3>
+                  <p className="text-xs" style={{ color: T.textDim }}>They'll receive an email to join your workspace</p>
                 </div>
               </div>
-              <button onClick={() => setShowInvite(false)} style={{ color: '#475569' }}>
+              <button onClick={() => setShowInvite(false)} style={{ color: T.textDim }}>
                 <X size={16} />
               </button>
             </div>
@@ -763,7 +772,7 @@ function TeamTab({ members, currentProfile, onMembersChange }: {
             ) : (
               <form onSubmit={e => void handleInvite(e)} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold mb-1.5" style={{ color: '#94A3B8' }}>
+                  <label className="block text-xs font-semibold mb-1.5" style={{ color: T.textSec }}>
                     Email address
                   </label>
                   <input
@@ -776,7 +785,7 @@ function TeamTab({ members, currentProfile, onMembersChange }: {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold mb-1.5" style={{ color: '#94A3B8' }}>
+                  <label className="block text-xs font-semibold mb-1.5" style={{ color: T.textSec }}>
                     Role
                   </label>
                   <select
@@ -804,7 +813,7 @@ function TeamTab({ members, currentProfile, onMembersChange }: {
                     type="button"
                     onClick={() => setShowInvite(false)}
                     className="flex-1 py-2 rounded-lg text-sm"
-                    style={{ background: '#0F1929', color: '#94A3B8', border: '1px solid #1E2D3D' }}
+                    style={{ background: T.elevated, color: T.textSec, border: `1px solid ${T.border}` }}
                   >
                     Cancel
                   </button>
@@ -832,6 +841,7 @@ function TeamTab({ members, currentProfile, onMembersChange }: {
 function RiskTab({ prefs, orgId, isOwner, shadowMode: initialShadowMode }: {
   prefs: RiskPrefs; orgId: string; isOwner: boolean; shadowMode: boolean
 }) {
+  const T = useT()
   const [local,       setLocal]       = useState<RiskPrefs>(prefs)
   const [shadowMode,  setShadowMode]  = useState(initialShadowMode)
   const [saving,      setSaving]      = useState(false)
@@ -888,8 +898,8 @@ function RiskTab({ prefs, orgId, isOwner, shadowMode: initialShadowMode }: {
           ].map(({ key, label, opts }) => (
             <div key={key} className="flex items-center justify-between gap-6">
               <div>
-                <p className="text-sm font-medium" style={{ color: '#E2E8F0' }}>{label}</p>
-                <p className="text-[10px] mt-0.5" style={{ color: '#475569' }}>
+                <p className="text-sm font-medium" style={{ color: T.text }}>{label}</p>
+                <p className="text-[10px] mt-0.5" style={{ color: T.textDim }}>
                   {key === 'medium_action'   && 'Fraud score 26–55'}
                   {key === 'high_action'     && 'Fraud score 56–80'}
                   {key === 'critical_action' && 'Fraud score 81–100'}
@@ -922,7 +932,7 @@ function RiskTab({ prefs, orgId, isOwner, shadowMode: initialShadowMode }: {
           ].map(({ key, label, color, hint }) => (
             <div key={key}>
               <div className="flex items-center justify-between mb-2">
-                <label className="text-xs font-semibold" style={{ color: '#94A3B8' }}>{label}</label>
+                <label className="text-xs font-semibold" style={{ color: T.textSec }}>{label}</label>
                 <div className="flex items-center gap-2">
                   <input
                     type="number"
@@ -933,10 +943,10 @@ function RiskTab({ prefs, orgId, isOwner, shadowMode: initialShadowMode }: {
                     className="g-input text-sm mono text-center"
                     style={{ width: 60, opacity: isOwner ? 1 : 0.6 }}
                   />
-                  <span className="text-xs mono" style={{ color: '#475569' }}>/ 100</span>
+                  <span className="text-xs mono" style={{ color: T.textDim }}>/ 100</span>
                 </div>
               </div>
-              <div className="relative" style={{ height: 6, borderRadius: 3, background: '#1E2D3D' }}>
+              <div className="relative" style={{ height: 6, borderRadius: 3, background: T.border }}>
                 <div
                   className="absolute top-0 left-0 h-full rounded-full"
                   style={{ width: `${local[key]}%`, background: color, transition: 'width 0.2s' }}
@@ -951,7 +961,7 @@ function RiskTab({ prefs, orgId, isOwner, shadowMode: initialShadowMode }: {
                   style={{ height: 6 }}
                 />
               </div>
-              <p className="text-[10px] mt-1.5" style={{ color: '#475569' }}>{hint}</p>
+              <p className="text-[10px] mt-1.5" style={{ color: T.textDim }}>{hint}</p>
             </div>
           ))}
         </div>
@@ -991,15 +1001,15 @@ function RiskTab({ prefs, orgId, isOwner, shadowMode: initialShadowMode }: {
                 disabled={!isOwner}
                 className="text-left p-4 rounded-lg transition-all"
                 style={{
-                  background: selected ? accentBg : '#07111F',
-                  border: `1px solid ${selected ? accentBorder : '#1E2D3D'}`,
+                  background: selected ? accentBg : T.deep,
+                  border: `1px solid ${selected ? accentBorder : T.border}`,
                   cursor: isOwner ? 'pointer' : 'default',
                   opacity: !isOwner ? 0.6 : 1,
                 }}
               >
-                <div className="flex items-center gap-2 mb-2" style={{ color: selected ? accent : '#475569' }}>
+                <div className="flex items-center gap-2 mb-2" style={{ color: selected ? accent : T.textDim }}>
                   {icon}
-                  <span className="text-sm font-semibold" style={{ color: selected ? accent : '#94A3B8' }}>
+                  <span className="text-sm font-semibold" style={{ color: selected ? accent : T.textSec }}>
                     {label}
                   </span>
                   {selected && (
@@ -1011,7 +1021,7 @@ function RiskTab({ prefs, orgId, isOwner, shadowMode: initialShadowMode }: {
                     </span>
                   )}
                 </div>
-                <p className="text-[11px] leading-relaxed" style={{ color: '#475569' }}>{desc}</p>
+                <p className="text-[11px] leading-relaxed" style={{ color: T.textDim }}>{desc}</p>
               </button>
             )
           })}
@@ -1019,7 +1029,7 @@ function RiskTab({ prefs, orgId, isOwner, shadowMode: initialShadowMode }: {
         {shadowMode && (
           <div
             className="mt-3 flex items-start gap-2 px-3 py-2.5 rounded-lg text-xs"
-            style={{ background: 'rgba(56,189,248,0.06)', border: '1px solid rgba(56,189,248,0.15)', color: '#94A3B8' }}
+            style={{ background: 'rgba(56,189,248,0.06)', border: '1px solid rgba(56,189,248,0.15)', color: T.textSec }}
           >
             <Info size={12} className="flex-shrink-0 mt-0.5" style={{ color: '#38BDF8' }} />
             <span>
@@ -1037,11 +1047,11 @@ function RiskTab({ prefs, orgId, isOwner, shadowMode: initialShadowMode }: {
             <AlertTriangle size={13} style={{ color: '#F59E0B' }} />
             <p className="text-sm font-semibold" style={{ color: '#F59E0B' }}>Database migration required</p>
           </div>
-          <p className="text-xs" style={{ color: '#94A3B8' }}>
+          <p className="text-xs" style={{ color: T.textSec }}>
             Run the following SQL in your Supabase SQL editor to enable risk preference storage:
           </p>
           <pre className="text-xs mono p-3 rounded-lg overflow-x-auto"
-            style={{ background: '#050B14', color: '#16C784', border: '1px solid #1E2D3D' }}>
+            style={{ background: T.codeBg, color: '#16C784', border: `1px solid ${T.border}` }}>
             {`ALTER TABLE organizations\n  ADD COLUMN IF NOT EXISTS settings_json JSONB NOT NULL DEFAULT '{}';\nALTER TABLE organizations\n  ADD COLUMN IF NOT EXISTS shadow_mode boolean NOT NULL DEFAULT false;\nALTER TABLE risk_events\n  ADD COLUMN IF NOT EXISTS shadow_mode boolean NOT NULL DEFAULT false,\n  ADD COLUMN IF NOT EXISTS suggested_decision text;`}
           </pre>
         </div>
@@ -1050,7 +1060,7 @@ function RiskTab({ prefs, orgId, isOwner, shadowMode: initialShadowMode }: {
       {errMsg && <p className="text-xs" style={{ color: '#EF4444' }}>{errMsg}</p>}
 
       {!isOwner && (
-        <p className="text-xs" style={{ color: '#475569' }}>
+        <p className="text-xs" style={{ color: T.textDim }}>
           Only the organization owner can modify risk preferences.
         </p>
       )}
@@ -1071,6 +1081,7 @@ ALTER TABLE organizations
   ADD COLUMN IF NOT EXISTS stripe_customer_id text;`
 
 function BillingTab({ plan, billingSuccess }: { plan: string; orgId: string; billingSuccess?: boolean }) {
+  const T = useT()
   const { session } = useAuth()
   const [upgrading, setUpgrading] = useState<string | null>(null)
   const [portalLoading, setPortalLoading] = useState(false)
@@ -1125,9 +1136,9 @@ function BillingTab({ plan, billingSuccess }: { plan: string; orgId: string; bil
           <div className="flex items-center gap-2.5">
             <CheckCircle2 size={14} style={{ color: '#16C784' }} />
             <span className="text-sm font-semibold" style={{ color: '#16C784' }}>Subscription activated!</span>
-            <span className="text-xs" style={{ color: '#94A3B8' }}>Your plan has been updated. Welcome aboard.</span>
+            <span className="text-xs" style={{ color: T.textSec }}>Your plan has been updated. Welcome aboard.</span>
           </div>
-          <button onClick={() => setShowSuccess(false)} style={{ color: '#475569' }}>
+          <button onClick={() => setShowSuccess(false)} style={{ color: T.textDim }}>
             <X size={13} />
           </button>
         </div>
@@ -1141,9 +1152,9 @@ function BillingTab({ plan, billingSuccess }: { plan: string; orgId: string; bil
               onClick={handlePortal}
               disabled={portalLoading}
               className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-colors"
-              style={{ border: '1px solid #1E2D3D', color: '#94A3B8' }}
+              style={{ border: `1px solid ${T.border}`, color: T.textSec }}
               onMouseEnter={e => (e.currentTarget.style.borderColor = '#16C784')}
-              onMouseLeave={e => (e.currentTarget.style.borderColor = '#1E2D3D')}
+              onMouseLeave={e => (e.currentTarget.style.borderColor = T.border)}
             >
               {portalLoading
                 ? <RefreshCw size={11} className="animate-spin" />
@@ -1164,7 +1175,7 @@ function BillingTab({ plan, billingSuccess }: { plan: string; orgId: string; bil
           >
             {plan.toUpperCase()}
           </span>
-          <p className="text-xs" style={{ color: '#475569' }}>
+          <p className="text-xs" style={{ color: T.textDim }}>
             {isPaid
               ? `Active ${plan} subscription. Manage invoices and payment methods via the Stripe portal.`
               : `You're on the free plan. Upgrade to unlock higher limits and additional features.`}
@@ -1183,17 +1194,17 @@ function BillingTab({ plan, billingSuccess }: { plan: string; orgId: string; bil
               key={p.id}
               className="rounded-xl p-5 flex flex-col gap-4 transition-colors"
               style={{
-                background: isCurrent ? 'rgba(22,199,132,0.05)' : '#0B1220',
+                background: isCurrent ? 'rgba(22,199,132,0.05)' : T.card,
                 border: isCurrent
                   ? '1px solid rgba(22,199,132,0.3)'
                   : p.highlight
                   ? '1px solid rgba(99,102,241,0.3)'
-                  : '1px solid #1E2D3D',
+                  : `1px solid ${T.border}`,
               }}
             >
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-bold" style={{ color: '#E2E8F0' }}>{p.name}</span>
+                  <span className="text-xs font-bold" style={{ color: T.text }}>{p.name}</span>
                   {isCurrent && (
                     <span className="text-[10px] px-1.5 py-0.5 rounded"
                       style={{ background: 'rgba(22,199,132,0.15)', color: '#16C784' }}>
@@ -1207,13 +1218,13 @@ function BillingTab({ plan, billingSuccess }: { plan: string; orgId: string; bil
                     </span>
                   )}
                 </div>
-                <p className="text-lg font-bold mono" style={{ color: isCurrent ? '#16C784' : '#E2E8F0' }}>
+                <p className="text-lg font-bold mono" style={{ color: isCurrent ? '#16C784' : T.text }}>
                   {p.price}
                 </p>
               </div>
               <ul className="space-y-1.5 flex-1">
                 {p.features.map(f => (
-                  <li key={f} className="flex items-start gap-2 text-[11px]" style={{ color: '#94A3B8' }}>
+                  <li key={f} className="flex items-start gap-2 text-[11px]" style={{ color: T.textSec }}>
                     <CheckCircle2 size={11} style={{ color: '#16C784', flexShrink: 0, marginTop: 1 }} />
                     {f}
                   </li>
@@ -1222,13 +1233,13 @@ function BillingTab({ plan, billingSuccess }: { plan: string; orgId: string; bil
               {isCurrent ? (
                 <button disabled
                   className="w-full py-2 rounded-lg text-xs font-semibold"
-                  style={{ background: '#0F1929', color: '#475569', border: '1px solid #1E2D3D', opacity: 0.7 }}>
+                  style={{ background: T.elevated, color: T.textDim, border: `1px solid ${T.border}`, opacity: 0.7 }}>
                   Current plan
                 </button>
               ) : isContact ? (
                 <a href="mailto:sales@genuinux.io"
                   className="w-full flex items-center justify-center py-2 rounded-lg text-xs font-semibold"
-                  style={{ background: '#0F1929', color: '#94A3B8', border: '1px solid #1E2D3D' }}>
+                  style={{ background: T.elevated, color: T.textSec, border: `1px solid ${T.border}` }}>
                   Contact us
                 </a>
               ) : (
@@ -1254,10 +1265,10 @@ function BillingTab({ plan, billingSuccess }: { plan: string; orgId: string; bil
           <div>
             <p className="text-xs" style={{ color: '#EF4444' }}>{billingError}</p>
             {billingError.includes('STRIPE_NOT_CONFIGURED') && (
-              <p className="text-[11px] mt-1" style={{ color: '#475569' }}>
-                Add <span className="mono" style={{ color: '#94A3B8' }}>STRIPE_SECRET_KEY</span>,{' '}
-                <span className="mono" style={{ color: '#94A3B8' }}>STRIPE_PRICE_STARTER</span>, and{' '}
-                <span className="mono" style={{ color: '#94A3B8' }}>STRIPE_PRICE_PRO</span>{' '}
+              <p className="text-[11px] mt-1" style={{ color: T.textDim }}>
+                Add <span className="mono" style={{ color: T.textSec }}>STRIPE_SECRET_KEY</span>,{' '}
+                <span className="mono" style={{ color: T.textSec }}>STRIPE_PRICE_STARTER</span>, and{' '}
+                <span className="mono" style={{ color: T.textSec }}>STRIPE_PRICE_PRO</span>{' '}
                 to your Vercel environment variables to enable billing.
               </p>
             )}
@@ -1266,29 +1277,29 @@ function BillingTab({ plan, billingSuccess }: { plan: string; orgId: string; bil
       )}
 
       {/* Stripe DB migration */}
-      <div className="g-card overflow-hidden" style={{ border: '1px solid #1E2D3D' }}>
+      <div className="g-card overflow-hidden" style={{ border: `1px solid ${T.border}` }}>
         <button
           onClick={() => setShowStripeMigration(v => !v)}
           className="w-full flex items-center justify-between px-5 py-3.5 text-left"
         >
           <div className="flex items-center gap-2">
-            <Info size={12} style={{ color: '#475569' }} />
-            <span className="text-xs font-semibold" style={{ color: '#475569' }}>
+            <Info size={12} style={{ color: T.textDim }} />
+            <span className="text-xs font-semibold" style={{ color: T.textDim }}>
               Required: Stripe DB migration
             </span>
           </div>
           {showStripeMigration
-            ? <ChevronUp size={12} style={{ color: '#475569' }} />
-            : <ChevronDown size={12} style={{ color: '#475569' }} />}
+            ? <ChevronUp size={12} style={{ color: T.textDim }} />
+            : <ChevronDown size={12} style={{ color: T.textDim }} />}
         </button>
         {showStripeMigration && (
           <div className="px-5 pb-5">
-            <p className="text-xs mb-3" style={{ color: '#475569' }}>
+            <p className="text-xs mb-3" style={{ color: T.textDim }}>
               Run once in your Supabase SQL editor to store Stripe customer IDs:
             </p>
             <div className="relative">
               <pre className="text-[11px] mono p-4 rounded-lg overflow-x-auto"
-                style={{ background: '#050B14', color: '#94A3B8', border: '1px solid #1E2D3D' }}>
+                style={{ background: T.codeBg, color: T.codeText, border: `1px solid ${T.border}` }}>
                 {STRIPE_MIGRATION_SQL}
               </pre>
               <div className="absolute top-2 right-2">
@@ -1301,12 +1312,12 @@ function BillingTab({ plan, billingSuccess }: { plan: string; orgId: string; bil
 
       <div
         className="flex items-center gap-3 px-5 py-4 rounded-xl"
-        style={{ background: '#0B1220', border: '1px solid #1E2D3D' }}
+        style={{ background: T.card, border: `1px solid ${T.border}` }}
       >
-        <CreditCard size={16} style={{ color: '#475569', flexShrink: 0 }} />
+        <CreditCard size={16} style={{ color: T.textDim, flexShrink: 0 }} />
         <div>
-          <p className="text-sm font-semibold" style={{ color: '#94A3B8' }}>Enterprise & custom pricing</p>
-          <p className="text-xs mt-0.5" style={{ color: '#475569' }}>
+          <p className="text-sm font-semibold" style={{ color: T.textSec }}>Enterprise & custom pricing</p>
+          <p className="text-xs mt-0.5" style={{ color: T.textDim }}>
             Need a custom volume deal, SLA guarantee, or dedicated support? Contact{' '}
             <a href="mailto:billing@genuinux.io" style={{ color: '#16C784' }}>billing@genuinux.io</a>.
           </p>
@@ -1319,6 +1330,7 @@ function BillingTab({ plan, billingSuccess }: { plan: string; orgId: string; bil
 // ─── Tab: Audit Logs ─────────────────────────────────────────────────────────
 
 function AuditTab({ orgId, members }: { orgId: string; members: Profile[] }) {
+  const T = useT()
   const [logs,      setLogs]      = useState<AuditLog[]>([])
   const [loading,   setLoading]   = useState(true)
   const [category,  setCategory]  = useState<AuditCategory>('all')
@@ -1375,8 +1387,8 @@ function AuditTab({ orgId, members }: { orgId: string; members: Profile[] }) {
               className="px-3 py-1 rounded-full text-[11px] font-semibold transition-colors"
               style={{
                 background: category === c.id ? 'rgba(22,199,132,0.15)' : 'transparent',
-                color: category === c.id ? '#16C784' : '#475569',
-                border: `1px solid ${category === c.id ? 'rgba(22,199,132,0.3)' : '#1E2D3D'}`,
+                color: category === c.id ? '#16C784' : T.textDim,
+                border: `1px solid ${category === c.id ? 'rgba(22,199,132,0.3)' : T.border}`,
               }}
             >
               {c.label}
@@ -1415,15 +1427,15 @@ function AuditTab({ orgId, members }: { orgId: string; members: Profile[] }) {
         subtitle={loading ? 'Loading…' : `${filtered.length} event${filtered.length !== 1 ? 's' : ''}`}
       >
         {loading ? (
-          <div className="py-10 flex items-center justify-center gap-2" style={{ color: '#475569' }}>
+          <div className="py-10 flex items-center justify-center gap-2" style={{ color: T.textDim }}>
             <RefreshCw size={14} className="animate-spin" />
             <span className="text-sm">Loading logs…</span>
           </div>
         ) : filtered.length === 0 ? (
           <div className="py-8 text-center">
-            <Clock size={20} className="mx-auto mb-2" style={{ color: '#1E2D3D' }} />
-            <p className="text-sm" style={{ color: '#475569' }}>No audit events found.</p>
-            <p className="text-xs mt-1" style={{ color: '#2D4057' }}>
+            <Clock size={20} className="mx-auto mb-2" style={{ color: T.border }} />
+            <p className="text-sm" style={{ color: T.textDim }}>No audit events found.</p>
+            <p className="text-xs mt-1" style={{ color: T.dark ? '#2D4057' : T.textDim }}>
               Try changing the date range or category filter.
             </p>
           </div>
@@ -1431,10 +1443,10 @@ function AuditTab({ orgId, members }: { orgId: string; members: Profile[] }) {
           <div className="overflow-x-auto -mx-6">
             <table className="w-full">
               <thead>
-                <tr style={{ borderBottom: '1px solid #1E2D3D' }}>
+                <tr style={{ borderBottom: `1px solid ${T.border}` }}>
                   {['Action', 'Actor', 'Target', 'When'].map(h => (
                     <th key={h} className="px-6 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider"
-                      style={{ color: '#2D4057' }}>
+                      style={{ color: T.dark ? '#2D4057' : T.textDim }}>
                       {h}
                     </th>
                   ))}
@@ -1458,65 +1470,65 @@ function AuditTab({ orgId, members }: { orgId: string; members: Profile[] }) {
                         onClick={() => setExpanded(isOpen ? null : log.id)}
                         className="cursor-pointer transition-colors"
                         style={{
-                          borderBottom: isLast && !isOpen ? 'none' : '1px solid #0D1B2A',
+                          borderBottom: isLast && !isOpen ? 'none' : `1px solid ${T.dark ? '#0D1B2A' : T.border}`,
                           background: isOpen ? 'rgba(22,199,132,0.025)' : undefined,
                         }}
-                        onMouseEnter={e => { if (!isOpen) (e.currentTarget as HTMLElement).style.background = '#050B14' }}
+                        onMouseEnter={e => { if (!isOpen) (e.currentTarget as HTMLElement).style.background = T.dark ? '#050B14' : 'rgba(0,0,0,0.02)' }}
                         onMouseLeave={e => { if (!isOpen) (e.currentTarget as HTMLElement).style.background = '' }}
                       >
                         <td className="px-6 py-3">
                           <div className="flex items-center gap-2">
                             <span style={{ color, flexShrink: 0 }}>{getActionIcon(log.action)}</span>
-                            <span className="text-xs font-medium" style={{ color: '#94A3B8' }}>
+                            <span className="text-xs font-medium" style={{ color: T.textSec }}>
                               {formatAction(log.action)}
                             </span>
                           </div>
                         </td>
                         <td className="px-6 py-3">
-                          <p className="text-xs mono" style={{ color: '#475569' }}>{actorEmail}</p>
+                          <p className="text-xs mono" style={{ color: T.textDim }}>{actorEmail}</p>
                         </td>
                         <td className="px-6 py-3">
                           {target && (
-                            <p className="text-[10px] mono" style={{ color: '#2D4057' }}>{target}</p>
+                            <p className="text-[10px] mono" style={{ color: T.dark ? '#2D4057' : T.textDim }}>{target}</p>
                           )}
                         </td>
                         <td className="px-6 py-3 whitespace-nowrap">
-                          <p className="text-[10px] mono" style={{ color: '#94A3B8' }}>{formatTs(log.created_at)}</p>
-                          <p className="text-[10px] mono mt-0.5" style={{ color: '#2D4057' }}>{relativeTime(log.created_at)}</p>
+                          <p className="text-[10px] mono" style={{ color: T.textSec }}>{formatTs(log.created_at)}</p>
+                          <p className="text-[10px] mono mt-0.5" style={{ color: T.dark ? '#2D4057' : T.textDim }}>{relativeTime(log.created_at)}</p>
                         </td>
                       </tr>
                     </tbody>
                     {isOpen && (
                       <tbody>
-                        <tr style={{ borderBottom: isLast ? 'none' : '1px solid #0D1B2A', background: 'rgba(22,199,132,0.02)' }}>
+                        <tr style={{ borderBottom: isLast ? 'none' : `1px solid ${T.dark ? '#0D1B2A' : T.border}`, background: 'rgba(22,199,132,0.02)' }}>
                           <td colSpan={4} className="px-6 pb-4 pt-1">
                             <div className="rounded-lg p-3 space-y-2.5"
-                              style={{ background: '#050B14', border: '1px solid #1E2D3D' }}>
+                              style={{ background: T.bg, border: `1px solid ${T.border}` }}>
                               <div className="grid grid-cols-2 gap-x-6 gap-y-2">
                                 <div>
-                                  <p className="text-[10px] mb-0.5" style={{ color: '#2D4057' }}>Log ID</p>
-                                  <p className="text-[11px] mono" style={{ color: '#475569' }}>{log.id}</p>
+                                  <p className="text-[10px] mb-0.5" style={{ color: T.dark ? '#2D4057' : T.textDim }}>Log ID</p>
+                                  <p className="text-[11px] mono" style={{ color: T.textDim }}>{log.id}</p>
                                 </div>
                                 {log.user_id && (
                                   <div>
-                                    <p className="text-[10px] mb-0.5" style={{ color: '#2D4057' }}>User ID</p>
-                                    <p className="text-[11px] mono" style={{ color: '#475569' }}>{log.user_id}</p>
+                                    <p className="text-[10px] mb-0.5" style={{ color: T.dark ? '#2D4057' : T.textDim }}>User ID</p>
+                                    <p className="text-[11px] mono" style={{ color: T.textDim }}>{log.user_id}</p>
                                   </div>
                                 )}
                               </div>
                               {log.user_agent && (
                                 <div>
-                                  <p className="text-[10px] mb-0.5" style={{ color: '#2D4057' }}>User Agent</p>
-                                  <p className="text-[11px] mono break-all leading-relaxed" style={{ color: '#475569' }}>
+                                  <p className="text-[10px] mb-0.5" style={{ color: T.dark ? '#2D4057' : T.textDim }}>User Agent</p>
+                                  <p className="text-[11px] mono break-all leading-relaxed" style={{ color: T.textDim }}>
                                     {log.user_agent}
                                   </p>
                                 </div>
                               )}
                               {log.metadata_json && Object.keys(log.metadata_json).length > 0 && (
                                 <div>
-                                  <p className="text-[10px] mb-1" style={{ color: '#2D4057' }}>Details</p>
+                                  <p className="text-[10px] mb-1" style={{ color: T.dark ? '#2D4057' : T.textDim }}>Details</p>
                                   <pre className="text-[10px] mono leading-relaxed overflow-x-auto"
-                                    style={{ color: '#94A3B8' }}>
+                                    style={{ color: T.textSec }}>
                                     {JSON.stringify(log.metadata_json, null, 2)}
                                   </pre>
                                 </div>
@@ -1535,7 +1547,7 @@ function AuditTab({ orgId, members }: { orgId: string; members: Profile[] }) {
       </SectionCard>
 
       {!loading && filtered.length >= 500 && (
-        <p className="text-[11px] text-center" style={{ color: '#2D4057' }}>
+        <p className="text-[11px] text-center" style={{ color: T.dark ? '#2D4057' : T.textDim }}>
           Showing up to 500 most recent events. Narrow the date range to see older logs.
         </p>
       )}
@@ -1546,6 +1558,7 @@ function AuditTab({ orgId, members }: { orgId: string; members: Profile[] }) {
 // ─── Tab: Security ────────────────────────────────────────────────────────────
 
 function SecurityTab() {
+  const T = useT()
   const verifySnippet = `const crypto = require('crypto')
 
 function verifyWebhook(payload, signature, secret) {
@@ -1583,11 +1596,11 @@ app.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
               desc: 'Keys can be revoked instantly from the API Keys page. Revoked keys return 401 on all subsequent requests.' },
           ].map(({ icon, title, desc }) => (
             <div key={title} className="flex items-start gap-3 px-4 py-3 rounded-lg"
-              style={{ background: '#050B14', border: '1px solid #1E2D3D' }}>
+              style={{ background: T.bg, border: `1px solid ${T.border}` }}>
               <span style={{ color: '#16C784', flexShrink: 0, marginTop: 1 }}>{icon}</span>
               <div>
-                <p className="text-xs font-semibold mb-0.5" style={{ color: '#E2E8F0' }}>{title}</p>
-                <p className="text-[11px] leading-relaxed" style={{ color: '#475569' }}>{desc}</p>
+                <p className="text-xs font-semibold mb-0.5" style={{ color: T.text }}>{title}</p>
+                <p className="text-[11px] leading-relaxed" style={{ color: T.textDim }}>{desc}</p>
               </div>
             </div>
           ))}
@@ -1602,22 +1615,22 @@ app.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
       >
         <div className="space-y-4">
           <div className="flex items-start gap-3 px-4 py-3 rounded-lg"
-            style={{ background: '#050B14', border: '1px solid #1E2D3D' }}>
+            style={{ background: T.bg, border: `1px solid ${T.border}` }}>
             <Webhook size={13} style={{ color: '#16C784', flexShrink: 0, marginTop: 1 }} />
             <div className="space-y-1">
-              <p className="text-xs font-semibold" style={{ color: '#E2E8F0' }}>Signature header</p>
-              <p className="text-[11px] leading-relaxed" style={{ color: '#475569' }}>
-                Every request includes <span className="mono" style={{ color: '#94A3B8' }}>X-Genuinux-Signature: sha256=&lt;hex&gt;</span>.
+              <p className="text-xs font-semibold" style={{ color: T.text }}>Signature header</p>
+              <p className="text-[11px] leading-relaxed" style={{ color: T.textDim }}>
+                Every request includes <span className="mono" style={{ color: T.textSec }}>X-Genuinux-Signature: sha256=&lt;hex&gt;</span>.
                 Verify it using your webhook secret to ensure the payload was not tampered with.
               </p>
             </div>
           </div>
 
           <div>
-            <p className="text-xs font-semibold mb-2" style={{ color: '#94A3B8' }}>Node.js verification example</p>
+            <p className="text-xs font-semibold mb-2" style={{ color: T.textSec }}>Node.js verification example</p>
             <pre
               className="text-[10px] mono leading-relaxed rounded-lg overflow-x-auto p-4"
-              style={{ background: '#050B14', color: '#94A3B8', border: '1px solid #1E2D3D' }}
+              style={{ background: T.codeBg, color: T.codeText, border: `1px solid ${T.border}` }}
             >
               {verifySnippet}
             </pre>
@@ -1631,6 +1644,7 @@ app.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
+  const T = useT()
   const { user } = useAuth()
   const [searchParams] = useSearchParams()
   const initialTab = (searchParams.get('tab') as TabId | null) ?? 'org'
@@ -1683,7 +1697,7 @@ export default function SettingsPage() {
   useEffect(() => { void loadAll() }, [loadAll])
 
   if (loading) return (
-    <div className="flex items-center justify-center min-h-[60vh] gap-3" style={{ color: '#475569' }}>
+    <div className="flex items-center justify-center min-h-[60vh] gap-3" style={{ color: T.textDim }}>
       <RefreshCw size={15} className="animate-spin" />
       <span className="text-sm">Loading settings…</span>
     </div>
@@ -1704,14 +1718,14 @@ export default function SettingsPage() {
 
       {/* Page header */}
       <div className="mb-6">
-        <h1 className="text-lg font-bold" style={{ color: '#E2E8F0' }}>Settings</h1>
-        <p className="text-sm mt-1" style={{ color: '#475569' }}>
+        <h1 className="text-lg font-bold" style={{ color: T.text }}>Settings</h1>
+        <p className="text-sm mt-1" style={{ color: T.textDim }}>
           Manage your organization, team, and risk configuration.
         </p>
       </div>
 
       {/* Tab bar */}
-      <div className="flex items-center gap-1 mb-6 flex-wrap" style={{ borderBottom: '1px solid #1E2D3D', paddingBottom: 0 }}>
+      <div className="flex items-center gap-1 mb-6 flex-wrap" style={{ borderBottom: `1px solid ${T.border}`, paddingBottom: 0 }}>
         {TABS.filter(t => {
           if (t.id === 'billing')  return profile.role === 'owner'
           if (t.id === 'team')     return can(profile.role, 'manage_members') || profile.role === 'admin'
@@ -1726,12 +1740,12 @@ export default function SettingsPage() {
               onClick={() => setTab(t.id)}
               className="flex items-center gap-2 px-4 py-2.5 text-xs font-semibold transition-colors relative"
               style={{
-                color: active ? '#E2E8F0' : '#475569',
+                color: active ? T.text : T.textDim,
                 borderBottom: active ? '2px solid #16C784' : '2px solid transparent',
                 marginBottom: -1,
               }}
-              onMouseEnter={e => { if (!active) e.currentTarget.style.color = '#94A3B8' }}
-              onMouseLeave={e => { if (!active) e.currentTarget.style.color = '#475569' }}
+              onMouseEnter={e => { if (!active) e.currentTarget.style.color = T.textSec }}
+              onMouseLeave={e => { if (!active) e.currentTarget.style.color = T.textDim }}
             >
               <span style={{ color: active ? '#16C784' : 'inherit' }}>{t.icon}</span>
               {t.label}
