@@ -199,11 +199,40 @@ Valid `event_type` values: `signup`, `login`, `transaction`, `withdrawal`, `refe
 - `/demo` — `Demo.tsx` — Client-side risk engine demo with 5 presets. Runs `analyze()` in-browser, no auth required.
 - `/docs` — `Docs.tsx` — Full API reference with 12 sections, code blocks, copy buttons. No auth required.
 
+### Logo Assets (`public/`)
+Two logo files served statically from `/public/`:
+- `logo-full.png` — circular icon + "GENUINUX" text (vertical/stacked layout). Used everywhere the logo+name appears.
+- `logo-icon.png` — circular icon only. Reserved for icon-only contexts.
+
+Usage pattern:
+- **Light backgrounds** (Landing navbar, Login, Register): `<img src="/logo-full.png" style={{ height: 'Xpx' }} />`
+- **Dark backgrounds** (AppLayout sidebar, Demo, Docs, Landing footer): `<img src="/logo-full.png" style={{ height: 'Xpx', filter: 'brightness(0) invert(1)' }} />`
+
+Current heights: navbar 88px, footer 96px, Login/Register 140px, Demo 80px, Docs sidebar 88px, AppLayout sidebar 88px.
+
+### Landing Page (`src/pages/Landing.tsx`)
+Full redesign — light mode (`#F8FAFC` bg). Key sections with anchor IDs:
+- `id="product"` — Platform Overview (mock dashboard + module list)
+- `id="developers"` — How It Works (3-step integration with dark code cards)
+- `id="pricing"` — 3 plans: Free / Growth / Enterprise (no prices, "Contact us" CTAs)
+- `id="blog"` — 3 placeholder cards with "Coming soon" badges
+
+Nav links use smooth scroll via `document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })`. Mobile hamburger menu included.
+
+No fake metrics — "Built for scale" strip uses only real product claims: `< 50ms` latency, `300+` signals, `7` event types, `1 API call`.
+
+Removed: fake testimonials (Sarah Chen / Marcus Reyes / Anya Patel), fake client counts (500+, $2B+, 99.7%, 99.9% uptime). Replaced with "Built for the teams who own trust" role cards.
+
+### Login (`src/pages/Login.tsx`) & Register (`src/pages/Register.tsx`)
+Both in **light mode** (`#F8FAFC` bg, `#FFFFFF` card with soft shadow). No dark grid.
+
+Register adds **company name** and **website** fields. On successful sign-up, calls `supabase.auth.getUser()` to get the new user ID, then updates the org `name` (and `website` if provided) that was auto-created by the DB trigger.
+
 ### Pending / Not Yet Built
-- Supabase v4 migration must be run manually in the SQL editor (org auto-create, escalated enum, audit_logs INSERT policy).
 - Invite team members flow in Settings → Team (shows "Coming Soon" banner).
 - Stripe billing integration in Settings → Billing (placeholder).
 - Password reset flow (Login has "Forgot?" link with `href="#"`).
+- Blog posts (3 placeholder cards live at `#blog`).
 
 ## TypeScript Config
 
@@ -211,7 +240,8 @@ Strict mode + `noUnusedLocals` + `noUnusedParameters` — unused imports cause b
 
 ## Design System
 
-Dark enterprise aesthetic. Colors used as **inline `style` props** (not Tailwind classes):
+### Dashboard (dark)
+Colors as **inline `style` props**:
 
 | Token | Value | Usage |
 |---|---|---|
@@ -223,6 +253,19 @@ Dark enterprise aesthetic. Colors used as **inline `style` props** (not Tailwind
 | `--c-trust` | `#16C784` | Primary accent (green) |
 | `--c-muted` | `#94A3B8` | Secondary text |
 | `--c-dimmed` | `#475569` | Disabled/tertiary |
+
+### Public pages (light)
+Landing, Login, Register use a light palette defined as the `C` constant in `Landing.tsx`:
+
+| Token | Value | Usage |
+|---|---|---|
+| `C.bg` | `#F8FAFC` | Page background |
+| `C.surface` | `#FFFFFF` | Cards |
+| `C.border` | `#E2E8F0` | Borders |
+| `C.text` | `#0F172A` | Primary text |
+| `C.textSec` | `#64748B` | Secondary text |
+| `C.trust` | `#16C784` | Accent green |
+| `C.dark` | `#0F172A` | Dark CTA sections |
 
 CSS utility classes (defined in `index.css`): `.g-card`, `.g-card-hover`, `.btn-trust`, `.btn-outline`, `.trust-pill`, `.nav-item`, `.g-input`, `.badge-{low|medium|high|critical}`, `.badge-{allow|review|block}`, `.mono`, `.pulse-dot`, `.scan-anim`, `.anim-{0-5}`.
 
