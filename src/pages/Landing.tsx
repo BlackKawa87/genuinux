@@ -249,12 +249,8 @@ export default function Landing() {
           boxShadow: scrolled ? '0 1px 20px rgba(15,23,42,0.06)' : 'none',
         }}>
         <div className="flex items-center justify-between px-6 py-4 max-w-7xl mx-auto">
-          <Link to="/" className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center"
-              style={{ background: C.trustBg, border: `1px solid ${C.trustBd}` }}>
-              <Shield size={15} style={{ color: C.trust }} />
-            </div>
-            <span className="text-base font-bold" style={{ color: C.text }}>Genuinux</span>
+          <Link to="/">
+            <img src="/logo-full.png" alt="Genuinux" style={{ height: '36px', display: 'block' }} />
           </Link>
 
           <div className="hidden md:flex items-center gap-8">
@@ -878,12 +874,8 @@ export default function Landing() {
         <div className="max-w-6xl mx-auto px-6 py-14">
           <div className="grid md:grid-cols-4 gap-10 mb-10">
             <div>
-              <div className="flex items-center gap-2.5 mb-4">
-                <div className="w-7 h-7 rounded-lg flex items-center justify-center"
-                  style={{ background: 'rgba(22,199,132,0.08)', border: '1px solid rgba(22,199,132,0.2)' }}>
-                  <Shield size={13} style={{ color: C.trust }} />
-                </div>
-                <span className="font-bold text-sm" style={{ color: '#FFFFFF' }}>Genuinux</span>
+              <div className="mb-4">
+                <img src="/logo-full.png" alt="Genuinux" style={{ height: '40px', display: 'block', filter: 'brightness(0) invert(1)' }} />
               </div>
               <p className="text-xs leading-relaxed" style={{ color: '#475569' }}>
                 AI Trust Infrastructure. Block fraud without blocking customers.

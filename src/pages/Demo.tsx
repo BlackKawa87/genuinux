@@ -431,14 +431,8 @@ export default function Demo() {
           backdropFilter: 'blur(8px)',
         }}
       >
-        <Link to="/" className="flex items-center gap-2.5 no-underline">
-          <div
-            className="w-7 h-7 rounded-lg flex items-center justify-center"
-            style={{ background: 'rgba(22,199,132,0.1)', border: '1px solid rgba(22,199,132,0.2)' }}
-          >
-            <Shield size={13} style={{ color: '#16C784' }} />
-          </div>
-          <span className="text-sm font-bold" style={{ color: '#E2E8F0' }}>Genuinux</span>
+        <Link to="/" className="flex items-center no-underline">
+          <img src="/logo-full.png" alt="Genuinux" style={{ height: '30px', display: 'block', filter: 'brightness(0) invert(1)' }} />
           <span
             className="text-[10px] px-2 py-0.5 rounded-full mono"
             style={{ background: 'rgba(22,199,132,0.1)', color: '#16C784', border: '1px solid rgba(22,199,132,0.2)' }}

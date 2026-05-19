@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import {
-  Shield, LayoutDashboard, Key, Activity, ListChecks,
+  LayoutDashboard, Key, Activity, ListChecks,
   Users, Settings, LogOut, Globe, GitBranch, BookOpen,
   ChevronRight,
 } from 'lucide-react'
@@ -72,27 +72,18 @@ export default function AppLayout() {
       >
         {/* Logo */}
         <div
-          className="flex items-center gap-3 px-5 py-[18px] flex-shrink-0"
+          className="flex items-center justify-between px-5 py-4 flex-shrink-0"
           style={{ borderBottom: '1px solid #1E2D3D' }}
         >
-          <div
-            className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-            style={{
-              background: 'rgba(22,199,132,0.08)',
-              border: '1px solid rgba(22,199,132,0.2)',
-            }}
-          >
-            <Shield size={14} style={{ color: '#16C784' }} />
-          </div>
-          <div className="min-w-0">
-            <p className="text-sm font-bold leading-none" style={{ color: '#FFFFFF' }}>
-              Genuinux
-            </p>
-            <p className="text-[10px] mt-0.5 mono flex items-center gap-1" style={{ color: '#16C784' }}>
-              <span className="pulse-dot inline-block w-1.5 h-1.5 rounded-full bg-current" />
-              Live
-            </p>
-          </div>
+          <img
+            src="/logo-full.png"
+            alt="Genuinux"
+            style={{ height: '32px', display: 'block', filter: 'brightness(0) invert(1)' }}
+          />
+          <p className="text-[10px] mono flex items-center gap-1" style={{ color: '#16C784' }}>
+            <span className="pulse-dot inline-block w-1.5 h-1.5 rounded-full bg-current" />
+            Live
+          </p>
         </div>
 
         {/* Org badge */}

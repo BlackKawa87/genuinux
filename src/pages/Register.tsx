@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Shield, Loader2, CheckCircle } from 'lucide-react'
+import { Loader2, CheckCircle } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 
@@ -76,12 +76,8 @@ export default function Register() {
 
       <div className="w-full max-w-[420px]">
         {/* Logo */}
-        <Link to="/" className="flex items-center justify-center gap-2.5 mb-8">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center"
-            style={{ background: 'rgba(22,199,132,0.08)', border: '1px solid rgba(22,199,132,0.2)' }}>
-            <Shield size={17} style={{ color: '#16C784' }} />
-          </div>
-          <span className="text-lg font-bold" style={{ color: '#0F172A' }}>Genuinux</span>
+        <Link to="/" className="flex justify-center mb-8">
+          <img src="/logo-full.png" alt="Genuinux" style={{ height: '72px', display: 'block' }} />
         </Link>
 
         {/* Card */}

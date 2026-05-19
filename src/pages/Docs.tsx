@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { Shield, Copy, Check, ChevronRight, ExternalLink, Menu, X } from 'lucide-react'
+import { Copy, Check, ChevronRight, ExternalLink, Menu, X } from 'lucide-react'
 
 const NAV = [
   { id: 'introduction',    label: 'Introduction' },
@@ -263,9 +263,8 @@ export default function Docs() {
   const Sidebar = () => (
     <nav style={{ position: 'sticky', top: 0, height: '100vh', overflowY: 'auto', padding: '24px 0', display: 'flex', flexDirection: 'column', gap: 2 }}>
       <div style={{ padding: '0 20px 24px', borderBottom: '1px solid #1E2D3D', marginBottom: 12 }}>
-        <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
-          <Shield size={18} color="#16C784" />
-          <span style={{ fontFamily: '"Syne", sans-serif', fontWeight: 700, fontSize: 15, color: '#F1F5F9' }}>Genuinux</span>
+        <Link to="/" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
+          <img src="/logo-full.png" alt="Genuinux" style={{ height: '32px', display: 'block', filter: 'brightness(0) invert(1)' }} />
         </Link>
         <div style={{ marginTop: 6, fontSize: 11, color: '#475569', fontFamily: '"IBM Plex Mono", monospace' }}>API Reference v1</div>
       </div>
@@ -305,9 +304,8 @@ export default function Docs() {
     <div style={{ minHeight: '100vh', background: '#050B14', color: '#F1F5F9' }}>
       {/* Mobile header */}
       <div style={{ display: 'none', position: 'sticky', top: 0, zIndex: 50, background: '#07111F', borderBottom: '1px solid #1E2D3D', padding: '12px 20px', alignItems: 'center', justifyContent: 'space-between' }} className="mobile-header">
-        <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
-          <Shield size={16} color="#16C784" />
-          <span style={{ fontFamily: '"Syne", sans-serif', fontWeight: 700, fontSize: 14, color: '#F1F5F9' }}>Genuinux Docs</span>
+        <Link to="/" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
+          <img src="/logo-full.png" alt="Genuinux" style={{ height: '28px', display: 'block', filter: 'brightness(0) invert(1)' }} />
         </Link>
         <button onClick={() => setMobileOpen(!mobileOpen)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8', padding: 4 }}>
           {mobileOpen ? <X size={20} /> : <Menu size={20} />}
