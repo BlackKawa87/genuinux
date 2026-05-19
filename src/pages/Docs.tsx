@@ -264,7 +264,7 @@ export default function Docs() {
     <nav style={{ position: 'sticky', top: 0, height: '100vh', overflowY: 'auto', padding: '24px 0', display: 'flex', flexDirection: 'column', gap: 2 }}>
       <div style={{ padding: '0 20px 24px', borderBottom: '1px solid #1E2D3D', marginBottom: 12 }}>
         <Link to="/" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
-          <img src="/logo-full.png" alt="Genuinux" style={{ height: '56px', display: 'block', filter: 'brightness(0) invert(1)' }} />
+          <img src="/logo-full.png" alt="Genuinux" style={{ height: '88px', display: 'block', filter: 'brightness(0) invert(1)' }} />
         </Link>
         <div style={{ marginTop: 6, fontSize: 11, color: '#475569', fontFamily: '"IBM Plex Mono", monospace' }}>API Reference v1</div>
       </div>
@@ -305,7 +305,7 @@ export default function Docs() {
       {/* Mobile header */}
       <div style={{ display: 'none', position: 'sticky', top: 0, zIndex: 50, background: '#07111F', borderBottom: '1px solid #1E2D3D', padding: '12px 20px', alignItems: 'center', justifyContent: 'space-between' }} className="mobile-header">
         <Link to="/" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
-          <img src="/logo-full.png" alt="Genuinux" style={{ height: '48px', display: 'block', filter: 'brightness(0) invert(1)' }} />
+          <img src="/logo-full.png" alt="Genuinux" style={{ height: '72px', display: 'block', filter: 'brightness(0) invert(1)' }} />
         </Link>
         <button onClick={() => setMobileOpen(!mobileOpen)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8', padding: 4 }}>
           {mobileOpen ? <X size={20} /> : <Menu size={20} />}
