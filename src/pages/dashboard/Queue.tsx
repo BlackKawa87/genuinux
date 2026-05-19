@@ -248,34 +248,35 @@ function RelatedEventsTable({ events, loading, emptyMsg }: {
   loading: boolean
   emptyMsg: string
 }) {
+  const T = useT()
   if (loading) return (
-    <div className="flex items-center gap-2 py-3" style={{ color: '#2D4057' }}>
+    <div className="flex items-center gap-2 py-3" style={{ color: T.textDim }}>
       <RefreshCw size={11} className="animate-spin" />
       <span className="text-xs">Loading…</span>
     </div>
   )
   if (!events || events.length === 0) return (
-    <p className="text-xs py-2" style={{ color: '#2D4057' }}>{emptyMsg}</p>
+    <p className="text-xs py-2" style={{ color: T.textDim }}>{emptyMsg}</p>
   )
   return (
     <div className="space-y-1.5">
       {events.map(e => (
         <div key={e.id} className="flex items-center gap-3 px-3 py-2 rounded-lg"
-          style={{ background: '#050B14', border: '1px solid #1E2D3D' }}>
+          style={{ background: T.bg, border: `1px solid ${T.border}` }}>
           <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-semibold badge-${e.risk_level}`}>
             {e.risk_level}
           </span>
-          <span className="text-[10px] mono truncate flex-1" style={{ color: '#94A3B8' }}>
+          <span className="text-[10px] mono truncate flex-1" style={{ color: T.textSec }}>
             {e.external_user_id}
           </span>
-          <span className="text-[10px] mono" style={{ color: '#475569' }}>{e.event_type}</span>
+          <span className="text-[10px] mono" style={{ color: T.textDim }}>{e.event_type}</span>
           <span className="text-[10px] mono font-bold" style={{ color: fraudColor(e.fraud_score) }}>
             {e.fraud_score}
           </span>
           <span className={`text-[9px] px-1.5 py-0.5 rounded mono badge-${e.decision}`}>
             {e.decision}
           </span>
-          <span className="text-[9px] mono flex-shrink-0" style={{ color: '#2D4057' }}>
+          <span className="text-[9px] mono flex-shrink-0" style={{ color: T.textDim }}>
             {relativeTime(e.created_at)}
           </span>
         </div>
@@ -310,6 +311,7 @@ function CaseDetailPanel({
   const [loadingRelIp,    setLoadingRelIp]    = useState(false)
   const [loadingRelDev,   setLoadingRelDev]   = useState(false)
 
+  const T       = useT()
   const ev      = item.risk_events
   const signals = parseSignals(ev?.signals_json)
   const meta    = STATUS_META[item.status]
@@ -492,27 +494,27 @@ function CaseDetailPanel({
       />
 
       <div className="fixed top-0 right-0 h-screen z-50 flex flex-col"
-        style={{ width: 520, background: '#07111F', borderLeft: '1px solid #1E2D3D' }}>
+        style={{ width: 520, background: T.card, borderLeft: `1px solid ${T.border}` }}>
 
         {/* ── Top bar ───────────────────────────────────────────── */}
         <div className="flex items-center justify-between px-6 py-4 flex-shrink-0"
-          style={{ borderBottom: '1px solid #1E2D3D' }}>
+          style={{ borderBottom: `1px solid ${T.border}` }}>
           <div className="flex items-center gap-3 min-w-0">
             <span className="text-[10px] font-semibold px-2.5 py-1 rounded-full flex-shrink-0"
               style={{ background: meta.bg, color: meta.color }}>
               {meta.label}
             </span>
             {ev && (
-              <p className="text-sm font-semibold mono truncate" style={{ color: '#E2E8F0' }}>
+              <p className="text-sm font-semibold mono truncate" style={{ color: T.text }}>
                 {ev.external_user_id}
               </p>
             )}
           </div>
           <button onClick={onClose}
             className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ml-3 transition-colors"
-            style={{ background: '#0B1220', border: '1px solid #1E2D3D', color: '#475569' }}
-            onMouseEnter={e => (e.currentTarget.style.color = '#E2E8F0')}
-            onMouseLeave={e => (e.currentTarget.style.color = '#475569')}>
+            style={{ background: T.elevated, border: `1px solid ${T.border}`, color: T.textDim }}
+            onMouseEnter={e => (e.currentTarget.style.color = T.text)}
+            onMouseLeave={e => (e.currentTarget.style.color = T.textDim)}>
             <X size={13} />
           </button>
         </div>
@@ -522,7 +524,7 @@ function CaseDetailPanel({
 
           {/* Event summary row */}
           <div className="px-6 py-4 flex items-center gap-3 flex-wrap"
-            style={{ borderBottom: '1px solid #0D1B2A' }}>
+            style={{ borderBottom: `1px solid ${T.border}` }}>
             {ev ? (
               <>
                 <span className={`text-xs px-2.5 py-1 rounded-full font-semibold badge-${ev.risk_level}`}>
@@ -532,22 +534,22 @@ function CaseDetailPanel({
                   {ev.decision}
                 </span>
                 <span className="text-xs px-2 py-1 rounded-md mono"
-                  style={{ background: '#0B1220', color: '#94A3B8', border: '1px solid #1E2D3D' }}>
+                  style={{ background: T.elevated, color: T.textSec, border: `1px solid ${T.border}` }}>
                   {ev.event_type}
                 </span>
-                <span className="text-[10px] ml-auto mono flex-shrink-0" style={{ color: '#2D4057' }}>
+                <span className="text-[10px] ml-auto mono flex-shrink-0" style={{ color: T.textDim }}>
                   {formatTs(ev.created_at)}
                 </span>
               </>
             ) : (
-              <span className="text-xs" style={{ color: '#475569' }}>Event not found</span>
+              <span className="text-xs" style={{ color: T.textDim }}>Event not found</span>
             )}
           </div>
 
           {/* Rule banner */}
           {ev?.applied_rule_name && (
             <div className="px-6 py-3 flex items-center gap-2.5"
-              style={{ borderBottom: '1px solid #0D1B2A', background: 'rgba(129,140,248,0.05)' }}>
+              style={{ borderBottom: `1px solid ${T.border}`, background: 'rgba(129,140,248,0.05)' }}>
               <ShieldCheck size={12} style={{ color: '#818CF8', flexShrink: 0 }} />
               <p className="text-xs" style={{ color: '#818CF8' }}>
                 Decision influenced by rule:{' '}
@@ -559,7 +561,7 @@ function CaseDetailPanel({
           {/* Scores */}
           {ev && (
             <div className="px-6 py-5 grid grid-cols-2 gap-6"
-              style={{ borderBottom: '1px solid #0D1B2A' }}>
+              style={{ borderBottom: `1px solid ${T.border}` }}>
               <ScoreBar label="Trust Score" score={ev.trust_score} color={trustColor(ev.trust_score)} />
               <ScoreBar label="Fraud Score" score={ev.fraud_score} color={fraudColor(ev.fraud_score)} />
             </div>
@@ -567,14 +569,14 @@ function CaseDetailPanel({
 
           {/* AI Summary */}
           {ev?.ai_summary && (
-            <div className="px-6 py-4" style={{ borderBottom: '1px solid #0D1B2A' }}>
+            <div className="px-6 py-4" style={{ borderBottom: `1px solid ${T.border}` }}>
               <div className="flex items-center gap-2 mb-2.5">
                 <Zap size={12} style={{ color: '#16C784' }} />
-                <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#475569' }}>
+                <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.textDim }}>
                   AI Summary
                 </p>
               </div>
-              <p className="text-xs leading-relaxed" style={{ color: '#94A3B8' }}>{ev.ai_summary}</p>
+              <p className="text-xs leading-relaxed" style={{ color: T.textSec }}>{ev.ai_summary}</p>
             </div>
           )}
 
@@ -603,15 +605,15 @@ function CaseDetailPanel({
                 ] as [string, string | null][]).filter(([, v]) => v).map(([label, value]) => (
                   <div key={label} className="flex items-start gap-3">
                     <span className="text-[10px] flex-shrink-0 pt-px"
-                      style={{ color: '#475569', minWidth: 76 }}>
+                      style={{ color: T.textDim, minWidth: 76 }}>
                       {label}
                     </span>
-                    <span className="text-xs mono break-all" style={{ color: '#94A3B8' }}>{value}</span>
+                    <span className="text-xs mono break-all" style={{ color: T.textSec }}>{value}</span>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-xs" style={{ color: '#2D4057' }}>No event data.</p>
+              <p className="text-xs" style={{ color: T.textDim }}>No event data.</p>
             )}
           </CollapsibleSection>
 
@@ -624,7 +626,7 @@ function CaseDetailPanel({
             badge={relIpEvents?.length}
           >
             {!ev?.ip_address ? (
-              <p className="text-xs" style={{ color: '#2D4057' }}>No IP data for this event.</p>
+              <p className="text-xs" style={{ color: T.textDim }}>No IP data for this event.</p>
             ) : (
               <RelatedEventsTable
                 events={relIpEvents}
@@ -643,7 +645,7 @@ function CaseDetailPanel({
             badge={relDevEvents?.length}
           >
             {!ev?.device_id ? (
-              <p className="text-xs" style={{ color: '#2D4057' }}>No device data for this event.</p>
+              <p className="text-xs" style={{ color: T.textDim }}>No device data for this event.</p>
             ) : (
               <RelatedEventsTable
                 events={relDevEvents}
@@ -662,21 +664,21 @@ function CaseDetailPanel({
             badge={signals.length}
           >
             {signals.length === 0 ? (
-              <p className="text-xs" style={{ color: '#2D4057' }}>No signals detected.</p>
+              <p className="text-xs" style={{ color: T.textDim }}>No signals detected.</p>
             ) : (
               <div className="space-y-2">
                 {signals.map((s, i) => (
                   <div key={i} className="flex items-start justify-between gap-3 px-3 py-2.5 rounded-lg"
-                    style={{ background: '#050B14', border: '1px solid #1E2D3D' }}>
+                    style={{ background: T.bg, border: `1px solid ${T.border}` }}>
                     <div className="min-w-0">
-                      <p className="text-xs font-semibold" style={{ color: '#E2E8F0' }}>{s.label}</p>
-                      <p className="text-[10px] mono mt-0.5" style={{ color: '#475569' }}>{s.code}</p>
+                      <p className="text-xs font-semibold" style={{ color: T.text }}>{s.label}</p>
+                      <p className="text-[10px] mono mt-0.5" style={{ color: T.textDim }}>{s.code}</p>
                     </div>
                     <span className="text-[10px] px-2 py-0.5 rounded-full font-medium flex-shrink-0 mono"
                       style={{
-                        background: `${SEV_COLORS[s.severity] ?? '#475569'}18`,
-                        color: SEV_COLORS[s.severity] ?? '#475569',
-                        border: `1px solid ${SEV_COLORS[s.severity] ?? '#475569'}30`,
+                        background: `${SEV_COLORS[s.severity] ?? T.textDim}18`,
+                        color: SEV_COLORS[s.severity] ?? T.textDim,
+                        border: `1px solid ${SEV_COLORS[s.severity] ?? T.textDim}30`,
                       }}>
                       {s.severity}
                     </span>
@@ -699,23 +701,23 @@ function CaseDetailPanel({
                 <div className="space-y-2">
                   {notes.map((n, i) => (
                     <div key={i} className="rounded-lg overflow-hidden"
-                      style={{ border: '1px solid #1E2D3D' }}>
+                      style={{ border: `1px solid ${T.border}` }}>
                       {n.ts && (
                         <div className="flex items-center gap-2 px-3 py-1.5"
-                          style={{ background: '#050B14', borderBottom: '1px solid #1E2D3D' }}>
-                          <Clock size={9} style={{ color: '#2D4057' }} />
-                          <span className="text-[9px] mono" style={{ color: '#2D4057' }}>{n.ts}</span>
+                          style={{ background: T.bg, borderBottom: `1px solid ${T.border}` }}>
+                          <Clock size={9} style={{ color: T.textDim }} />
+                          <span className="text-[9px] mono" style={{ color: T.textDim }}>{n.ts}</span>
                         </div>
                       )}
                       <p className="text-xs leading-relaxed whitespace-pre-wrap px-3 py-2.5"
-                        style={{ color: '#94A3B8' }}>
+                        style={{ color: T.textSec }}>
                         {n.text}
                       </p>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-xs" style={{ color: '#2D4057' }}>No notes yet.</p>
+                <p className="text-xs" style={{ color: T.textDim }}>No notes yet.</p>
               )}
 
               {canAct && (
@@ -726,10 +728,10 @@ function CaseDetailPanel({
                     placeholder="Add an internal note…"
                     rows={3}
                     className="g-input text-xs resize-none w-full"
-                    style={{ fontFamily: 'inherit', lineHeight: 1.5 }}
+                    style={{ fontFamily: 'inherit', lineHeight: 1.5, background: T.inputBg }}
                   />
                   <div className="flex items-center justify-between mt-2">
-                    <p className="text-[10px]" style={{ color: '#2D4057' }}>
+                    <p className="text-[10px]" style={{ color: T.textDim }}>
                       Internal only — not visible to end users.
                     </p>
                     <button
@@ -737,8 +739,8 @@ function CaseDetailPanel({
                       disabled={!noteText.trim() || addingNote}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
                       style={{
-                        background: noteText.trim() ? '#16C784' : '#1E2D3D',
-                        color:      noteText.trim() ? '#000'    : '#475569',
+                        background: noteText.trim() ? '#16C784' : T.border,
+                        color:      noteText.trim() ? '#000'    : T.textDim,
                       }}>
                       {addingNote ? <RefreshCw size={10} className="animate-spin" /> : <MessageSquare size={10} />}
                       Save note
@@ -763,13 +765,13 @@ function CaseDetailPanel({
         {/* ── Action footer ──────────────────────────────────────── */}
         {canAct && (
           <div className="flex-shrink-0 px-6 py-4 space-y-3"
-            style={{ borderTop: '1px solid #1E2D3D', background: '#050B14' }}>
+            style={{ borderTop: `1px solid ${T.border}`, background: T.bg }}>
 
             {/* Quick feedback row */}
             {ev && (
               <div className="flex items-center gap-2">
                 <p className="text-[10px] uppercase tracking-wider font-semibold flex-shrink-0"
-                  style={{ color: '#2D4057' }}>
+                  style={{ color: T.textDim }}>
                   Quick label
                 </p>
                 <button
@@ -802,7 +804,7 @@ function CaseDetailPanel({
             {/* Main decision actions */}
             {!isResolved ? (
               <>
-                <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: '#2D4057' }}>
+                <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: T.textDim }}>
                   {item.status === 'pending' ? 'Decision required' : 'Update decision'}
                 </p>
                 <div className="flex items-center gap-2">
@@ -860,7 +862,7 @@ function CaseDetailPanel({
             ) : (
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-[10px] uppercase tracking-wider font-semibold mb-1" style={{ color: '#2D4057' }}>
+                  <p className="text-[10px] uppercase tracking-wider font-semibold mb-1" style={{ color: T.textDim }}>
                     Resolved
                   </p>
                   <div className="flex items-center gap-2">
@@ -868,7 +870,7 @@ function CaseDetailPanel({
                       style={{ background: meta.bg, color: meta.color }}>
                       {meta.label}
                     </span>
-                    <span className="text-xs" style={{ color: '#475569' }}>
+                    <span className="text-xs" style={{ color: T.textDim }}>
                       {relativeTime(item.updated_at)}
                     </span>
                   </div>
@@ -877,9 +879,9 @@ function CaseDetailPanel({
                   onClick={() => void handleAction('reopen')}
                   disabled={acting}
                   className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs transition-all"
-                  style={{ border: '1px solid #1E2D3D', color: '#475569' }}
-                  onMouseEnter={e => (e.currentTarget.style.color = '#94A3B8')}
-                  onMouseLeave={e => (e.currentTarget.style.color = '#475569')}>
+                  style={{ border: `1px solid ${T.border}`, color: T.textDim }}
+                  onMouseEnter={e => (e.currentTarget.style.color = T.textSec)}
+                  onMouseLeave={e => (e.currentTarget.style.color = T.textDim)}>
                   {acting ? <RefreshCw size={11} className="animate-spin" /> : <RotateCcw size={11} />}
                   Re-open
                 </button>
@@ -905,7 +907,8 @@ const STATUS_TABS: { value: ReviewStatus | ''; label: string }[] = [
 
 export default function Queue() {
   const { user, profile } = useAuth()
-  const orgId = profile?.organization_id ?? null
+  const T      = useT()
+  const orgId  = profile?.organization_id ?? null
   const canAct = can(profile?.role, 'act_queue')
 
   const [items,    setItems]    = useState<QueueItem[]>([])
@@ -975,7 +978,7 @@ export default function Queue() {
   , [items, statusF])
 
   if (loading && !orgId) return (
-    <div className="flex items-center justify-center min-h-[60vh] gap-3" style={{ color: '#475569' }}>
+    <div className="flex items-center justify-center min-h-[60vh] gap-3" style={{ color: T.textDim }}>
       <RefreshCw size={15} className="animate-spin" />
       <span className="text-sm">Loading queue…</span>
     </div>
@@ -1009,14 +1012,14 @@ export default function Queue() {
           {pendingCount === 0 && inReviewCount === 0 && (
             <span className="text-sm" style={{ color: '#16C784' }}>All cases reviewed</span>
           )}
-          <span className="text-sm" style={{ color: '#2D4057' }}>· {items.length} total</span>
+          <span className="text-sm" style={{ color: T.textDim }}>· {items.length} total</span>
         </div>
         <button
           onClick={() => void fetchItems()}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors"
-          style={{ border: '1px solid #1E2D3D', color: '#475569' }}
-          onMouseEnter={e => (e.currentTarget.style.color = '#94A3B8')}
-          onMouseLeave={e => (e.currentTarget.style.color = '#475569')}>
+          style={{ border: `1px solid ${T.border}`, color: T.textDim }}
+          onMouseEnter={e => (e.currentTarget.style.color = T.textSec)}
+          onMouseLeave={e => (e.currentTarget.style.color = T.textDim)}>
           <RefreshCw size={11} />
           Refresh
         </button>
@@ -1024,7 +1027,7 @@ export default function Queue() {
 
       {/* Status tabs */}
       <div className="flex items-center gap-0.5 mb-6 p-1 rounded-xl w-fit"
-        style={{ background: '#07111F', border: '1px solid #1E2D3D' }}>
+        style={{ background: T.deep, border: `1px solid ${T.border}` }}>
         {STATUS_TABS.map(tab => {
           const c   = counts[tab.value] ?? 0
           const m   = tab.value ? STATUS_META[tab.value as ReviewStatus] : null
@@ -1035,15 +1038,15 @@ export default function Queue() {
               onClick={() => setStatusF(tab.value)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all"
               style={{
-                background: act ? '#0B1220' : 'transparent',
-                color:      act && m ? m.color : act ? '#94A3B8' : '#475569',
-                border:     act ? '1px solid #1E2D3D' : '1px solid transparent',
+                background: act ? T.card : 'transparent',
+                color:      act && m ? m.color : act ? T.textSec : T.textDim,
+                border:     act ? `1px solid ${T.border}` : '1px solid transparent',
                 fontWeight: act ? 600 : 400,
               }}>
               {tab.label}
               {c > 0 && (
                 <span className="text-[10px] mono px-1.5 py-0.5 rounded"
-                  style={{ background: act && m ? m.bg : '#0B1220', color: act && m ? m.color : '#475569' }}>
+                  style={{ background: act && m ? m.bg : T.card, color: act && m ? m.color : T.textDim }}>
                   {c}
                 </span>
               )}
@@ -1056,11 +1059,11 @@ export default function Queue() {
       <div className="g-card overflow-hidden">
         {filtered.length === 0 ? (
           <div className="py-16 text-center">
-            <Shield size={24} className="mx-auto mb-3" style={{ color: '#1E2D3D' }} />
-            <p className="text-sm font-semibold mb-1.5" style={{ color: '#475569' }}>
+            <Shield size={24} className="mx-auto mb-3" style={{ color: T.border }} />
+            <p className="text-sm font-semibold mb-1.5" style={{ color: T.textDim }}>
               {statusF === 'pending' ? 'No pending cases — queue is clear' : 'No cases found'}
             </p>
-            <p className="text-xs" style={{ color: '#2D4057' }}>
+            <p className="text-xs" style={{ color: T.textDim }}>
               {statusF === 'pending' ? 'New cases appear here automatically.' : 'Try a different filter.'}
             </p>
           </div>

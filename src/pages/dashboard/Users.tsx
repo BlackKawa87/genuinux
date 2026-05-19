@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
+import { useT } from '../../lib/themeTokens'
 import type { UserChecked, RiskEvent, Decision } from '../../types'
 import { getRelatedRiskEntities, SEV_COLORS as TG_SEV } from '../../lib/trustGraph'
 import type { TrustGraphResult } from '../../lib/trustGraph'
@@ -132,22 +133,23 @@ function CollapsibleSection({
   badge?: number
   children: ReactNode
 }) {
+  const T = useT()
   return (
-    <div style={{ borderBottom: '1px solid #0D1B2A' }}>
+    <div style={{ borderBottom: `1px solid ${T.border}` }}>
       <button
         onClick={onToggle}
         className="w-full flex items-center justify-between px-6 py-3.5 transition-colors duration-100"
         style={{ background: 'transparent' }}
-        onMouseEnter={e => (e.currentTarget.style.background = '#0B1220')}
+        onMouseEnter={e => (e.currentTarget.style.background = T.card)}
         onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
       >
         <div className="flex items-center gap-2.5">
-          <span style={{ color: '#475569' }}>{icon}</span>
-          <span className="text-xs font-semibold" style={{ color: '#94A3B8' }}>{title}</span>
+          <span style={{ color: T.textDim }}>{icon}</span>
+          <span className="text-xs font-semibold" style={{ color: T.textSec }}>{title}</span>
           {badge !== undefined && badge > 0 && (
             <span
               className="text-[10px] mono px-1.5 py-0.5 rounded"
-              style={{ background: '#0B1220', color: '#475569', border: '1px solid #1E2D3D' }}
+              style={{ background: T.card, color: T.textDim, border: `1px solid ${T.border}` }}
             >
               {badge}
             </span>
@@ -156,7 +158,7 @@ function CollapsibleSection({
         <ChevronDown
           size={12}
           style={{
-            color: '#475569',
+            color: T.textDim,
             transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
             transition: 'transform 0.15s ease',
             flexShrink: 0,
@@ -178,6 +180,7 @@ function UserDetailPanel({
   row: UserRow
   onClose: () => void
 }) {
+  const T = useT()
   const [events, setEvents] = useState<RiskEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState<string>('profile')
@@ -251,27 +254,27 @@ function UserDetailPanel({
 
       <div
         className="fixed top-0 right-0 h-screen z-50 flex flex-col"
-        style={{ width: 520, background: '#07111F', borderLeft: '1px solid #1E2D3D' }}
+        style={{ width: 520, background: T.card, borderLeft: `1px solid ${T.border}` }}
       >
         {/* Top bar */}
         <div
           className="flex items-center justify-between px-6 py-4 flex-shrink-0"
-          style={{ borderBottom: '1px solid #1E2D3D' }}
+          style={{ borderBottom: `1px solid ${T.border}` }}
         >
           <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-widest mb-1" style={{ color: '#2D4057' }}>
+            <p className="text-[10px] font-semibold uppercase tracking-widest mb-1" style={{ color: T.textDim }}>
               User Profile
             </p>
-            <p className="text-sm mono truncate font-medium" style={{ color: '#E2E8F0', maxWidth: 380 }}>
+            <p className="text-sm mono truncate font-medium" style={{ color: T.text, maxWidth: 380 }}>
               {u.external_user_id}
             </p>
           </div>
           <button
             onClick={onClose}
             className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ml-4 transition-colors"
-            style={{ background: '#0B1220', border: '1px solid #1E2D3D', color: '#475569' }}
-            onMouseEnter={e => (e.currentTarget.style.color = '#E2E8F0')}
-            onMouseLeave={e => (e.currentTarget.style.color = '#475569')}
+            style={{ background: T.elevated, border: `1px solid ${T.border}`, color: T.textDim }}
+            onMouseEnter={e => (e.currentTarget.style.color = T.text)}
+            onMouseLeave={e => (e.currentTarget.style.color = T.textDim)}
           >
             <X size={13} />
           </button>
@@ -280,17 +283,17 @@ function UserDetailPanel({
         {/* Stat bar */}
         <div
           className="grid grid-cols-4 flex-shrink-0"
-          style={{ borderBottom: '1px solid #1E2D3D' }}
+          style={{ borderBottom: `1px solid ${T.border}` }}
         >
           {[
-            { label: 'Events',      value: row.total_events.toString(),              color: '#94A3B8' },
+            { label: 'Events',      value: row.total_events.toString(),              color: T.textSec },
             { label: 'Fraud peak',  value: row.highest_fraud_score.toString(),       color: fraudColor(row.highest_fraud_score) },
-            { label: 'IPs',         value: row.distinct_ips.length.toString(),       color: row.distinct_ips.length > 2 ? '#F59E0B' : '#94A3B8' },
-            { label: 'Devices',     value: row.distinct_devices.length.toString(),   color: row.distinct_devices.length > 2 ? '#F59E0B' : '#94A3B8' },
+            { label: 'IPs',         value: row.distinct_ips.length.toString(),       color: row.distinct_ips.length > 2 ? '#F59E0B' : T.textSec },
+            { label: 'Devices',     value: row.distinct_devices.length.toString(),   color: row.distinct_devices.length > 2 ? '#F59E0B' : T.textSec },
           ].map(({ label, value, color }) => (
-            <div key={label} className="px-5 py-3.5 text-center" style={{ borderRight: '1px solid #1E2D3D' }}>
+            <div key={label} className="px-5 py-3.5 text-center" style={{ borderRight: `1px solid ${T.border}` }}>
               <p className="text-xl font-bold mono" style={{ color }}>{value}</p>
-              <p className="text-[10px] mt-0.5" style={{ color: '#475569' }}>{label}</p>
+              <p className="text-[10px] mt-0.5" style={{ color: T.textDim }}>{label}</p>
             </div>
           ))}
         </div>
@@ -334,10 +337,10 @@ function UserDetailPanel({
                 ] as [string, string | null][]
               ).filter(([, v]) => Boolean(v)).map(([label, value]) => (
                 <div key={label} className="flex items-start gap-3">
-                  <span className="text-[10px] flex-shrink-0 pt-px" style={{ color: '#475569', minWidth: 76 }}>
+                  <span className="text-[10px] flex-shrink-0 pt-px" style={{ color: T.textDim, minWidth: 76 }}>
                     {label}
                   </span>
-                  <span className="text-xs mono break-all" style={{ color: '#94A3B8' }}>{value}</span>
+                  <span className="text-xs mono break-all" style={{ color: T.textSec }}>{value}</span>
                 </div>
               ))}
             </div>
@@ -361,7 +364,7 @@ function UserDetailPanel({
                       <span className={`text-[10px] px-2 py-0.5 rounded-full mono badge-${dec} flex-shrink-0`} style={{ minWidth: 48, textAlign: 'center' }}>
                         {dec}
                       </span>
-                      <div className="flex-1 rounded-full overflow-hidden" style={{ height: 3, background: '#1E2D3D' }}>
+                      <div className="flex-1 rounded-full overflow-hidden" style={{ height: 3, background: T.border }}>
                         <div
                           className="h-full rounded-full"
                           style={{
@@ -371,7 +374,7 @@ function UserDetailPanel({
                           }}
                         />
                       </div>
-                      <span className="text-xs mono flex-shrink-0" style={{ color: '#475569', minWidth: 28, textAlign: 'right' }}>
+                      <span className="text-xs mono flex-shrink-0" style={{ color: T.textDim, minWidth: 28, textAlign: 'right' }}>
                         {count}
                       </span>
                     </div>
@@ -390,20 +393,20 @@ function UserDetailPanel({
             badge={events.length}
           >
             {loading ? <LoadingRows /> : events.length === 0 ? (
-              <p className="text-xs" style={{ color: '#2D4057' }}>No events found.</p>
+              <p className="text-xs" style={{ color: T.textDim }}>No events found.</p>
             ) : (
               <div className="space-y-1.5">
                 {events.slice(0, 30).map((ev, i) => (
                   <div
                     key={ev.id}
                     className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg"
-                    style={{ background: i % 2 === 0 ? '#050B14' : 'transparent', border: '1px solid #0D1B2A' }}
+                    style={{ background: i % 2 === 0 ? T.bg : 'transparent', border: `1px solid ${T.border}` }}
                   >
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span
                           className="text-[10px] px-2 py-0.5 rounded-md mono"
-                          style={{ background: '#07111F', color: '#94A3B8', border: '1px solid #1E2D3D' }}
+                          style={{ background: T.deep, color: T.textSec, border: `1px solid ${T.border}` }}
                         >
                           {ev.event_type}
                         </span>
@@ -414,19 +417,19 @@ function UserDetailPanel({
                           {ev.decision}
                         </span>
                       </div>
-                      <p className="text-[10px] mono mt-1" style={{ color: '#2D4057' }}>
+                      <p className="text-[10px] mono mt-1" style={{ color: T.textDim }}>
                         {formatTs(ev.created_at)} · {relativeTime(ev.created_at)}
                       </p>
                     </div>
                     <div className="flex items-center gap-3 flex-shrink-0">
                       <div className="text-right">
-                        <p className="text-[10px]" style={{ color: '#475569' }}>T</p>
+                        <p className="text-[10px]" style={{ color: T.textDim }}>T</p>
                         <p className="text-xs mono font-semibold" style={{ color: trustColor(ev.trust_score) }}>
                           {ev.trust_score}
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="text-[10px]" style={{ color: '#475569' }}>F</p>
+                        <p className="text-[10px]" style={{ color: T.textDim }}>F</p>
                         <p className="text-xs mono font-semibold" style={{ color: fraudColor(ev.fraud_score) }}>
                           {ev.fraud_score}
                         </p>
@@ -435,7 +438,7 @@ function UserDetailPanel({
                   </div>
                 ))}
                 {events.length > 30 && (
-                  <p className="text-[10px] text-center pt-1" style={{ color: '#2D4057' }}>
+                  <p className="text-[10px] text-center pt-1" style={{ color: T.textDim }}>
                     +{events.length - 30} older events not shown
                   </p>
                 )}
@@ -452,15 +455,15 @@ function UserDetailPanel({
             badge={ipCounts.length}
           >
             {loading ? <LoadingRows /> : ipCounts.length === 0 ? (
-              <p className="text-xs" style={{ color: '#2D4057' }}>No IP data recorded.</p>
+              <p className="text-xs" style={{ color: T.textDim }}>No IP data recorded.</p>
             ) : (
               <div className="space-y-1.5">
                 {ipCounts.map(([ip, count]) => (
                   <div key={ip} className="flex items-center justify-between gap-3">
-                    <span className="text-xs mono" style={{ color: '#94A3B8' }}>{ip}</span>
+                    <span className="text-xs mono" style={{ color: T.textSec }}>{ip}</span>
                     <span
                       className="text-[10px] mono px-2 py-0.5 rounded"
-                      style={{ background: '#050B14', color: '#475569', border: '1px solid #1E2D3D' }}
+                      style={{ background: T.bg, color: T.textDim, border: `1px solid ${T.border}` }}
                     >
                       {count} event{count !== 1 ? 's' : ''}
                     </span>
@@ -479,17 +482,17 @@ function UserDetailPanel({
             badge={deviceCounts.length}
           >
             {loading ? <LoadingRows /> : deviceCounts.length === 0 ? (
-              <p className="text-xs" style={{ color: '#2D4057' }}>No device data recorded.</p>
+              <p className="text-xs" style={{ color: T.textDim }}>No device data recorded.</p>
             ) : (
               <div className="space-y-1.5">
                 {deviceCounts.map(([dev, count]) => (
                   <div key={dev} className="flex items-center justify-between gap-3">
-                    <span className="text-xs mono truncate" style={{ color: '#94A3B8', maxWidth: 320 }}>
+                    <span className="text-xs mono truncate" style={{ color: T.textSec, maxWidth: 320 }}>
                       {dev}
                     </span>
                     <span
                       className="text-[10px] mono px-2 py-0.5 rounded flex-shrink-0"
-                      style={{ background: '#050B14', color: '#475569', border: '1px solid #1E2D3D' }}
+                      style={{ background: T.bg, color: T.textDim, border: `1px solid ${T.border}` }}
                     >
                       {count} event{count !== 1 ? 's' : ''}
                     </span>
@@ -511,7 +514,7 @@ function UserDetailPanel({
             badge={recurringSignals.length}
           >
             {loading ? <LoadingRows /> : recurringSignals.length === 0 ? (
-              <p className="text-xs" style={{ color: '#2D4057' }}>
+              <p className="text-xs" style={{ color: T.textDim }}>
                 No recurring signals — user appears clean across events.
               </p>
             ) : (
@@ -520,11 +523,11 @@ function UserDetailPanel({
                   <div
                     key={code}
                     className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg"
-                    style={{ background: '#050B14', border: '1px solid #1E2D3D' }}
+                    style={{ background: T.bg, border: `1px solid ${T.border}` }}
                   >
                     <div className="min-w-0">
-                      <p className="text-xs font-medium" style={{ color: '#E2E8F0' }}>{label}</p>
-                      <p className="text-[10px] mono mt-0.5" style={{ color: '#475569' }}>{code}</p>
+                      <p className="text-xs font-medium" style={{ color: T.text }}>{label}</p>
+                      <p className="text-[10px] mono mt-0.5" style={{ color: T.textDim }}>{code}</p>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <span
@@ -537,7 +540,7 @@ function UserDetailPanel({
                       >
                         {severity}
                       </span>
-                      <span className="text-[10px] mono" style={{ color: '#475569' }}>×{count}</span>
+                      <span className="text-[10px] mono" style={{ color: T.textDim }}>×{count}</span>
                     </div>
                   </div>
                 ))}
@@ -553,8 +556,9 @@ function UserDetailPanel({
 }
 
 function LoadingRows() {
+  const T = useT()
   return (
-    <div className="flex items-center gap-2" style={{ color: '#475569' }}>
+    <div className="flex items-center gap-2" style={{ color: T.textDim }}>
       <RefreshCw size={10} className="animate-spin" />
       <span className="text-xs">Loading…</span>
     </div>
@@ -564,6 +568,7 @@ function LoadingRows() {
 // ─── UserTrustGraphSection ────────────────────────────────────────────────────
 
 function UserTrustGraphSection({ row }: { row: UserRow }) {
+  const T = useT()
   const [open,    setOpen]    = useState(false)
   const [fetched, setFetched] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -603,20 +608,20 @@ function UserTrustGraphSection({ row }: { row: UserRow }) {
   )
 
   return (
-    <div style={{ borderBottom: '1px solid #0D1B2A' }}>
+    <div style={{ borderBottom: `1px solid ${T.border}` }}>
       <button
         onClick={toggle}
         className="w-full flex items-center justify-between px-6 py-3.5 transition-colors duration-100"
         style={{ background: 'transparent' }}
-        onMouseEnter={e => (e.currentTarget.style.background = '#0B1220')}
+        onMouseEnter={e => (e.currentTarget.style.background = T.card)}
         onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
       >
         <div className="flex items-center gap-2.5">
-          <Network size={12} style={{ color: '#475569' }} />
-          <span className="text-xs font-semibold" style={{ color: '#94A3B8' }}>Risk Network</span>
+          <Network size={12} style={{ color: T.textDim }} />
+          <span className="text-xs font-semibold" style={{ color: T.textSec }}>Risk Network</span>
           {fetched && result && result.summary.total_connections > 0 && (
             <span className="text-[10px] mono px-1.5 py-0.5 rounded"
-              style={{ background: '#0B1220', color: '#475569', border: '1px solid #1E2D3D' }}>
+              style={{ background: T.card, color: T.textDim, border: `1px solid ${T.border}` }}>
               {result.summary.total_connections}
             </span>
           )}
@@ -628,20 +633,20 @@ function UserTrustGraphSection({ row }: { row: UserRow }) {
           )}
         </div>
         <ChevronDown size={12}
-          style={{ color: '#475569', transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+          style={{ color: T.textDim, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
       </button>
 
       {open && (
         <div className="px-6 pb-5 space-y-4">
           {loading && (
-            <div className="flex items-center gap-2" style={{ color: '#475569' }}>
+            <div className="flex items-center gap-2" style={{ color: T.textDim }}>
               <RefreshCw size={10} className="animate-spin" />
               <span className="text-xs">Analyzing risk network…</span>
             </div>
           )}
 
           {fetched && !hasData && (
-            <p className="text-xs" style={{ color: '#2D4057' }}>
+            <p className="text-xs" style={{ color: T.textDim }}>
               No cross-account connections detected.
             </p>
           )}
@@ -649,9 +654,9 @@ function UserTrustGraphSection({ row }: { row: UserRow }) {
           {fetched && result && hasData && (
             <>
               {/* Score bar */}
-              <div className="p-3 rounded-lg" style={{ background: '#050B14', border: '1px solid #1E2D3D' }}>
+              <div className="p-3 rounded-lg" style={{ background: T.bg, border: `1px solid ${T.border}` }}>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#475569' }}>
+                  <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.textDim }}>
                     Network Risk Score
                   </span>
                   <span className="text-sm font-bold mono"
@@ -659,11 +664,11 @@ function UserTrustGraphSection({ row }: { row: UserRow }) {
                     {score}
                   </span>
                 </div>
-                <div className="rounded-full overflow-hidden" style={{ height: 4, background: '#1E2D3D' }}>
+                <div className="rounded-full overflow-hidden" style={{ height: 4, background: T.border }}>
                   <div className="h-full rounded-full transition-all duration-700"
                     style={{ width: `${score}%`, background: score >= 70 ? '#EF4444' : score >= 40 ? '#F59E0B' : '#16C784' }} />
                 </div>
-                <p className="text-[10px] mono mt-2" style={{ color: '#475569' }}>
+                <p className="text-[10px] mono mt-2" style={{ color: T.textDim }}>
                   {result.summary.total_connections} connection{result.summary.total_connections !== 1 ? 's' : ''} · {result.suspicious_clusters.length} cluster{result.suspicious_clusters.length !== 1 ? 's' : ''}
                 </p>
               </div>
@@ -671,7 +676,7 @@ function UserTrustGraphSection({ row }: { row: UserRow }) {
               {/* Clusters */}
               {result.suspicious_clusters.length > 0 && (
                 <div className="space-y-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#475569' }}>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.textDim }}>
                     Suspicious Patterns
                   </p>
                   {result.suspicious_clusters.map((c, i) => (
@@ -679,19 +684,19 @@ function UserTrustGraphSection({ row }: { row: UserRow }) {
                       style={{ border: `1px solid ${TG_SEV[c.severity].border}`, borderLeft: `3px solid ${TG_SEV[c.severity].text}` }}>
                       <div className="px-3 py-2.5" style={{ background: TG_SEV[c.severity].bg }}>
                         <div className="flex items-start justify-between gap-2 mb-1">
-                          <p className="text-xs font-semibold" style={{ color: '#E2E8F0' }}>{c.title}</p>
+                          <p className="text-xs font-semibold" style={{ color: T.text }}>{c.title}</p>
                           <span className="text-[9px] mono px-1.5 py-0.5 rounded flex-shrink-0"
                             style={{ color: TG_SEV[c.severity].text, border: `1px solid ${TG_SEV[c.severity].border}` }}>
                             {c.severity.toUpperCase()}
                           </span>
                         </div>
-                        <p className="text-[11px] leading-relaxed" style={{ color: '#94A3B8' }}>
+                        <p className="text-[11px] leading-relaxed" style={{ color: T.textSec }}>
                           {c.description}
                         </p>
                         {c.evidence.length > 0 && (
                           <ul className="mt-1.5 space-y-0.5">
                             {c.evidence.map((e, j) => (
-                              <li key={j} className="text-[10px] mono flex items-center gap-1.5" style={{ color: '#475569' }}>
+                              <li key={j} className="text-[10px] mono flex items-center gap-1.5" style={{ color: T.textDim }}>
                                 <span style={{ color: TG_SEV[c.severity].text }}>›</span>
                                 {e}
                               </li>
@@ -707,18 +712,18 @@ function UserTrustGraphSection({ row }: { row: UserRow }) {
               {/* Connected accounts (condensed) */}
               {result.related_users.length > 0 && (
                 <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: '#475569' }}>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: T.textDim }}>
                     Connected Accounts ({result.related_users.length})
                   </p>
                   <div className="space-y-1.5">
                     {result.related_users.slice(0, 8).map(u => (
                       <div key={u.external_user_id} className="flex items-center gap-3 px-3 py-2 rounded-lg"
-                        style={{ background: '#050B14', border: '1px solid #1E2D3D' }}>
+                        style={{ background: T.bg, border: `1px solid ${T.border}` }}>
                         <div className="flex-1 min-w-0">
-                          <p className="text-[11px] mono truncate" style={{ color: '#94A3B8' }}>
+                          <p className="text-[11px] mono truncate" style={{ color: T.textSec }}>
                             {u.external_user_id}
                           </p>
-                          <p className="text-[9px] mt-0.5" style={{ color: '#475569' }}>
+                          <p className="text-[9px] mt-0.5" style={{ color: T.textDim }}>
                             via {u.connection_type === 'shared_ip' ? 'IP' : u.connection_type === 'shared_device' ? 'device' : 'email'} · {u.event_count} events
                             {u.has_block ? ' · blocked' : ''}
                           </p>
@@ -730,7 +735,7 @@ function UserTrustGraphSection({ row }: { row: UserRow }) {
                       </div>
                     ))}
                     {result.related_users.length > 8 && (
-                      <p className="text-[10px] text-center" style={{ color: '#2D4057' }}>
+                      <p className="text-[10px] text-center" style={{ color: T.textDim }}>
                         +{result.related_users.length - 8} more
                       </p>
                     )}
@@ -750,6 +755,7 @@ function UserTrustGraphSection({ row }: { row: UserRow }) {
 const FREE_HISTORY_HOURS = 48
 
 export default function UsersPage() {
+  const T = useT()
   const { user } = useAuth()
   const [orgId,    setOrgId]    = useState<string | null>(null)
   const [freePlan, setFreePlan] = useState(false)
@@ -844,7 +850,7 @@ export default function UsersPage() {
   const suspiciousCount = useMemo(() => rows.filter(r => r.is_suspicious).length, [rows])
 
   if (loading) return (
-    <div className="flex items-center justify-center min-h-[60vh] gap-3" style={{ color: '#475569' }}>
+    <div className="flex items-center justify-center min-h-[60vh] gap-3" style={{ color: T.textDim }}>
       <RefreshCw size={15} className="animate-spin" />
       <span className="text-sm">Loading users…</span>
     </div>
@@ -872,7 +878,7 @@ export default function UsersPage() {
 
       {/* Sub-header */}
       <div className="flex items-center justify-between mb-5">
-        <p className="text-sm" style={{ color: '#475569' }}>
+        <p className="text-sm" style={{ color: T.textDim }}>
           {filtered.length.toLocaleString()} user{filtered.length !== 1 ? 's' : ''}
           {filtered.length !== rows.length && ` (of ${rows.length.toLocaleString()})`}
           {suspiciousCount > 0 && (
@@ -882,9 +888,9 @@ export default function UsersPage() {
         <button
           onClick={() => void fetchData()}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors"
-          style={{ border: '1px solid #1E2D3D', color: '#475569' }}
-          onMouseEnter={e => (e.currentTarget.style.color = '#94A3B8')}
-          onMouseLeave={e => (e.currentTarget.style.color = '#475569')}
+          style={{ border: `1px solid ${T.border}`, color: T.textDim }}
+          onMouseEnter={e => (e.currentTarget.style.color = T.textSec)}
+          onMouseLeave={e => (e.currentTarget.style.color = T.textDim)}
         >
           <RefreshCw size={11} />
           Refresh
@@ -897,20 +903,20 @@ export default function UsersPage() {
           <Search
             size={12}
             className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
-            style={{ color: '#475569' }}
+            style={{ color: T.textDim }}
           />
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="User ID, email, phone, IP, device…"
             className="g-input text-xs"
-            style={{ paddingLeft: 30, height: 32, width: 280 }}
+            style={{ paddingLeft: 30, height: 32, width: 280, background: T.inputBg }}
           />
           {search && (
             <button
               onClick={() => setSearch('')}
               className="absolute right-3 top-1/2 -translate-y-1/2"
-              style={{ color: '#475569' }}
+              style={{ color: T.textDim }}
             >
               <X size={10} />
             </button>
@@ -921,9 +927,9 @@ export default function UsersPage() {
           onClick={() => setSusOnly(p => !p)}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors"
           style={{
-            border: susOnly ? '1px solid rgba(239,68,68,0.4)' : '1px solid #1E2D3D',
+            border: susOnly ? '1px solid rgba(239,68,68,0.4)' : `1px solid ${T.border}`,
             background: susOnly ? 'rgba(239,68,68,0.08)' : 'transparent',
-            color: susOnly ? '#EF4444' : '#475569',
+            color: susOnly ? '#EF4444' : T.textDim,
           }}
         >
           <AlertTriangle size={11} />
@@ -938,8 +944,8 @@ export default function UsersPage() {
       <div className="g-card overflow-hidden">
         {filtered.length === 0 ? (
           <div className="py-16 text-center">
-            <Users size={24} className="mx-auto mb-3" style={{ color: '#1E2D3D' }} />
-            <p className="text-sm font-semibold mb-1.5" style={{ color: '#475569' }}>
+            <Users size={24} className="mx-auto mb-3" style={{ color: T.border }} />
+            <p className="text-sm font-semibold mb-1.5" style={{ color: T.textDim }}>
               {rows.length === 0 ? 'No users analyzed yet' : 'No users match your filters'}
             </p>
             {(search || susOnly) && (
@@ -956,12 +962,12 @@ export default function UsersPage() {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr style={{ borderBottom: '1px solid #1E2D3D' }}>
+                <tr style={{ borderBottom: `1px solid ${T.border}` }}>
                   {['User','Email','Country','Events','Fraud peak','Latest decision','IPs','Devices','First seen'].map(h => (
                     <th
                       key={h}
                       className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap"
-                      style={{ color: '#2D4057', background: '#07111F' }}
+                      style={{ color: T.textDim, background: T.deep }}
                     >
                       {h}
                     </th>
@@ -978,12 +984,12 @@ export default function UsersPage() {
                       onClick={() => setSelected(row)}
                       className="cursor-pointer"
                       style={{
-                        borderBottom: i < filtered.length - 1 ? '1px solid #0D1B2A' : 'none',
-                        background: isSelected ? '#0B1220' : 'transparent',
+                        borderBottom: i < filtered.length - 1 ? `1px solid ${T.border}` : 'none',
+                        background: isSelected ? T.elevated : 'transparent',
                         transition: 'background 0.1s',
                       }}
                       onMouseEnter={e => {
-                        if (!isSelected) e.currentTarget.style.background = '#0A1828'
+                        if (!isSelected) e.currentTarget.style.background = T.dark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)'
                       }}
                       onMouseLeave={e => {
                         if (!isSelected) e.currentTarget.style.background = 'transparent'
@@ -995,7 +1001,7 @@ export default function UsersPage() {
                           {row.is_suspicious && (
                             <AlertTriangle size={10} style={{ color: '#EF4444', flexShrink: 0 }} />
                           )}
-                          <p className="text-xs mono truncate" style={{ maxWidth: 140, color: '#94A3B8' }}>
+                          <p className="text-xs mono truncate" style={{ maxWidth: 140, color: T.textSec }}>
                             {u.external_user_id}
                           </p>
                         </div>
@@ -1003,21 +1009,21 @@ export default function UsersPage() {
 
                       {/* Email */}
                       <td className="px-4 py-3">
-                        <span className="text-xs truncate" style={{ maxWidth: 160, color: '#475569', display: 'block' }}>
+                        <span className="text-xs truncate" style={{ maxWidth: 160, color: T.textDim, display: 'block' }}>
                           {u.email ?? '—'}
                         </span>
                       </td>
 
                       {/* Country */}
                       <td className="px-4 py-3">
-                        <span className="text-xs mono" style={{ color: '#475569' }}>
+                        <span className="text-xs mono" style={{ color: T.textDim }}>
                           {u.country ?? '—'}
                         </span>
                       </td>
 
                       {/* Events */}
                       <td className="px-4 py-3">
-                        <span className="text-xs mono font-semibold" style={{ color: '#94A3B8' }}>
+                        <span className="text-xs mono font-semibold" style={{ color: T.textSec }}>
                           {row.total_events}
                         </span>
                       </td>
@@ -1026,7 +1032,7 @@ export default function UsersPage() {
                       <td className="px-4 py-3">
                         <span
                           className="text-xs mono font-semibold"
-                          style={{ color: row.total_events > 0 ? fraudColor(row.highest_fraud_score) : '#2D4057' }}
+                          style={{ color: row.total_events > 0 ? fraudColor(row.highest_fraud_score) : T.textDim }}
                         >
                           {row.total_events > 0 ? row.highest_fraud_score : '—'}
                         </span>
@@ -1039,7 +1045,7 @@ export default function UsersPage() {
                             {row.latest_decision}
                           </span>
                         ) : (
-                          <span style={{ color: '#2D4057' }}>—</span>
+                          <span style={{ color: T.textDim }}>—</span>
                         )}
                       </td>
 
@@ -1047,7 +1053,7 @@ export default function UsersPage() {
                       <td className="px-4 py-3">
                         <span
                           className="text-xs mono"
-                          style={{ color: row.distinct_ips.length > 2 ? '#F59E0B' : '#475569' }}
+                          style={{ color: row.distinct_ips.length > 2 ? '#F59E0B' : T.textDim }}
                         >
                           {row.distinct_ips.length}
                         </span>
@@ -1057,7 +1063,7 @@ export default function UsersPage() {
                       <td className="px-4 py-3">
                         <span
                           className="text-xs mono"
-                          style={{ color: row.distinct_devices.length > 2 ? '#F59E0B' : '#475569' }}
+                          style={{ color: row.distinct_devices.length > 2 ? '#F59E0B' : T.textDim }}
                         >
                           {row.distinct_devices.length}
                         </span>
@@ -1065,10 +1071,10 @@ export default function UsersPage() {
 
                       {/* First seen */}
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <p className="text-[10px] mono" style={{ color: '#94A3B8' }}>
+                        <p className="text-[10px] mono" style={{ color: T.textSec }}>
                           {formatTs(u.created_at)}
                         </p>
-                        <p className="text-[10px] mono mt-0.5" style={{ color: '#2D4057' }}>
+                        <p className="text-[10px] mono mt-0.5" style={{ color: T.textDim }}>
                           {relativeTime(u.created_at)}
                         </p>
                       </td>

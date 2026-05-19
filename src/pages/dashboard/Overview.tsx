@@ -88,7 +88,10 @@ function AreaChart({ buckets }: { buckets: number[] }) {
 
 // ─── Chart: Donut ─────────────────────────────────────────────────────────────
 
-function DonutChart({ allow, review, block }: { allow: number; review: number; block: number }) {
+function DonutChart({ allow, review, block, border, text, textDim }: {
+  allow: number; review: number; block: number
+  border: string; text: string; textDim: string
+}) {
   const total = allow + review + block
   const r = 32, circ = 2 * Math.PI * r
   const gap = total > 0 ? 3 : 0
@@ -107,16 +110,16 @@ function DonutChart({ allow, review, block }: { allow: number; review: number; b
   return (
     <svg viewBox="0 0 88 88" width="88" height="88">
       {total === 0
-        ? <circle cx="44" cy="44" r={r} fill="none" stroke="#1E2D3D" strokeWidth="7" />
+        ? <circle cx="44" cy="44" r={r} fill="none" stroke={border} strokeWidth="7" />
         : arcs.map((arc, i) => arc.val > 0 && (
           <circle key={i} cx="44" cy="44" r={r} fill="none" stroke={arc.color} strokeWidth="7"
             strokeDasharray={`${arc.len} ${circ}`} strokeDashoffset={-arc.off}
             transform="rotate(-90 44 44)" strokeLinecap="butt" />
         ))}
-      <text x="44" y="41" textAnchor="middle" fill="#FFFFFF" fontSize="12" fontWeight="bold" fontFamily="IBM Plex Mono, monospace">
+      <text x="44" y="41" textAnchor="middle" fill={text} fontSize="12" fontWeight="bold" fontFamily="IBM Plex Mono, monospace">
         {total > 0 ? total.toLocaleString() : '—'}
       </text>
-      <text x="44" y="52" textAnchor="middle" fill="#475569" fontSize="7" fontFamily="Inter, sans-serif">
+      <text x="44" y="52" textAnchor="middle" fill={textDim} fontSize="7" fontFamily="Inter, sans-serif">
         events
       </text>
     </svg>
@@ -132,7 +135,7 @@ const HIST_COLORS = [
   '#EF4444','#EF4444',
 ]
 
-function FraudHistogram({ buckets }: { buckets: number[] }) {
+function FraudHistogram({ buckets, border, textDim }: { buckets: number[]; border: string; textDim: string }) {
   const MAX_H = 64
   const max = Math.max(...buckets, 1)
   return (
@@ -142,7 +145,7 @@ function FraudHistogram({ buckets }: { buckets: number[] }) {
           <div key={i} className="flex-1 flex items-end" style={{ height: MAX_H }}>
             <div className="w-full rounded-[2px]" style={{
               height: v > 0 ? Math.max((v / max) * MAX_H, 3) : 1,
-              background: v > 0 ? HIST_COLORS[i] : '#1E2D3D',
+              background: v > 0 ? HIST_COLORS[i] : border,
               opacity: v > 0 ? 0.85 : 0.3,
               transition: 'height 0.5s ease',
             }} />
@@ -151,7 +154,7 @@ function FraudHistogram({ buckets }: { buckets: number[] }) {
       </div>
       <div className="flex mt-1.5">
         {['0','10','20','30','40','50','60','70','80','90+'].map((l, i) => (
-          <span key={i} className="flex-1 text-[9px] mono text-center" style={{ color: '#2D4057' }}>{l}</span>
+          <span key={i} className="flex-1 text-[9px] mono text-center" style={{ color: textDim }}>{l}</span>
         ))}
       </div>
     </div>
@@ -160,17 +163,18 @@ function FraudHistogram({ buckets }: { buckets: number[] }) {
 
 // ─── Chart: HorizBar ─────────────────────────────────────────────────────────
 
-function HorizBar({ label, count, max, color, pct: pctOverride }: {
+function HorizBar({ label, count, max, color, pct: pctOverride, textSec, border }: {
   label: string; count: number; max: number; color: string; pct?: number
+  textSec: string; border: string
 }) {
   const pct = pctOverride ?? (max > 0 ? (count / max) * 100 : 0)
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
-        <span className="text-xs truncate pr-2" style={{ color: '#94A3B8' }}>{label}</span>
+        <span className="text-xs truncate pr-2" style={{ color: textSec }}>{label}</span>
         <span className="text-xs mono font-semibold flex-shrink-0" style={{ color }}>{count.toLocaleString()}</span>
       </div>
-      <div className="rounded-full overflow-hidden" style={{ height: 3, background: '#1E2D3D' }}>
+      <div className="rounded-full overflow-hidden" style={{ height: 3, background: border }}>
         <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: color }} />
       </div>
     </div>
@@ -412,12 +416,12 @@ export default function Overview() {
   )
 
   const STAT_CARDS = [
-    { label: 'Total Checks',    value: total > 0 ? total.toLocaleString() : '—',         sub: 'Last 24 hours',                              icon: Activity,     color: '#94A3B8', hi: false },
+    { label: 'Total Checks',    value: total > 0 ? total.toLocaleString() : '—',         sub: 'Last 24 hours',                              icon: Activity,     color: T.textSec, hi: false },
     { label: 'Approved',        value: allowed > 0 ? allowed.toLocaleString() : '—',      sub: total > 0 ? `${((allowed/total)*100).toFixed(1)}% of total` : '—', icon: CheckCircle,  color: '#16C784', hi: true  },
     { label: 'Blocked',         value: blocked > 0 ? blocked.toLocaleString() : '—',      sub: `${blockRate}% block rate`,                    icon: XCircle,      color: '#EF4444', hi: false },
     { label: 'Review Queue',    value: reviews > 0 ? reviews.toLocaleString() : '—',      sub: total > 0 ? `${((reviews/total)*100).toFixed(1)}% of total` : '—', icon: Clock,        color: '#F59E0B', hi: false },
-    { label: 'Avg Trust Score', value: total > 0 ? String(avgTrust) : '—',                sub: avgTrust >= 70 ? 'Healthy baseline' : total > 0 ? 'Elevated risk' : '—', icon: TrendingUp, color: total > 0 ? trustColor(avgTrust) : '#475569', hi: false },
-    { label: 'High-Risk Events',value: highRisk > 0 ? highRisk.toLocaleString() : '—',   sub: 'High + critical level',                        icon: AlertTriangle, color: highRisk > 0 ? '#F97316' : '#475569', hi: false },
+    { label: 'Avg Trust Score', value: total > 0 ? String(avgTrust) : '—',                sub: avgTrust >= 70 ? 'Healthy baseline' : total > 0 ? 'Elevated risk' : '—', icon: TrendingUp, color: total > 0 ? trustColor(avgTrust) : T.textDim, hi: false },
+    { label: 'High-Risk Events',value: highRisk > 0 ? highRisk.toLocaleString() : '—',   sub: 'High + critical level',                        icon: AlertTriangle, color: highRisk > 0 ? '#F97316' : T.textDim, hi: false },
   ]
 
   const SPIKE_ICONS = {
@@ -569,15 +573,15 @@ export default function Overview() {
             </div>
             {total === 0 ? (
               <div className="flex items-center justify-center rounded-xl"
-                style={{ height: 72, background: '#07111F', border: '1px solid #1E2D3D' }}>
-                <p className="text-xs" style={{ color: '#2D4057' }}>No events yet</p>
+                style={{ height: 72, background: T.deep, border: `1px solid ${T.border}` }}>
+                <p className="text-xs" style={{ color: T.textDim }}>No events yet</p>
               </div>
             ) : (
               <>
                 <AreaChart buckets={hourlyBuckets} />
                 <div className="flex justify-between mt-1.5">
                   {['24h ago', '18h', '12h', '6h', 'now'].map(l => (
-                    <span key={l} className="text-[10px] mono" style={{ color: '#2D4057' }}>{l}</span>
+                    <span key={l} className="text-[10px] mono" style={{ color: T.textDim }}>{l}</span>
                   ))}
                 </div>
               </>
@@ -589,10 +593,10 @@ export default function Overview() {
 
             {/* Decision Breakdown */}
             <div className="g-card p-5">
-              <p className="text-sm font-semibold mb-0.5" style={{ color: '#FFFFFF' }}>Decision Breakdown</p>
-              <p className="text-xs mb-4" style={{ color: '#475569' }}>Distribution by outcome</p>
+              <p className="text-sm font-semibold mb-0.5" style={{ color: T.text }}>Decision Breakdown</p>
+              <p className="text-xs mb-4" style={{ color: T.textDim }}>Distribution by outcome</p>
               <div className="flex items-center gap-4">
-                <DonutChart allow={allowed} review={reviews} block={blocked} />
+                <DonutChart allow={allowed} review={reviews} block={blocked} border={T.border} text={T.text} textDim={T.textDim} />
                 <div className="space-y-3 flex-1">
                   {[
                     { label: 'Approve', count: allowed, color: '#16C784' },
@@ -603,13 +607,13 @@ export default function Overview() {
                       <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-2">
                           <span className="w-1.5 h-1.5 rounded-full" style={{ background: row.color }} />
-                          <span className="text-xs" style={{ color: '#94A3B8' }}>{row.label}</span>
+                          <span className="text-xs" style={{ color: T.textSec }}>{row.label}</span>
                         </div>
                         <span className="text-xs font-semibold mono" style={{ color: row.color }}>
                           {row.count.toLocaleString()}
                         </span>
                       </div>
-                      <div className="rounded-full overflow-hidden" style={{ height: 2, background: '#1E2D3D' }}>
+                      <div className="rounded-full overflow-hidden" style={{ height: 2, background: T.border }}>
                         <div className="h-full rounded-full transition-all duration-500"
                           style={{ width: total > 0 ? `${(row.count / total) * 100}%` : '0%', background: row.color }} />
                       </div>
@@ -621,8 +625,8 @@ export default function Overview() {
 
             {/* Risk Level Distribution */}
             <div className="g-card p-5">
-              <p className="text-sm font-semibold mb-0.5" style={{ color: '#FFFFFF' }}>Risk Distribution</p>
-              <p className="text-xs mb-5" style={{ color: '#475569' }}>Events by risk level</p>
+              <p className="text-sm font-semibold mb-0.5" style={{ color: T.text }}>Risk Distribution</p>
+              <p className="text-xs mb-5" style={{ color: T.textDim }}>Events by risk level</p>
               <div className="space-y-3.5">
                 {[
                   { key: 'low',      label: 'Low',      color: '#16C784' },
@@ -632,7 +636,7 @@ export default function Overview() {
                 ].map(r => (
                   <HorizBar key={r.key} label={r.label}
                     count={riskLevels[r.key as keyof typeof riskLevels]}
-                    max={maxRisk} color={r.color} />
+                    max={maxRisk} color={r.color} textSec={T.textSec} border={T.border} />
                 ))}
               </div>
             </div>
@@ -641,14 +645,14 @@ export default function Overview() {
           {/* Fraud Score Histogram + Top Countries */}
           <div className="grid grid-cols-2 gap-4">
             <div className="g-card p-5">
-              <p className="text-sm font-semibold mb-0.5" style={{ color: '#FFFFFF' }}>Fraud Score Distribution</p>
-              <p className="text-xs mb-4" style={{ color: '#475569' }}>Events by score bucket</p>
+              <p className="text-sm font-semibold mb-0.5" style={{ color: T.text }}>Fraud Score Distribution</p>
+              <p className="text-xs mb-4" style={{ color: T.textDim }}>Events by score bucket</p>
               {total === 0 ? (
                 <div className="flex items-center justify-center rounded-xl"
-                  style={{ height: 64, background: '#07111F', border: '1px solid #1E2D3D' }}>
-                  <p className="text-xs" style={{ color: '#2D4057' }}>No data yet</p>
+                  style={{ height: 64, background: T.deep, border: `1px solid ${T.border}` }}>
+                  <p className="text-xs" style={{ color: T.textDim }}>No data yet</p>
                 </div>
-              ) : <FraudHistogram buckets={fraudBuckets} />}
+              ) : <FraudHistogram buckets={fraudBuckets} border={T.border} textDim={T.textDim} />}
               <div className="flex items-center flex-wrap gap-3 mt-3">
                 {[
                   { label: 'Low',      color: '#16C784' },
@@ -658,21 +662,21 @@ export default function Overview() {
                 ].map(l => (
                   <div key={l.label} className="flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-[2px]" style={{ background: l.color }} />
-                    <span className="text-[10px]" style={{ color: '#475569' }}>{l.label}</span>
+                    <span className="text-[10px]" style={{ color: T.textDim }}>{l.label}</span>
                   </div>
                 ))}
               </div>
             </div>
 
             <div className="g-card p-5">
-              <p className="text-sm font-semibold mb-0.5" style={{ color: '#FFFFFF' }}>Top Countries</p>
-              <p className="text-xs mb-5" style={{ color: '#475569' }}>By event volume</p>
+              <p className="text-sm font-semibold mb-0.5" style={{ color: T.text }}>Top Countries</p>
+              <p className="text-xs mb-5" style={{ color: T.textDim }}>By event volume</p>
               {topCountries.length === 0 ? (
-                <p className="text-xs" style={{ color: '#2D4057' }}>No country data yet</p>
+                <p className="text-xs" style={{ color: T.textDim }}>No country data yet</p>
               ) : (
                 <div className="space-y-3.5">
                   {topCountries.map(c => (
-                    <HorizBar key={c.cc} label={c.cc} count={c.count} max={maxCountry} color="#94A3B8" />
+                    <HorizBar key={c.cc} label={c.cc} count={c.count} max={maxCountry} color={T.textSec} textSec={T.textSec} border={T.border} />
                   ))}
                 </div>
               )}
@@ -686,10 +690,10 @@ export default function Overview() {
           {/* Live Risk Feed */}
           <div className="g-card overflow-hidden flex flex-col" style={{ maxHeight: 520 }}>
             <div className="flex items-center justify-between px-5 py-3.5 flex-shrink-0"
-              style={{ borderBottom: '1px solid #1E2D3D' }}>
+              style={{ borderBottom: `1px solid ${T.border}` }}>
               <div>
-                <p className="text-sm font-semibold" style={{ color: '#FFFFFF' }}>Live Risk Feed</p>
-                <p className="text-[11px] mt-0.5" style={{ color: '#475569' }}>
+                <p className="text-sm font-semibold" style={{ color: T.text }}>Live Risk Feed</p>
+                <p className="text-[11px] mt-0.5" style={{ color: T.textDim }}>
                   {total > 0 ? `${total.toLocaleString()} events` : 'Waiting for events'}
                 </p>
               </div>
@@ -701,11 +705,11 @@ export default function Overview() {
 
             {events.length === 0 ? (
               <div className="flex-1 flex flex-col items-center justify-center py-10 px-5 text-center">
-                <Shield size={20} className="mb-3" style={{ color: '#1E2D3D' }} />
-                <p className="text-xs font-semibold mb-1" style={{ color: '#475569' }}>No events yet</p>
-                <p className="text-[11px]" style={{ color: '#2D4057' }}>
+                <Shield size={20} className="mb-3" style={{ color: T.border }} />
+                <p className="text-xs font-semibold mb-1" style={{ color: T.textDim }}>No events yet</p>
+                <p className="text-[11px]" style={{ color: T.textDim }}>
                   Send your first check via{' '}
-                  <code className="mono" style={{ color: '#475569' }}>POST /api/risk/check</code>
+                  <code className="mono" style={{ color: T.textSec }}>POST /api/risk/check</code>
                 </p>
               </div>
             ) : (
@@ -717,7 +721,7 @@ export default function Overview() {
                       key={ev.id}
                       className="px-5 py-3 flex items-start gap-3 transition-all duration-700"
                       style={{
-                        borderBottom: i < Math.min(events.length, 50) - 1 ? '1px solid #0D1B2A' : 'none',
+                        borderBottom: i < Math.min(events.length, 50) - 1 ? `1px solid ${T.deep}` : 'none',
                         background: isNew ? 'rgba(22,199,132,0.06)' : 'transparent',
                       }}
                     >
@@ -742,11 +746,11 @@ export default function Overview() {
                             {ev.decision}
                           </span>
                           <span className="text-[10px] px-1.5 py-0.5 rounded mono"
-                            style={{ background: '#07111F', color: '#475569', border: '1px solid #1E2D3D' }}>
+                            style={{ background: T.deep, color: T.textDim, border: `1px solid ${T.border}` }}>
                             {ev.event_type}
                           </span>
                         </div>
-                        <p className="text-[10px] mono truncate" style={{ color: '#475569' }}>
+                        <p className="text-[10px] mono truncate" style={{ color: T.textDim }}>
                           {ev.external_user_id}
                         </p>
                       </div>
@@ -761,7 +765,7 @@ export default function Overview() {
                             F{ev.fraud_score}
                           </span>
                         </div>
-                        <p className="text-[9px] mono" style={{ color: '#2D4057' }}>
+                        <p className="text-[9px] mono" style={{ color: T.textDim }}>
                           {relativeTime(ev.created_at)}
                         </p>
                       </div>
@@ -774,10 +778,10 @@ export default function Overview() {
 
           {/* Top Signals */}
           <div className="g-card p-5">
-            <p className="text-sm font-semibold mb-0.5" style={{ color: '#FFFFFF' }}>Top Signals</p>
-            <p className="text-xs mb-4" style={{ color: '#475569' }}>Most detected patterns</p>
+            <p className="text-sm font-semibold mb-0.5" style={{ color: T.text }}>Top Signals</p>
+            <p className="text-xs mb-4" style={{ color: T.textDim }}>Most detected patterns</p>
             {topSignals.length === 0 ? (
-              <p className="text-xs" style={{ color: '#2D4057' }}>No signals detected yet</p>
+              <p className="text-xs" style={{ color: T.textDim }}>No signals detected yet</p>
             ) : (
               <div className="space-y-3">
                 {topSignals.map((s, i) => {
@@ -787,13 +791,13 @@ export default function Overview() {
                       <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-1.5 min-w-0">
                           <span className="w-1 h-3 rounded-[1px] flex-shrink-0" style={{ background: sevColor }} />
-                          <span className="text-[11px] truncate" style={{ color: '#94A3B8' }}>{s.label}</span>
+                          <span className="text-[11px] truncate" style={{ color: T.textSec }}>{s.label}</span>
                         </div>
                         <span className="text-[10px] mono font-semibold flex-shrink-0 ml-2" style={{ color: sevColor }}>
                           ×{s.count}
                         </span>
                       </div>
-                      <div className="rounded-full overflow-hidden" style={{ height: 2, background: '#1E2D3D' }}>
+                      <div className="rounded-full overflow-hidden" style={{ height: 2, background: T.border }}>
                         <div className="h-full rounded-full transition-all duration-500"
                           style={{ width: `${(s.count / maxSignal) * 100}%`, background: sevColor }} />
                       </div>
@@ -807,9 +811,9 @@ export default function Overview() {
           {/* Estimated Impact */}
           <div className="g-card p-5">
             <div className="flex items-center gap-2 mb-1">
-              <p className="text-sm font-semibold" style={{ color: '#FFFFFF' }}>Estimated Impact</p>
+              <p className="text-sm font-semibold" style={{ color: T.text }}>Estimated Impact</p>
             </div>
-            <p className="text-[11px] mb-4" style={{ color: '#475569' }}>
+            <p className="text-[11px] mb-4" style={{ color: T.textDim }}>
               Based on your data — last 24 hours
             </p>
             <div className="grid grid-cols-2 gap-3">
@@ -860,7 +864,7 @@ export default function Overview() {
                     {tile.value.toLocaleString()}
                   </p>
                   <p className="text-[10px] font-semibold" style={{ color: tile.color }}>{tile.label}</p>
-                  <p className="text-[9px] mt-0.5" style={{ color: '#475569' }}>{tile.sub}</p>
+                  <p className="text-[9px] mt-0.5" style={{ color: T.textDim }}>{tile.sub}</p>
                 </div>
               ))}
             </div>

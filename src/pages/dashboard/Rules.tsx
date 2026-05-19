@@ -198,6 +198,7 @@ function RuleModal({ rule, orgId, onSave, onClose }: {
   onSave:   (saved: Rule) => void
   onClose:  () => void
 }) {
+  const T = useT()
   const [form,   setForm]   = useState<RuleForm>(() => initForm(rule))
   const [saving, setSaving] = useState(false)
   const [err,    setErr]    = useState<string | null>(null)
@@ -278,25 +279,25 @@ function RuleModal({ rule, orgId, onSave, onClose }: {
       >
         <div
           className="w-full flex flex-col"
-          style={{ maxWidth: 640, background: '#07111F', border: '1px solid #1E2D3D', borderRadius: 20, maxHeight: '92vh' }}
+          style={{ maxWidth: 640, background: T.deep, border: `1px solid ${T.border}`, borderRadius: 20, maxHeight: '92vh' }}
           onClick={e => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-6 py-5 flex-shrink-0" style={{ borderBottom: '1px solid #1E2D3D' }}>
+          <div className="flex items-center justify-between px-6 py-5 flex-shrink-0" style={{ borderBottom: `1px solid ${T.border}` }}>
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-widest mb-0.5" style={{ color: '#2D4057' }}>
                 {rule ? 'Edit Rule' : 'New Rule'}
               </p>
-              <p className="text-sm font-bold" style={{ color: '#E2E8F0', fontFamily: 'Inter, sans-serif' }}>
+              <p className="text-sm font-bold" style={{ color: T.text, fontFamily: 'Inter, sans-serif' }}>
                 {rule ? 'Update this rule' : 'Create a custom rule'}
               </p>
             </div>
             <button
               onClick={onClose}
               className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
-              style={{ background: '#0B1220', border: '1px solid #1E2D3D', color: '#475569' }}
-              onMouseEnter={e => (e.currentTarget.style.color = '#E2E8F0')}
-              onMouseLeave={e => (e.currentTarget.style.color = '#475569')}
+              style={{ background: T.card, border: `1px solid ${T.border}`, color: T.textDim }}
+              onMouseEnter={e => (e.currentTarget.style.color = T.text)}
+              onMouseLeave={e => (e.currentTarget.style.color = T.textDim)}
             >
               <X size={13} />
             </button>
@@ -308,7 +309,7 @@ function RuleModal({ rule, orgId, onSave, onClose }: {
             {/* Name + Description */}
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
-                <label className="block text-xs font-semibold mb-2" style={{ color: '#94A3B8' }}>
+                <label className="block text-xs font-semibold mb-2" style={{ color: T.textSec }}>
                   Rule Name *
                 </label>
                 <input
@@ -319,7 +320,7 @@ function RuleModal({ rule, orgId, onSave, onClose }: {
                 />
               </div>
               <div className="col-span-2">
-                <label className="block text-xs font-semibold mb-2" style={{ color: '#94A3B8' }}>
+                <label className="block text-xs font-semibold mb-2" style={{ color: T.textSec }}>
                   Description <span style={{ color: '#2D4057', fontWeight: 400 }}>(optional)</span>
                 </label>
                 <input
@@ -334,10 +335,10 @@ function RuleModal({ rule, orgId, onSave, onClose }: {
             {/* Condition group */}
             <div>
               <div className="flex items-center gap-3 mb-3">
-                <label className="text-xs font-semibold" style={{ color: '#94A3B8' }}>Conditions</label>
+                <label className="text-xs font-semibold" style={{ color: T.textSec }}>Conditions</label>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xs" style={{ color: '#475569' }}>Match</span>
-                  <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid #1E2D3D' }}>
+                  <span className="text-xs" style={{ color: T.textDim }}>Match</span>
+                  <div className="flex rounded-lg overflow-hidden" style={{ border: `1px solid ${T.border}` }}>
                     {(['all', 'any'] as const).map(m => (
                       <button
                         key={m}
@@ -345,14 +346,14 @@ function RuleModal({ rule, orgId, onSave, onClose }: {
                         className="px-3 py-1 text-xs font-semibold transition-colors"
                         style={{
                           background: form.match === m ? '#16C784' : 'transparent',
-                          color: form.match === m ? '#050B14' : '#475569',
+                          color: form.match === m ? '#050B14' : T.textDim,
                         }}
                       >
                         {m === 'all' ? 'ALL' : 'ANY'}
                       </button>
                     ))}
                   </div>
-                  <span className="text-xs" style={{ color: '#475569' }}>conditions</span>
+                  <span className="text-xs" style={{ color: T.textDim }}>conditions</span>
                 </div>
               </div>
 
@@ -430,9 +431,9 @@ function RuleModal({ rule, orgId, onSave, onClose }: {
                         <button
                           onClick={() => removeCond(i)}
                           className="w-7 h-7 flex items-center justify-center rounded-lg flex-shrink-0 transition-colors"
-                          style={{ border: '1px solid #1E2D3D', color: '#475569' }}
+                          style={{ border: `1px solid ${T.border}`, color: T.textDim }}
                           onMouseEnter={e => (e.currentTarget.style.color = '#EF4444')}
-                          onMouseLeave={e => (e.currentTarget.style.color = '#475569')}
+                          onMouseLeave={e => (e.currentTarget.style.color = T.textDim)}
                         >
                           <X size={11} />
                         </button>
@@ -445,9 +446,9 @@ function RuleModal({ rule, orgId, onSave, onClose }: {
               <button
                 onClick={addCond}
                 className="mt-2 flex items-center gap-1.5 text-xs transition-colors"
-                style={{ color: '#475569' }}
+                style={{ color: T.textDim }}
                 onMouseEnter={e => (e.currentTarget.style.color = '#16C784')}
-                onMouseLeave={e => (e.currentTarget.style.color = '#475569')}
+                onMouseLeave={e => (e.currentTarget.style.color = T.textDim)}
               >
                 <Plus size={11} />
                 Add condition
@@ -457,7 +458,7 @@ function RuleModal({ rule, orgId, onSave, onClose }: {
             {/* Action + Priority */}
             <div className="grid grid-cols-2 gap-5">
               <div>
-                <label className="block text-xs font-semibold mb-2" style={{ color: '#94A3B8' }}>
+                <label className="block text-xs font-semibold mb-2" style={{ color: T.textSec }}>
                   Then → Action *
                 </label>
                 <div className="grid grid-cols-2 gap-2">
@@ -473,8 +474,8 @@ function RuleModal({ rule, orgId, onSave, onClose }: {
                       className="py-2 rounded-xl text-xs font-bold transition-all"
                       style={{
                         background: form.action === a.value ? a.bg      : 'transparent',
-                        color:      form.action === a.value ? a.color   : '#475569',
-                        border:     `1px solid ${form.action === a.value ? a.border : '#1E2D3D'}`,
+                        color:      form.action === a.value ? a.color   : T.textDim,
+                        border:     `1px solid ${form.action === a.value ? a.border : T.border}`,
                       }}
                     >
                       {a.label}
@@ -484,7 +485,7 @@ function RuleModal({ rule, orgId, onSave, onClose }: {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold mb-2" style={{ color: '#94A3B8' }}>
+                <label className="block text-xs font-semibold mb-2" style={{ color: T.textSec }}>
                   Priority
                 </label>
                 <input
@@ -503,20 +504,20 @@ function RuleModal({ rule, orgId, onSave, onClose }: {
 
             {/* Live preview */}
             {hasPreview && (
-              <div className="px-4 py-3 rounded-xl" style={{ background: '#050B14', border: '1px solid #1E2D3D' }}>
+              <div className="px-4 py-3 rounded-xl" style={{ background: T.bg, border: `1px solid ${T.border}` }}>
                 <p className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: '#2D4057' }}>
                   Rule Preview
                 </p>
-                <p className="text-xs mono leading-relaxed" style={{ color: '#94A3B8' }}>
+                <p className="text-xs mono leading-relaxed" style={{ color: T.textSec }}>
                   If{' '}
                   {previewParts.map((part, i) => (
                     <span key={i}>
                       {i > 0 && (
-                        <span className="mx-1 font-bold" style={{ color: '#475569' }}>
+                        <span className="mx-1 font-bold" style={{ color: T.textDim }}>
                           {form.match === 'all' ? 'AND' : 'OR'}
                         </span>
                       )}
-                      <span style={{ color: '#E2E8F0' }}>{part}</span>
+                      <span style={{ color: T.text }}>{part}</span>
                     </span>
                   ))}
                   {' '}→ {' '}
@@ -541,13 +542,13 @@ function RuleModal({ rule, orgId, onSave, onClose }: {
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-end gap-2 px-6 py-4 flex-shrink-0" style={{ borderTop: '1px solid #1E2D3D' }}>
+          <div className="flex items-center justify-end gap-2 px-6 py-4 flex-shrink-0" style={{ borderTop: `1px solid ${T.border}` }}>
             <button
               onClick={onClose}
               className="px-4 py-2 rounded-lg text-sm transition-colors"
-              style={{ border: '1px solid #1E2D3D', color: '#475569' }}
-              onMouseEnter={e => (e.currentTarget.style.color = '#94A3B8')}
-              onMouseLeave={e => (e.currentTarget.style.color = '#475569')}
+              style={{ border: `1px solid ${T.border}`, color: T.textDim }}
+              onMouseEnter={e => (e.currentTarget.style.color = T.textSec)}
+              onMouseLeave={e => (e.currentTarget.style.color = T.textDim)}
             >
               Cancel
             </button>
@@ -555,7 +556,7 @@ function RuleModal({ rule, orgId, onSave, onClose }: {
               onClick={() => void handleSave()}
               disabled={!isValid || saving}
               className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-              style={{ background: isValid ? '#16C784' : '#1E2D3D', color: isValid ? '#000000' : '#475569' }}
+              style={{ background: isValid ? '#16C784' : T.border, color: isValid ? '#000000' : T.textDim }}
             >
               {saving && <RefreshCw size={13} className="animate-spin" />}
               {rule ? 'Save changes' : 'Create rule'}
@@ -571,6 +572,7 @@ function RuleModal({ rule, orgId, onSave, onClose }: {
 
 export default function Rules() {
   const { user } = useAuth()
+  const T = useT()
   const [orgId,      setOrgId]      = useState<string | null>(null)
   const [rules,      setRules]      = useState<Rule[]>([])
   const [loading,    setLoading]    = useState(true)
@@ -667,7 +669,7 @@ export default function Rules() {
   const activeCount = rules.filter(r => r.status === 'active').length
 
   if (loading) return (
-    <div className="flex items-center justify-center min-h-[60vh] gap-3" style={{ color: '#475569' }}>
+    <div className="flex items-center justify-center min-h-[60vh] gap-3" style={{ color: T.textDim }}>
       <RefreshCw size={15} className="animate-spin" />
       <span className="text-sm">Loading rules…</span>
     </div>
@@ -684,7 +686,7 @@ export default function Rules() {
 
       {/* Sub-header */}
       <div className="flex items-center justify-between mb-5">
-        <p className="text-sm" style={{ color: '#475569' }}>
+        <p className="text-sm" style={{ color: T.textDim }}>
           {activeCount > 0
             ? <><span style={{ color: '#16C784', fontWeight: 600 }}>{activeCount} active</span>{' '}rule{activeCount !== 1 ? 's' : ''}</>
             : 'No active rules'}
@@ -706,8 +708,8 @@ export default function Rules() {
       <div className="flex items-start gap-3 px-4 py-3 rounded-xl mb-6"
         style={{ background: 'rgba(22,199,132,0.05)', border: '1px solid rgba(22,199,132,0.12)' }}>
         <Info size={13} style={{ color: '#16C784', flexShrink: 0, marginTop: 1 }} />
-        <p className="text-xs leading-relaxed" style={{ color: '#475569' }}>
-          Rules run <strong style={{ color: '#94A3B8' }}>after</strong> the base Risk Engine score.
+        <p className="text-xs leading-relaxed" style={{ color: T.textDim }}>
+          Rules run <strong style={{ color: T.textSec }}>after</strong> the base Risk Engine score.
           The highest-priority matching rule overrides the final decision.
           Rules support AND/OR condition groups with 10+ signal types.
         </p>
@@ -716,8 +718,8 @@ export default function Rules() {
       {/* Rules list */}
       {rules.length === 0 ? (
         <div className="g-card py-16 text-center">
-          <Shield size={24} className="mx-auto mb-3" style={{ color: '#1E2D3D' }} />
-          <p className="text-sm font-semibold mb-1.5" style={{ color: '#475569' }}>No rules yet</p>
+          <Shield size={24} className="mx-auto mb-3" style={{ color: T.border }} />
+          <p className="text-sm font-semibold mb-1.5" style={{ color: T.textDim }}>No rules yet</p>
           <p className="text-xs mb-5" style={{ color: '#2D4057' }}>
             Create your first rule to customize fraud decisions for your business.
           </p>
@@ -734,7 +736,7 @@ export default function Rules() {
         <div className="g-card overflow-hidden">
           {/* Table header */}
           <div className="grid px-5 py-3"
-            style={{ gridTemplateColumns: '44px 1fr auto auto 80px', borderBottom: '1px solid #1E2D3D', background: '#07111F', gap: '12px' }}>
+            style={{ gridTemplateColumns: '44px 1fr auto auto 80px', borderBottom: `1px solid ${T.border}`, background: T.deep, gap: '12px' }}>
             {['', 'Rule / Conditions', 'Action', 'Priority', 'Date'].map((h, i) => (
               <p key={i} className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#2D4057' }}>{h}</p>
             ))}
@@ -759,7 +761,7 @@ export default function Rules() {
                   borderLeft: `3px solid ${isActive ? meta.color : '#1E2D3D'}`,
                   opacity: isActive ? 1 : 0.55,
                 }}
-                onMouseEnter={e => (e.currentTarget.style.background = '#0A1828')}
+                onMouseEnter={e => (e.currentTarget.style.background = T.dark ? '#0A1828' : 'rgba(0,0,0,0.02)')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
               >
                 {/* Toggle */}
@@ -770,15 +772,15 @@ export default function Rules() {
                 {/* Name + sentence */}
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 mb-0.5">
-                    <p className="text-sm font-semibold" style={{ color: '#E2E8F0' }}>{rule.name}</p>
+                    <p className="text-sm font-semibold" style={{ color: T.text }}>{rule.name}</p>
                     {condCount > 1 && (
                       <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold mono"
-                        style={{ background: '#0B1220', color: '#475569', border: '1px solid #1E2D3D' }}>
+                        style={{ background: T.card, color: T.textDim, border: `1px solid ${T.border}` }}>
                         {condCount} conditions{matchLabel}
                       </span>
                     )}
                   </div>
-                  <p className="text-xs mono" style={{ color: '#475569' }}>{ruleToSentence(rule)}</p>
+                  <p className="text-xs mono" style={{ color: T.textDim }}>{ruleToSentence(rule)}</p>
                   {rule.description && (
                     <p className="text-[11px] mt-0.5" style={{ color: '#2D4057' }}>{rule.description}</p>
                   )}
@@ -812,18 +814,18 @@ export default function Rules() {
                       <button
                         onClick={() => openEdit(rule)}
                         className="w-6 h-6 rounded-md flex items-center justify-center transition-colors"
-                        style={{ color: '#475569' }}
-                        onMouseEnter={e => (e.currentTarget.style.color = '#94A3B8')}
-                        onMouseLeave={e => (e.currentTarget.style.color = '#475569')}
+                        style={{ color: T.textDim }}
+                        onMouseEnter={e => (e.currentTarget.style.color = T.textSec)}
+                        onMouseLeave={e => (e.currentTarget.style.color = T.textDim)}
                       >
                         <Pencil size={11} />
                       </button>
                       <button
                         onClick={() => setDeletingId(rule.id)}
                         className="w-6 h-6 rounded-md flex items-center justify-center transition-colors"
-                        style={{ color: '#475569' }}
+                        style={{ color: T.textDim }}
                         onMouseEnter={e => (e.currentTarget.style.color = '#EF4444')}
-                        onMouseLeave={e => (e.currentTarget.style.color = '#475569')}
+                        onMouseLeave={e => (e.currentTarget.style.color = T.textDim)}
                       >
                         <Trash2 size={11} />
                       </button>
@@ -832,7 +834,7 @@ export default function Rules() {
                     <div className="flex items-center gap-1">
                       <button onClick={() => setDeletingId(null)}
                         className="text-[10px] px-2 py-1 rounded-md"
-                        style={{ color: '#475569', border: '1px solid #1E2D3D' }}>
+                        style={{ color: T.textDim, border: `1px solid ${T.border}` }}>
                         Cancel
                       </button>
                       <button onClick={() => void handleDelete(rule.id)}
@@ -856,11 +858,11 @@ export default function Rules() {
             <ChevronDown size={11} />
             Required: DB migration for advanced rules
           </summary>
-          <div className="mt-2 px-4 py-3 rounded-lg" style={{ background: '#050B14', border: '1px solid #1E2D3D' }}>
-            <p className="text-[11px] mb-2" style={{ color: '#475569' }}>
+          <div className="mt-2 px-4 py-3 rounded-lg" style={{ background: T.bg, border: `1px solid ${T.border}` }}>
+            <p className="text-[11px] mb-2" style={{ color: T.textDim }}>
               Run once in your Supabase SQL editor to enable condition groups, descriptions, and priority:
             </p>
-            <pre className="text-[11px] mono overflow-x-auto" style={{ color: '#94A3B8' }}>{`ALTER TABLE rules
+            <pre className="text-[11px] mono overflow-x-auto" style={{ color: T.textSec }}>{`ALTER TABLE rules
   ADD COLUMN IF NOT EXISTS description text,
   ADD COLUMN IF NOT EXISTS condition_group jsonb,
   ADD COLUMN IF NOT EXISTS priority integer NOT NULL DEFAULT 0;

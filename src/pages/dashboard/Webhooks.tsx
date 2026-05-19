@@ -157,25 +157,25 @@ function WebhookModal({ webhook, orgId, onSave, onClose }: ModalProps) {
     >
       <div
         className="w-full flex flex-col"
-        style={{ maxWidth: 520, background: '#07111F', border: '1px solid #1E2D3D', borderRadius: 20, maxHeight: '92vh' }}
+        style={{ maxWidth: 520, background: T.card, border: `1px solid ${T.border}`, borderRadius: 20, maxHeight: '92vh' }}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-5 flex-shrink-0" style={{ borderBottom: '1px solid #1E2D3D' }}>
+        <div className="flex items-center justify-between px-6 py-5 flex-shrink-0" style={{ borderBottom: `1px solid ${T.border}` }}>
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-widest mb-0.5" style={{ color: '#2D4057' }}>
+            <p className="text-[10px] font-semibold uppercase tracking-widest mb-0.5" style={{ color: T.textDim }}>
               {isEdit ? 'Edit Webhook' : 'New Webhook'}
             </p>
-            <p className="text-sm font-bold" style={{ color: '#E2E8F0', fontFamily: 'Inter, sans-serif' }}>
+            <p className="text-sm font-bold" style={{ color: T.text, fontFamily: 'Inter, sans-serif' }}>
               {isEdit ? 'Update endpoint' : 'Register an endpoint'}
             </p>
           </div>
           <button
             onClick={onClose}
             className="w-7 h-7 rounded-lg flex items-center justify-center"
-            style={{ background: '#0B1220', border: '1px solid #1E2D3D', color: '#475569' }}
-            onMouseEnter={e => (e.currentTarget.style.color = '#E2E8F0')}
-            onMouseLeave={e => (e.currentTarget.style.color = '#475569')}
+            style={{ background: T.elevated, border: `1px solid ${T.border}`, color: T.textDim }}
+            onMouseEnter={e => (e.currentTarget.style.color = T.text)}
+            onMouseLeave={e => (e.currentTarget.style.color = T.textDim)}
           >
             <X size={13} />
           </button>
@@ -186,7 +186,7 @@ function WebhookModal({ webhook, orgId, onSave, onClose }: ModalProps) {
 
           {/* URL */}
           <div>
-            <label className="block text-xs font-semibold mb-2" style={{ color: '#94A3B8' }}>
+            <label className="block text-xs font-semibold mb-2" style={{ color: T.textSec }}>
               Endpoint URL
             </label>
             <input
@@ -200,7 +200,7 @@ function WebhookModal({ webhook, orgId, onSave, onClose }: ModalProps) {
           {/* Events subscription */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-semibold" style={{ color: '#94A3B8' }}>
+              <label className="text-xs font-semibold" style={{ color: T.textSec }}>
                 Subscribe to events
               </label>
               <div className="flex gap-2">
@@ -214,13 +214,13 @@ function WebhookModal({ webhook, orgId, onSave, onClose }: ModalProps) {
                 <button
                   onClick={() => setSelectedEvents([])}
                   className="text-[10px] px-2 py-0.5 rounded"
-                  style={{ color: '#475569', background: '#0B1220', border: '1px solid #1E2D3D' }}
+                  style={{ color: T.textDim, background: T.elevated, border: `1px solid ${T.border}` }}
                 >
                   None
                 </button>
               </div>
             </div>
-            <div className="rounded-xl overflow-hidden" style={{ border: '1px solid #1E2D3D' }}>
+            <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${T.border}` }}>
               {ALL_EVENTS.map((ev, i) => {
                 const checked = selectedEvents.includes(ev.id)
                 return (
@@ -229,11 +229,11 @@ function WebhookModal({ webhook, orgId, onSave, onClose }: ModalProps) {
                     onClick={() => toggleEvent(ev.id)}
                     className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors"
                     style={{
-                      background: checked ? `${ev.color}08` : '#050B14',
-                      borderTop: i > 0 ? '1px solid #0D1B2A' : 'none',
+                      background: checked ? `${ev.color}08` : T.bg,
+                      borderTop: i > 0 ? `1px solid ${T.borderLight}` : 'none',
                     }}
-                    onMouseEnter={e => { if (!checked) e.currentTarget.style.background = '#0B1220' }}
-                    onMouseLeave={e => { if (!checked) e.currentTarget.style.background = '#050B14' }}
+                    onMouseEnter={e => { if (!checked) e.currentTarget.style.background = T.card }}
+                    onMouseLeave={e => { if (!checked) e.currentTarget.style.background = T.bg }}
                   >
                     <div
                       className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0"
@@ -245,10 +245,10 @@ function WebhookModal({ webhook, orgId, onSave, onClose }: ModalProps) {
                       {checked && <CheckCircle2 size={10} style={{ color: '#000' }} />}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold mono" style={{ color: checked ? ev.color : '#94A3B8' }}>
+                      <p className="text-xs font-semibold mono" style={{ color: checked ? ev.color : T.textSec }}>
                         {ev.id}
                       </p>
-                      <p className="text-[10px] mt-0.5" style={{ color: '#475569' }}>
+                      <p className="text-[10px] mt-0.5" style={{ color: T.textDim }}>
                         {ev.desc}
                       </p>
                     </div>
@@ -266,7 +266,7 @@ function WebhookModal({ webhook, orgId, onSave, onClose }: ModalProps) {
           {/* Secret */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-semibold" style={{ color: '#94A3B8' }}>
+              <label className="text-xs font-semibold" style={{ color: T.textSec }}>
                 Signing Secret
               </label>
               {isEdit && (
@@ -285,17 +285,17 @@ function WebhookModal({ webhook, orgId, onSave, onClose }: ModalProps) {
 
             <div
               className="flex items-center gap-2 px-3 py-2.5 rounded-xl"
-              style={{ background: '#050B14', border: '1px solid #1E2D3D' }}
+              style={{ background: T.codeBg, border: `1px solid ${T.border}` }}
             >
-              <code className="flex-1 text-xs mono truncate" style={{ color: '#94A3B8' }}>
+              <code className="flex-1 text-xs mono truncate" style={{ color: T.textSec }}>
                 {showSec ? secret : maskSecret(secret)}
               </code>
               <button
                 onClick={() => setShowSec(v => !v)}
                 className="flex-shrink-0 p-1"
-                style={{ color: '#2D4057' }}
-                onMouseEnter={e => (e.currentTarget.style.color = '#475569')}
-                onMouseLeave={e => (e.currentTarget.style.color = '#2D4057')}
+                style={{ color: T.textDim }}
+                onMouseEnter={e => (e.currentTarget.style.color = T.textSec)}
+                onMouseLeave={e => (e.currentTarget.style.color = T.textDim)}
                 title={showSec ? 'Hide' : 'Show'}
               >
                 {showSec ? <EyeOff size={13} /> : <Eye size={13} />}
@@ -303,9 +303,9 @@ function WebhookModal({ webhook, orgId, onSave, onClose }: ModalProps) {
               <button
                 onClick={() => void handleCopy()}
                 className="flex-shrink-0 p-1"
-                style={{ color: copied ? '#16C784' : '#2D4057' }}
-                onMouseEnter={e => !copied && (e.currentTarget.style.color = '#475569')}
-                onMouseLeave={e => !copied && (e.currentTarget.style.color = '#2D4057')}
+                style={{ color: copied ? '#16C784' : T.textDim }}
+                onMouseEnter={e => !copied && (e.currentTarget.style.color = T.textSec)}
+                onMouseLeave={e => !copied && (e.currentTarget.style.color = T.textDim)}
                 title="Copy"
               >
                 {copied ? <CheckCircle2 size={13} /> : <Copy size={13} />}
@@ -315,10 +315,10 @@ function WebhookModal({ webhook, orgId, onSave, onClose }: ModalProps) {
             {(!isEdit || rotated) && (
               <div className="flex items-start gap-2 mt-2 px-3 py-2 rounded-lg" style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)' }}>
                 <AlertTriangle size={12} style={{ color: '#F59E0B', flexShrink: 0, marginTop: 1 }} />
-                <p className="text-[11px] leading-relaxed" style={{ color: '#94A3B8' }}>
+                <p className="text-[11px] leading-relaxed" style={{ color: T.textSec }}>
                   {rotated
                     ? 'New secret generated. Save changes and update your server — the previous secret is now invalid.'
-                    : <>Save this secret now. Use it to verify <code className="mono" style={{ color: '#E2E8F0' }}>X-Genuinux-Signature</code> headers on your server.</>
+                    : <>Save this secret now. Use it to verify <code className="mono" style={{ color: T.text }}>X-Genuinux-Signature</code> headers on your server.</>
                   }
                 </p>
               </div>
@@ -333,13 +333,13 @@ function WebhookModal({ webhook, orgId, onSave, onClose }: ModalProps) {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 px-6 py-4 flex-shrink-0" style={{ borderTop: '1px solid #1E2D3D' }}>
+        <div className="flex items-center justify-end gap-2 px-6 py-4 flex-shrink-0" style={{ borderTop: `1px solid ${T.border}` }}>
           <button
             onClick={onClose}
             className="px-4 py-2 rounded-lg text-sm"
-            style={{ border: '1px solid #1E2D3D', color: '#475569' }}
-            onMouseEnter={e => (e.currentTarget.style.color = '#94A3B8')}
-            onMouseLeave={e => (e.currentTarget.style.color = '#475569')}
+            style={{ border: `1px solid ${T.border}`, color: T.textDim }}
+            onMouseEnter={e => (e.currentTarget.style.color = T.textSec)}
+            onMouseLeave={e => (e.currentTarget.style.color = T.textDim)}
           >
             Cancel
           </button>
@@ -347,7 +347,7 @@ function WebhookModal({ webhook, orgId, onSave, onClose }: ModalProps) {
             onClick={() => void handleSave()}
             disabled={!isValid || saving}
             className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{ background: isValid ? '#16C784' : '#1E2D3D', color: isValid ? '#000000' : '#475569' }}
+            style={{ background: isValid ? '#16C784' : T.border, color: isValid ? '#000000' : T.textDim }}
           >
             {saving && <RefreshCw size={13} className="animate-spin" />}
             {isEdit ? 'Save changes' : 'Add Webhook'}
@@ -418,6 +418,7 @@ function WebhookCard({
   webhook, onEdit, onDelete, onTest, testResult,
   secretVisible, onToggleSecret, toggling, onToggleStatus,
 }: CardProps) {
+  const T = useT()
   const [expanded,       setExpanded]       = useState(false)
   const [deliveries,     setDeliveries]     = useState<DeliveryCardRow[] | null>(null)
   const [deliveriesErr,  setDeliveriesErr]  = useState<string | null>(null)
@@ -479,23 +480,23 @@ function WebhookCard({
                 className="inline-flex items-center gap-1.5 text-[10px] font-semibold mono px-2 py-0.5 rounded-full"
                 style={{
                   background: isActive ? 'rgba(22,199,132,0.08)' : 'rgba(71,85,105,0.12)',
-                  color:      isActive ? '#16C784' : '#475569',
-                  border: `1px solid ${isActive ? 'rgba(22,199,132,0.2)' : '#1E2D3D'}`,
+                  color:      isActive ? '#16C784' : T.textDim,
+                  border: `1px solid ${isActive ? 'rgba(22,199,132,0.2)' : T.border}`,
                 }}
               >
-                <span className="w-1.5 h-1.5 rounded-full" style={{ background: isActive ? '#16C784' : '#475569' }} />
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: isActive ? '#16C784' : T.textDim }} />
                 {isActive ? 'Active' : 'Disabled'}
               </span>
             </button>
 
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold mono truncate" style={{ color: '#E2E8F0' }}>
+              <p className="text-sm font-semibold mono truncate" style={{ color: T.text }}>
                 {webhook.endpoint_url}
               </p>
 
               {/* Meta line */}
               <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-                <p className="text-[11px] mono" style={{ color: '#2D4057' }}>
+                <p className="text-[11px] mono" style={{ color: T.textDim }}>
                   Created {new Date(webhook.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                 </p>
                 {webhook.last_delivery_status && (
@@ -518,7 +519,7 @@ function WebhookCard({
                 {allSubscribed ? (
                   <span
                     className="text-[9px] mono px-1.5 py-0.5 rounded"
-                    style={{ color: '#475569', background: '#0B1220', border: '1px solid #1E2D3D' }}
+                    style={{ color: T.textDim, background: T.elevated, border: `1px solid ${T.border}` }}
                   >
                     All events
                   </span>
@@ -561,9 +562,9 @@ function WebhookCard({
             <button
               onClick={onEdit}
               className="w-7 h-7 rounded-lg flex items-center justify-center"
-              style={{ color: '#475569', background: '#0B1220', border: '1px solid #1E2D3D' }}
-              onMouseEnter={e => (e.currentTarget.style.color = '#94A3B8')}
-              onMouseLeave={e => (e.currentTarget.style.color = '#475569')}
+              style={{ color: T.textDim, background: T.elevated, border: `1px solid ${T.border}` }}
+              onMouseEnter={e => (e.currentTarget.style.color = T.textSec)}
+              onMouseLeave={e => (e.currentTarget.style.color = T.textDim)}
               title="Edit"
             >
               <Pencil size={12} />
@@ -573,9 +574,9 @@ function WebhookCard({
               <button
                 onClick={() => setDelConfirm(true)}
                 className="w-7 h-7 rounded-lg flex items-center justify-center"
-                style={{ color: '#475569', background: '#0B1220', border: '1px solid #1E2D3D' }}
+                style={{ color: T.textDim, background: T.elevated, border: `1px solid ${T.border}` }}
                 onMouseEnter={e => (e.currentTarget.style.color = '#EF4444')}
-                onMouseLeave={e => (e.currentTarget.style.color = '#475569')}
+                onMouseLeave={e => (e.currentTarget.style.color = T.textDim)}
                 title="Delete"
               >
                 <Trash2 size={12} />
@@ -585,7 +586,7 @@ function WebhookCard({
                 <button
                   onClick={() => setDelConfirm(false)}
                   className="text-[10px] px-2 py-1 rounded-md"
-                  style={{ color: '#475569', border: '1px solid #1E2D3D' }}
+                  style={{ color: T.textDim, border: `1px solid ${T.border}` }}
                 >
                   Cancel
                 </button>
@@ -603,7 +604,7 @@ function WebhookCard({
 
         {/* Test result */}
         {testResult && testResult !== 'loading' && (
-          <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: '#050B14', border: '1px solid #0D1B2A' }}>
+          <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: T.bg, border: `1px solid ${T.borderLight}` }}>
             {testResult.success
               ? <CheckCircle2 size={12} style={{ color: '#16C784' }} />
               : <XCircle size={12} style={{ color: '#EF4444' }} />
@@ -620,20 +621,20 @@ function WebhookCard({
         {/* Secret row */}
         <div
           className="mt-3 flex items-center gap-2 px-3 py-2 rounded-xl"
-          style={{ background: '#050B14', border: '1px solid #0D1B2A' }}
+          style={{ background: T.codeBg, border: `1px solid ${T.borderLight}` }}
         >
-          <span className="text-[10px] font-semibold uppercase tracking-wider flex-shrink-0" style={{ color: '#2D4057' }}>
+          <span className="text-[10px] font-semibold uppercase tracking-wider flex-shrink-0" style={{ color: T.textDim }}>
             Secret
           </span>
-          <code className="flex-1 text-xs mono truncate" style={{ color: '#475569' }}>
+          <code className="flex-1 text-xs mono truncate" style={{ color: T.textDim }}>
             {secretVisible ? webhook.secret : maskSecret(webhook.secret)}
           </code>
           <button
             onClick={onToggleSecret}
             className="p-1 flex-shrink-0"
-            style={{ color: '#2D4057' }}
-            onMouseEnter={e => (e.currentTarget.style.color = '#475569')}
-            onMouseLeave={e => (e.currentTarget.style.color = '#2D4057')}
+            style={{ color: T.textDim }}
+            onMouseEnter={e => (e.currentTarget.style.color = T.textSec)}
+            onMouseLeave={e => (e.currentTarget.style.color = T.textDim)}
             title={secretVisible ? 'Hide secret' : 'Show secret'}
           >
             {secretVisible ? <EyeOff size={12} /> : <Eye size={12} />}
@@ -641,9 +642,9 @@ function WebhookCard({
           <button
             onClick={() => void handleCopySecret()}
             className="p-1 flex-shrink-0"
-            style={{ color: copied ? '#16C784' : '#2D4057' }}
-            onMouseEnter={e => !copied && (e.currentTarget.style.color = '#475569')}
-            onMouseLeave={e => !copied && (e.currentTarget.style.color = '#2D4057')}
+            style={{ color: copied ? '#16C784' : T.textDim }}
+            onMouseEnter={e => !copied && (e.currentTarget.style.color = T.textSec)}
+            onMouseLeave={e => !copied && (e.currentTarget.style.color = T.textDim)}
             title="Copy secret"
           >
             {copied ? <CheckCircle2 size={12} /> : <Copy size={12} />}
@@ -652,13 +653,13 @@ function WebhookCard({
       </div>
 
       {/* ── Recent Deliveries (expandable) ──────────── */}
-      <div style={{ borderTop: '1px solid #0D1B2A' }}>
+      <div style={{ borderTop: `1px solid ${T.borderLight}` }}>
         <button
           onClick={() => void handleExpand()}
           className="w-full flex items-center justify-between px-5 py-2.5 transition-colors"
-          style={{ color: '#2D4057' }}
-          onMouseEnter={e => (e.currentTarget.style.color = '#475569')}
-          onMouseLeave={e => (e.currentTarget.style.color = '#2D4057')}
+          style={{ color: T.textDim }}
+          onMouseEnter={e => (e.currentTarget.style.color = T.textSec)}
+          onMouseLeave={e => (e.currentTarget.style.color = T.textDim)}
         >
           <span className="text-[10px] font-semibold uppercase tracking-wider">Recent Deliveries</span>
           {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
@@ -667,7 +668,7 @@ function WebhookCard({
         {expanded && (
           <div>
             {deliveriesLoad && (
-              <div className="flex items-center gap-2 px-5 py-3" style={{ color: '#2D4057' }}>
+              <div className="flex items-center gap-2 px-5 py-3" style={{ color: T.textDim }}>
                 <RefreshCw size={11} className="animate-spin" />
                 <span className="text-xs">Loading…</span>
               </div>
@@ -675,7 +676,7 @@ function WebhookCard({
             {deliveriesErr === '__migration__' && (
               <div className="flex items-start gap-2 px-5 py-3">
                 <AlertTriangle size={12} style={{ color: '#F59E0B', flexShrink: 0, marginTop: 1 }} />
-                <p className="text-[11px]" style={{ color: '#475569' }}>
+                <p className="text-[11px]" style={{ color: T.textDim }}>
                   Run the SQL migration to enable delivery tracking.
                 </p>
               </div>
@@ -684,7 +685,7 @@ function WebhookCard({
               <p className="px-5 py-3 text-xs" style={{ color: '#EF4444' }}>{deliveriesErr}</p>
             )}
             {deliveries !== null && deliveries.length === 0 && !deliveriesErr && (
-              <p className="px-5 py-3 text-xs" style={{ color: '#2D4057' }}>
+              <p className="px-5 py-3 text-xs" style={{ color: T.textDim }}>
                 No deliveries yet. Send a test to verify your endpoint.
               </p>
             )}
@@ -699,6 +700,7 @@ function WebhookCard({
 // ─── Delivery Logs tab ────────────────────────────────────────────────────────
 
 function DeliveryLogs({ orgId, webhooks }: { orgId: string; webhooks: Webhook[] }) {
+  const T = useT()
   const [logs,     setLogs]     = useState<DeliveryLogRow[] | null>(null)
   const [loading,  setLoading]  = useState(false)
   const [err,      setErr]      = useState<string | null>(null)
@@ -736,7 +738,7 @@ function DeliveryLogs({ orgId, webhooks }: { orgId: string; webhooks: Webhook[] 
   })
 
   if (loading) return (
-    <div className="flex items-center gap-2 py-12 justify-center" style={{ color: '#475569' }}>
+    <div className="flex items-center gap-2 py-12 justify-center" style={{ color: T.textDim }}>
       <RefreshCw size={14} className="animate-spin" />
       <span className="text-sm">Loading delivery logs…</span>
     </div>
@@ -747,8 +749,8 @@ function DeliveryLogs({ orgId, webhooks }: { orgId: string; webhooks: Webhook[] 
       <AlertTriangle size={14} style={{ color: '#F59E0B', flexShrink: 0, marginTop: 1 }} />
       <div>
         <p className="text-sm font-semibold mb-1" style={{ color: '#F59E0B' }}>Migration required</p>
-        <p className="text-xs" style={{ color: '#475569' }}>
-          Run the <code className="mono" style={{ color: '#94A3B8' }}>webhook_deliveries</code> SQL migration to enable delivery logs.
+        <p className="text-xs" style={{ color: T.textDim }}>
+          Run the <code className="mono" style={{ color: T.textSec }}>webhook_deliveries</code> SQL migration to enable delivery logs.
         </p>
       </div>
     </div>
@@ -761,14 +763,14 @@ function DeliveryLogs({ orgId, webhooks }: { orgId: string; webhooks: Webhook[] 
       {/* Filters */}
       <div className="flex items-center gap-4 mb-4 flex-wrap">
         <div className="flex items-center gap-2">
-          <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#2D4057' }}>
+          <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.textDim }}>
             Event
           </span>
           <select
             value={filterEv}
             onChange={e => setFilterEv(e.target.value)}
             className="text-xs mono px-2 py-1 rounded-lg"
-            style={{ background: '#07111F', border: '1px solid #1E2D3D', color: '#94A3B8' }}
+            style={{ background: T.deep, border: `1px solid ${T.border}`, color: T.textSec }}
           >
             <option value="all">All events</option>
             {ALL_EVENTS.map(e => (
@@ -784,11 +786,11 @@ function DeliveryLogs({ orgId, webhooks }: { orgId: string; webhooks: Webhook[] 
               onClick={() => setFilterSt(s)}
               className="text-[10px] px-2.5 py-1 rounded-lg capitalize font-semibold"
               style={{
-                background: filterSt === s ? '#0F1929' : 'transparent',
+                background: filterSt === s ? T.elevated : 'transparent',
                 color: filterSt === s
-                  ? (s === 'success' ? '#16C784' : s === 'failed' ? '#EF4444' : '#94A3B8')
-                  : '#475569',
-                border: `1px solid ${filterSt === s ? '#1E2D3D' : 'transparent'}`,
+                  ? (s === 'success' ? '#16C784' : s === 'failed' ? '#EF4444' : T.textSec)
+                  : T.textDim,
+                border: `1px solid ${filterSt === s ? T.border : 'transparent'}`,
               }}
             >
               {s}
@@ -796,7 +798,7 @@ function DeliveryLogs({ orgId, webhooks }: { orgId: string; webhooks: Webhook[] 
           ))}
         </div>
 
-        <span className="ml-auto text-[10px] mono" style={{ color: '#2D4057' }}>
+        <span className="ml-auto text-[10px] mono" style={{ color: T.textDim }}>
           {filtered.length} {filtered.length === 1 ? 'delivery' : 'deliveries'}
         </span>
       </div>

@@ -217,6 +217,7 @@ function RiskReasonsSection({
   event: RiskEvent
   signals: Signal[]
 }) {
+  const T = useT()
   const reasons = parseRiskReasons(event.risk_reasons_json, signals)
   const confidence = event.confidence_level ?? calcConfidence(
     signals as Parameters<typeof calcConfidence>[0],
@@ -229,12 +230,12 @@ function RiskReasonsSection({
   const conf = CONFIDENCE_META[confidence]
 
   return (
-    <div className="px-6 py-4" style={{ borderBottom: '1px solid #0D1B2A' }}>
+    <div className="px-6 py-4" style={{ borderBottom: `1px solid ${T.deep}` }}>
       {/* Header row */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <CheckCircle2 size={12} style={{ color: '#818CF8' }} />
-          <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#475569' }}>
+          <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.textDim }}>
             Why this decision?
           </p>
         </div>
@@ -248,7 +249,7 @@ function RiskReasonsSection({
 
       {/* Recommended action */}
       {recommendedAction && (
-        <p className="text-xs leading-relaxed mb-3" style={{ color: '#94A3B8' }}>
+        <p className="text-xs leading-relaxed mb-3" style={{ color: T.textSec }}>
           {recommendedAction}
         </p>
       )}
@@ -260,23 +261,23 @@ function RiskReasonsSection({
             <div
               key={i}
               className="flex items-start gap-3 px-3 py-2.5 rounded-lg"
-              style={{ background: '#050B14', border: '1px solid #1E2D3D' }}
+              style={{ background: T.bg, border: `1px solid ${T.border}` }}
             >
               <span
                 className="flex-shrink-0 mt-0.5"
-                style={{ color: SEV_COLORS[r.severity] ?? '#475569' }}
+                style={{ color: SEV_COLORS[r.severity] ?? T.textDim }}
               >
                 {CATEGORY_ICON[r.category] ?? <AlertTriangle size={11} />}
               </span>
               <div className="min-w-0 flex-1">
-                <p className="text-xs leading-relaxed" style={{ color: '#E2E8F0' }}>{r.reason}</p>
+                <p className="text-xs leading-relaxed" style={{ color: T.text }}>{r.reason}</p>
               </div>
               <span
                 className="text-[10px] px-2 py-0.5 rounded-full font-medium flex-shrink-0 mono"
                 style={{
-                  background: `${SEV_COLORS[r.severity] ?? '#475569'}18`,
-                  color: SEV_COLORS[r.severity] ?? '#475569',
-                  border: `1px solid ${SEV_COLORS[r.severity] ?? '#475569'}30`,
+                  background: `${SEV_COLORS[r.severity] ?? T.textDim}18`,
+                  color: SEV_COLORS[r.severity] ?? T.textDim,
+                  border: `1px solid ${SEV_COLORS[r.severity] ?? T.textDim}30`,
                 }}
               >
                 {r.severity}
@@ -292,6 +293,7 @@ function RiskReasonsSection({
 // ─── TrustGraphSection ───────────────────────────────────────────────────────
 
 function TrustGraphSection({ event }: { event: RiskEvent }) {
+  const T = useT()
   const [open,    setOpen]    = useState(false)
   const [fetched, setFetched] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -331,22 +333,22 @@ function TrustGraphSection({ event }: { event: RiskEvent }) {
   )
 
   return (
-    <div style={{ borderBottom: '1px solid #0D1B2A' }}>
+    <div style={{ borderBottom: `1px solid ${T.deep}` }}>
       <button
         onClick={toggle}
         className="w-full flex items-center justify-between px-6 py-3.5 transition-colors duration-100"
         style={{ background: 'transparent' }}
-        onMouseEnter={e => (e.currentTarget.style.background = '#0B1220')}
+        onMouseEnter={e => (e.currentTarget.style.background = T.card)}
         onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
       >
         <div className="flex items-center gap-2.5">
-          <Network size={12} style={{ color: '#475569' }} />
-          <span className="text-xs font-semibold" style={{ color: '#94A3B8' }}>
+          <Network size={12} style={{ color: T.textDim }} />
+          <span className="text-xs font-semibold" style={{ color: T.textSec }}>
             Related Risk Network
           </span>
           {fetched && result && result.summary.total_connections > 0 && (
             <span className="text-[10px] mono px-1.5 py-0.5 rounded"
-              style={{ background: '#0B1220', color: '#475569', border: '1px solid #1E2D3D' }}>
+              style={{ background: T.card, color: T.textDim, border: `1px solid ${T.border}` }}>
               {result.summary.total_connections}
             </span>
           )}
@@ -358,21 +360,21 @@ function TrustGraphSection({ event }: { event: RiskEvent }) {
           )}
         </div>
         <ChevronDown size={12}
-          style={{ color: '#475569', transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+          style={{ color: T.textDim, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
       </button>
 
       {open && (
         <div className="px-6 pb-5 space-y-4">
 
           {loading && (
-            <div className="flex items-center gap-2" style={{ color: '#475569' }}>
+            <div className="flex items-center gap-2" style={{ color: T.textDim }}>
               <RefreshCw size={10} className="animate-spin" />
               <span className="text-xs">Analyzing risk network…</span>
             </div>
           )}
 
           {fetched && !hasData && (
-            <p className="text-xs" style={{ color: '#2D4057' }}>
+            <p className="text-xs" style={{ color: T.textDim }}>
               No shared infrastructure or connected accounts detected.
             </p>
           )}
@@ -380,9 +382,9 @@ function TrustGraphSection({ event }: { event: RiskEvent }) {
           {fetched && result && hasData && (
             <>
               {/* Network Risk Score */}
-              <div className="p-3 rounded-lg" style={{ background: '#050B14', border: '1px solid #1E2D3D' }}>
+              <div className="p-3 rounded-lg" style={{ background: T.bg, border: `1px solid ${T.border}` }}>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#475569' }}>
+                  <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.textDim }}>
                     Network Risk Score
                   </span>
                   <span className="text-sm font-bold mono"
@@ -390,11 +392,11 @@ function TrustGraphSection({ event }: { event: RiskEvent }) {
                     {score}
                   </span>
                 </div>
-                <div className="rounded-full overflow-hidden" style={{ height: 4, background: '#1E2D3D' }}>
+                <div className="rounded-full overflow-hidden" style={{ height: 4, background: T.border }}>
                   <div className="h-full rounded-full transition-all duration-700"
                     style={{ width: `${score}%`, background: score >= 70 ? '#EF4444' : score >= 40 ? '#F59E0B' : '#16C784' }} />
                 </div>
-                <div className="flex items-center gap-3 mt-2 text-[10px] mono" style={{ color: '#475569' }}>
+                <div className="flex items-center gap-3 mt-2 text-[10px] mono" style={{ color: T.textDim }}>
                   <span>{result.summary.total_connections} connection{result.summary.total_connections !== 1 ? 's' : ''}</span>
                   {result.suspicious_clusters.length > 0 && (
                     <><span>·</span><span>{result.suspicious_clusters.length} cluster{result.suspicious_clusters.length !== 1 ? 's' : ''}</span></>
@@ -408,7 +410,7 @@ function TrustGraphSection({ event }: { event: RiskEvent }) {
               {/* Suspicious Clusters */}
               {result.suspicious_clusters.length > 0 && (
                 <div className="space-y-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#475569' }}>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.textDim }}>
                     Suspicious Patterns
                   </p>
                   {result.suspicious_clusters.map((c, i) => (
@@ -416,7 +418,7 @@ function TrustGraphSection({ event }: { event: RiskEvent }) {
                       style={{ border: `1px solid ${TG_SEV[c.severity].border}`, borderLeft: `3px solid ${TG_SEV[c.severity].text}` }}>
                       <div className="px-3 py-2.5" style={{ background: TG_SEV[c.severity].bg }}>
                         <div className="flex items-start justify-between gap-2 mb-1">
-                          <p className="text-xs font-semibold leading-snug" style={{ color: '#E2E8F0' }}>
+                          <p className="text-xs font-semibold leading-snug" style={{ color: T.text }}>
                             {c.title}
                           </p>
                           <span className="text-[9px] mono px-1.5 py-0.5 rounded flex-shrink-0"
@@ -424,13 +426,13 @@ function TrustGraphSection({ event }: { event: RiskEvent }) {
                             {c.severity.toUpperCase()}
                           </span>
                         </div>
-                        <p className="text-[11px] leading-relaxed" style={{ color: '#94A3B8' }}>
+                        <p className="text-[11px] leading-relaxed" style={{ color: T.textSec }}>
                           {c.description}
                         </p>
                         {c.evidence.length > 0 && (
                           <ul className="mt-2 space-y-0.5">
                             {c.evidence.map((ev, j) => (
-                              <li key={j} className="text-[10px] mono flex items-center gap-1.5" style={{ color: '#475569' }}>
+                              <li key={j} className="text-[10px] mono flex items-center gap-1.5" style={{ color: T.textDim }}>
                                 <span style={{ color: TG_SEV[c.severity].text }}>›</span>
                                 {ev}
                               </li>
@@ -446,16 +448,16 @@ function TrustGraphSection({ event }: { event: RiskEvent }) {
               {/* Shared Infrastructure */}
               {(result.shared_ips.length > 0 || result.shared_devices.length > 0) && (
                 <div className="space-y-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#475569' }}>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.textDim }}>
                     Shared Infrastructure
                   </p>
                   {result.shared_ips.map(ip => (
                     <div key={ip.ip_address} className="flex items-center gap-3 px-3 py-2.5 rounded-lg"
-                      style={{ background: '#050B14', border: '1px solid #1E2D3D' }}>
-                      <Globe size={11} style={{ color: '#475569', flexShrink: 0 }} />
+                      style={{ background: T.bg, border: `1px solid ${T.border}` }}>
+                      <Globe size={11} style={{ color: T.textDim, flexShrink: 0 }} />
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs mono" style={{ color: '#94A3B8' }}>{ip.ip_address}</p>
-                        <p className="text-[10px] mt-0.5" style={{ color: '#475569' }}>
+                        <p className="text-xs mono" style={{ color: T.textSec }}>{ip.ip_address}</p>
+                        <p className="text-[10px] mt-0.5" style={{ color: T.textDim }}>
                           {ip.distinct_user_count} users · {ip.total_events_24h} events (24h)
                         </p>
                       </div>
@@ -481,13 +483,13 @@ function TrustGraphSection({ event }: { event: RiskEvent }) {
                   ))}
                   {result.shared_devices.map(dev => (
                     <div key={dev.device_id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg"
-                      style={{ background: '#050B14', border: '1px solid #1E2D3D' }}>
-                      <Monitor size={11} style={{ color: '#475569', flexShrink: 0 }} />
+                      style={{ background: T.bg, border: `1px solid ${T.border}` }}>
+                      <Monitor size={11} style={{ color: T.textDim, flexShrink: 0 }} />
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs mono truncate" style={{ color: '#94A3B8' }}>
+                        <p className="text-xs mono truncate" style={{ color: T.textSec }}>
                           {dev.device_id.length > 20 ? `${dev.device_id.slice(0, 20)}…` : dev.device_id}
                         </p>
-                        <p className="text-[10px] mt-0.5" style={{ color: '#475569' }}>
+                        <p className="text-[10px] mt-0.5" style={{ color: T.textDim }}>
                           {dev.distinct_user_count} users · {dev.total_events} events
                           {dev.has_prior_block && ' · ⚑ prior block'}
                         </p>
@@ -504,23 +506,23 @@ function TrustGraphSection({ event }: { event: RiskEvent }) {
               {/* Connected Accounts */}
               {result.related_users.length > 0 && (
                 <div className="space-y-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#475569' }}>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.textDim }}>
                     Connected Accounts ({result.related_users.length})
                   </p>
                   <div className="space-y-1.5">
                     {result.related_users.slice(0, 10).map(u => (
                       <div key={u.external_user_id} className="flex items-center gap-3 px-3 py-2 rounded-lg"
-                        style={{ background: '#050B14', border: '1px solid #1E2D3D' }}>
+                        style={{ background: T.bg, border: `1px solid ${T.border}` }}>
                         <div className="flex-1 min-w-0">
-                          <p className="text-[11px] mono truncate" style={{ color: '#94A3B8' }}>
+                          <p className="text-[11px] mono truncate" style={{ color: T.textSec }}>
                             {u.external_user_id}
                           </p>
                           <div className="flex items-center gap-1.5 mt-0.5">
                             <span className="text-[9px] px-1.5 py-0.5 rounded mono"
-                              style={{ background: '#07111F', color: '#475569', border: '1px solid #1E2D3D' }}>
+                              style={{ background: T.deep, color: T.textDim, border: `1px solid ${T.border}` }}>
                               via {u.connection_type === 'shared_ip' ? 'IP' : u.connection_type === 'shared_device' ? 'device' : 'email'}
                             </span>
-                            <span className="text-[9px]" style={{ color: '#475569' }}>
+                            <span className="text-[9px]" style={{ color: T.textDim }}>
                               {u.event_count} event{u.event_count !== 1 ? 's' : ''}
                             </span>
                             {u.has_block && (
@@ -544,7 +546,7 @@ function TrustGraphSection({ event }: { event: RiskEvent }) {
                       </div>
                     ))}
                     {result.related_users.length > 10 && (
-                      <p className="text-[10px] text-center pt-1" style={{ color: '#2D4057' }}>
+                      <p className="text-[10px] text-center pt-1" style={{ color: T.textDim }}>
                         +{result.related_users.length - 10} more connected accounts
                       </p>
                     )}
@@ -568,6 +570,7 @@ function EventDetailPanel({
   onClose: () => void
   onSelectRelated: (id: string) => void
 }) {
+  const T = useT()
   const [related,        setRelated]        = useState<RelatedData | null>(null)
   const [loadingRelated, setLoadingRelated] = useState(false)
   const [open,           setOpen]           = useState<string>('user')
@@ -623,34 +626,34 @@ function EventDetailPanel({
       {/* Backdrop */}
       <div
         className="fixed inset-0 z-40"
-        style={{ background: 'rgba(5,11,20,0.55)', backdropFilter: 'blur(2px)' }}
+        style={{ background: T.dark ? 'rgba(5,11,20,0.55)' : 'rgba(0,0,0,0.25)', backdropFilter: 'blur(2px)' }}
         onClick={onClose}
       />
 
       {/* Panel */}
       <div
         className="fixed top-0 right-0 h-screen z-50 flex flex-col"
-        style={{ width: 480, background: '#07111F', borderLeft: '1px solid #1E2D3D' }}
+        style={{ width: 480, background: T.deep, borderLeft: `1px solid ${T.border}` }}
       >
         {/* Top bar */}
         <div
           className="flex items-center justify-between px-6 py-4 flex-shrink-0"
-          style={{ borderBottom: '1px solid #1E2D3D' }}
+          style={{ borderBottom: `1px solid ${T.border}` }}
         >
           <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-widest mb-1" style={{ color: '#2D4057' }}>
+            <p className="text-[10px] font-semibold uppercase tracking-widest mb-1" style={{ color: T.textDim }}>
               Event Detail
             </p>
-            <p className="text-[11px] mono truncate" style={{ color: '#475569', maxWidth: 340 }}>
+            <p className="text-[11px] mono truncate" style={{ color: T.textDim, maxWidth: 340 }}>
               {event.id}
             </p>
           </div>
           <button
             onClick={onClose}
             className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ml-4 transition-colors"
-            style={{ background: '#0B1220', border: '1px solid #1E2D3D', color: '#475569' }}
-            onMouseEnter={e => (e.currentTarget.style.color = '#E2E8F0')}
-            onMouseLeave={e => (e.currentTarget.style.color = '#475569')}
+            style={{ background: T.card, border: `1px solid ${T.border}`, color: T.textDim }}
+            onMouseEnter={e => (e.currentTarget.style.color = T.text)}
+            onMouseLeave={e => (e.currentTarget.style.color = T.textDim)}
           >
             <X size={13} />
           </button>
@@ -662,7 +665,7 @@ function EventDetailPanel({
           {/* Badges + timestamp */}
           <div
             className="px-6 py-4 flex items-center justify-between gap-3"
-            style={{ borderBottom: '1px solid #0D1B2A' }}
+            style={{ borderBottom: `1px solid ${T.deep}` }}
           >
             <div className="flex items-center gap-2 flex-wrap">
               <span className={`text-xs px-2.5 py-1 rounded-full font-semibold badge-${event.risk_level}`}>
@@ -673,12 +676,12 @@ function EventDetailPanel({
               </span>
               <span
                 className="text-xs px-2 py-1 rounded-md mono"
-                style={{ background: '#0B1220', color: '#94A3B8', border: '1px solid #1E2D3D' }}
+                style={{ background: T.card, color: T.textSec, border: `1px solid ${T.border}` }}
               >
                 {event.event_type}
               </span>
             </div>
-            <p className="text-[10px] mono flex-shrink-0" style={{ color: '#2D4057' }}>
+            <p className="text-[10px] mono flex-shrink-0" style={{ color: T.textDim }}>
               {formatTs(event.created_at)}
             </p>
           </div>
@@ -687,7 +690,7 @@ function EventDetailPanel({
           {event.applied_rule_name && (
             <div
               className="px-6 py-3 flex items-center gap-2.5"
-              style={{ borderBottom: '1px solid #0D1B2A', background: 'rgba(129,140,248,0.05)' }}
+              style={{ borderBottom: `1px solid ${T.deep}`, background: 'rgba(129,140,248,0.05)' }}
             >
               <ShieldCheck size={12} style={{ color: '#818CF8', flexShrink: 0 }} />
               <p className="text-xs" style={{ color: '#818CF8' }}>
@@ -701,7 +704,7 @@ function EventDetailPanel({
           {event.shadow_mode && (
             <div
               className="px-6 py-3 flex items-center gap-2.5"
-              style={{ borderBottom: '1px solid #0D1B2A', background: 'rgba(56,189,248,0.05)' }}
+              style={{ borderBottom: `1px solid ${T.deep}`, background: 'rgba(56,189,248,0.05)' }}
             >
               <Eye size={12} style={{ color: '#38BDF8', flexShrink: 0 }} />
               <p className="text-xs" style={{ color: '#38BDF8' }}>
@@ -717,7 +720,7 @@ function EventDetailPanel({
           {/* Score bars */}
           <div
             className="px-6 py-5 grid grid-cols-2 gap-6"
-            style={{ borderBottom: '1px solid #0D1B2A' }}
+            style={{ borderBottom: `1px solid ${T.deep}` }}
           >
             <ScoreBar label="Trust Score" score={event.trust_score} color={trustColor(event.trust_score)} />
             <ScoreBar label="Fraud Score" score={event.fraud_score} color={fraudColor(event.fraud_score)} />
@@ -725,14 +728,14 @@ function EventDetailPanel({
 
           {/* AI Summary */}
           {event.ai_summary && (
-            <div className="px-6 py-4" style={{ borderBottom: '1px solid #0D1B2A' }}>
+            <div className="px-6 py-4" style={{ borderBottom: `1px solid ${T.deep}` }}>
               <div className="flex items-center gap-2 mb-2.5">
                 <Zap size={12} style={{ color: '#16C784' }} />
-                <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#475569' }}>
+                <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.textDim }}>
                   AI Summary
                 </p>
               </div>
-              <p className="text-xs leading-relaxed" style={{ color: '#94A3B8' }}>
+              <p className="text-xs leading-relaxed" style={{ color: T.textSec }}>
                 {event.ai_summary}
               </p>
             </div>
@@ -765,11 +768,11 @@ function EventDetailPanel({
                 <div key={label} className="flex items-start gap-3">
                   <span
                     className="text-[10px] flex-shrink-0 pt-px"
-                    style={{ color: '#475569', minWidth: 76 }}
+                    style={{ color: T.textDim, minWidth: 76 }}
                   >
                     {label}
                   </span>
-                  <span className="text-xs mono break-all" style={{ color: '#94A3B8' }}>
+                  <span className="text-xs mono break-all" style={{ color: T.textSec }}>
                     {value}
                   </span>
                 </div>
@@ -786,7 +789,7 @@ function EventDetailPanel({
             badge={signals.length}
           >
             {signals.length === 0 ? (
-              <p className="text-xs" style={{ color: '#2D4057' }}>
+              <p className="text-xs" style={{ color: T.textDim }}>
                 No suspicious signals — event appears clean.
               </p>
             ) : (
@@ -795,18 +798,18 @@ function EventDetailPanel({
                   <div
                     key={i}
                     className="flex items-start justify-between gap-3 px-3 py-2.5 rounded-lg"
-                    style={{ background: '#050B14', border: '1px solid #1E2D3D' }}
+                    style={{ background: T.bg, border: `1px solid ${T.border}` }}
                   >
                     <div className="min-w-0">
-                      <p className="text-xs font-medium" style={{ color: '#E2E8F0' }}>{s.label}</p>
-                      <p className="text-[10px] mono mt-0.5" style={{ color: '#475569' }}>{s.code}</p>
+                      <p className="text-xs font-medium" style={{ color: T.text }}>{s.label}</p>
+                      <p className="text-[10px] mono mt-0.5" style={{ color: T.textDim }}>{s.code}</p>
                     </div>
                     <span
                       className="text-[10px] px-2 py-0.5 rounded-full font-medium flex-shrink-0 mono"
                       style={{
-                        background: `${SEV_COLORS[s.severity] ?? '#475569'}18`,
-                        color: SEV_COLORS[s.severity] ?? '#475569',
-                        border: `1px solid ${SEV_COLORS[s.severity] ?? '#475569'}30`,
+                        background: `${SEV_COLORS[s.severity] ?? T.textDim}18`,
+                        color: SEV_COLORS[s.severity] ?? T.textDim,
+                        border: `1px solid ${SEV_COLORS[s.severity] ?? T.textDim}30`,
                       }}
                     >
                       {s.severity}
@@ -908,7 +911,7 @@ function EventDetailPanel({
           >
             <pre
               className="text-[10px] mono leading-relaxed rounded-lg overflow-x-auto p-3"
-              style={{ background: '#050B14', color: '#475569', border: '1px solid #1E2D3D' }}
+              style={{ background: T.bg, color: T.textDim, border: `1px solid ${T.border}` }}
             >
               {JSON.stringify({
                 id:               event.id,
@@ -936,8 +939,9 @@ function EventDetailPanel({
 }
 
 function LoadingRelated() {
+  const T = useT()
   return (
-    <div className="flex items-center gap-2" style={{ color: '#475569' }}>
+    <div className="flex items-center gap-2" style={{ color: T.textDim }}>
       <RefreshCw size={10} className="animate-spin" />
       <span className="text-xs">Loading…</span>
     </div>
@@ -945,7 +949,8 @@ function LoadingRelated() {
 }
 
 function Empty({ msg }: { msg: string }) {
-  return <p className="text-xs" style={{ color: '#2D4057' }}>{msg}</p>
+  const T = useT()
+  return <p className="text-xs" style={{ color: T.textDim }}>{msg}</p>
 }
 
 // ─── Main page ────────────────────────────────────────────────────────────────
@@ -953,6 +958,7 @@ function Empty({ msg }: { msg: string }) {
 const FREE_HISTORY_HOURS = 48 // 2-day history for free plan
 
 export default function Events() {
+  const T = useT()
   const { user } = useAuth()
   const [orgId,    setOrgId]    = useState<string | null>(null)
   const [freePlan, setFreePlan] = useState(false)
@@ -1039,7 +1045,7 @@ export default function Events() {
   }, [events])
 
   if (loading) return (
-    <div className="flex items-center justify-center min-h-[60vh] gap-3" style={{ color: '#475569' }}>
+    <div className="flex items-center justify-center min-h-[60vh] gap-3" style={{ color: T.textDim }}>
       <RefreshCw size={15} className="animate-spin" />
       <span className="text-sm">Loading events…</span>
     </div>

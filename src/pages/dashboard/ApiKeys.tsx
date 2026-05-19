@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
+import { useT } from '../../lib/themeTokens'
 import type { ApiKey } from '../../types'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -123,6 +124,7 @@ type Tab = 'curl' | 'node' | 'python'
 
 export default function ApiKeys() {
   const { user } = useAuth()
+  const T = useT()
 
   const [keys,     setKeys]     = useState<ApiKey[]>([])
   const [loading,  setLoading]  = useState(true)
@@ -280,7 +282,7 @@ export default function ApiKeys() {
 
   if (loading) {
     return (
-      <div className="p-8 flex items-center gap-2" style={{ color: '#475569' }}>
+      <div className="p-8 flex items-center gap-2" style={{ color: T.textDim }}>
         <RefreshCw size={14} className="animate-spin" />
         <span className="text-sm">Loading API keys…</span>
       </div>
@@ -296,11 +298,11 @@ export default function ApiKeys() {
         <div>
           <h1
             className="text-2xl font-bold"
-            style={{ fontFamily: 'Inter, sans-serif', color: '#FFFFFF' }}
+            style={{ fontFamily: 'Inter, sans-serif', color: T.text }}
           >
             API Keys
           </h1>
-          <p className="text-sm mt-1" style={{ color: '#94A3B8' }}>
+          <p className="text-sm mt-1" style={{ color: T.textSec }}>
             Authenticate your server-side integration with Genuinux
           </p>
         </div>
@@ -346,7 +348,7 @@ export default function ApiKeys() {
               <p className="text-sm font-semibold" style={{ color: '#EAB308' }}>
                 Save your API key — it will not be shown again
               </p>
-              <p className="text-xs mt-0.5" style={{ color: '#94A3B8' }}>
+              <p className="text-xs mt-0.5" style={{ color: T.textSec }}>
                 Copy and store this key in a secure location such as an environment variable.
                 Once dismissed, only the prefix is visible.
               </p>
@@ -356,7 +358,7 @@ export default function ApiKeys() {
           {/* Key display */}
           <div
             className="flex items-center gap-3 rounded-lg px-4 py-3"
-            style={{ background: '#050B14', border: '1px solid #1E2D3D' }}
+            style={{ background: T.codeBg, border: `1px solid ${T.border}` }}
           >
             <code
               className="flex-1 text-sm mono overflow-x-auto"
