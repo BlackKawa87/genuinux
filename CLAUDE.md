@@ -27,12 +27,16 @@ No test framework is configured.
 
 Copy `.env.example` → `.env.local`:
 ```
-VITE_SUPABASE_URL=...
-VITE_SUPABASE_ANON_KEY=...
-SUPABASE_SERVICE_ROLE_KEY=...   # server-side only (api/ functions)
+VITE_SUPABASE_URL=...          # exposed to browser (Vite prefix required)
+VITE_SUPABASE_ANON_KEY=...     # exposed to browser
+SUPABASE_SERVICE_ROLE_KEY=...  # server-side only — never expose to frontend
+# SUPABASE_URL=...             # optional; API functions prefer this over VITE_SUPABASE_URL
+# OPENAI_API_KEY=...           # optional; enables GPT-4o-mini AI summaries
 ```
 
 `SUPABASE_SERVICE_ROLE_KEY` is required by Vercel serverless functions. It bypasses RLS — never expose it to the frontend.
+
+API functions (`api/risk/check.ts`, `api/webhooks/test.ts`) resolve the Supabase URL via: `process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL`.
 
 ## Architecture
 
@@ -61,7 +65,7 @@ Routes:
 Single exported `supabase` client. Credentials from `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`.
 
 ### Database (`supabase/schema.sql`)
-Schema v1 (9 tables) + Schema v2 migration (`webhook_deliveries`):
+4 migration blocks — run each separately in the Supabase SQL editor:
 
 | Table | Purpose |
 |---|---|
@@ -76,9 +80,13 @@ Schema v1 (9 tables) + Schema v2 migration (`webhook_deliveries`):
 | `audit_logs` | Action history for compliance |
 | `webhook_deliveries` | One row per webhook attempt — v2 migration |
 
+**v4 migration** (required): Updates `handle_new_user` trigger to auto-create an organization for every new registrant (fixes "No organization" error for new users). Also adds `'escalated'` to `review_status` ENUM, adds `audit_logs INSERT` policy, and backfills existing profileless users.
+
 RLS helpers: `current_org_id()` and `current_user_role()` (SECURITY DEFINER functions).
 
 Role matrix: owner > admin > member. Only owners can manage API keys and webhooks.
+
+Audit logs: Written by the frontend for key actions — `api_key.created`, `api_key.revoked`, `rule.created`, `rule.updated`, `rule.deleted`, `webhook.created`, `webhook.updated`, `webhook.deleted`, `org.updated`, `review.*`. Requires the v4 `audit_logs_insert` RLS policy to be in place.
 
 ### Types (`src/types/index.ts`)
 Mirrors DB schema. Key types: `RiskEvent`, `ApiKey`, `Organization`, `Profile`, `Rule`, `ReviewQueueItem`, `Webhook`, `WebhookDelivery`, `AuditLog`, `DashboardMetrics`.
@@ -141,7 +149,7 @@ Valid `event_type` values: `signup`, `login`, `transaction`, `withdrawal`, `refe
 - Body: `{ webhook_id: string }`
 - Sends signed test payload to the webhook URL, logs to `webhook_deliveries`, returns `{ success, status, duration_ms }`
 
-**`POST /api/analyze`** — Internal prototype (uses `x-organization-id` header, no API key auth). Kept for internal testing.
+**`POST /api/analyze`** — **DEPRECATED** — Returns HTTP 410 Gone with a migration message. Use `/api/risk/check` instead.
 
 ### Dashboard Pages
 
@@ -151,11 +159,11 @@ Valid `event_type` values: `signup`, `login`, `transaction`, `withdrawal`, `refe
 
 **`Queue.tsx`** — Manual review interface. Status tabs: pending / approved / rejected / escalated. 500px detail panel with action buttons (Approve / Block / Escalate / Reopen / Add Note). Each action writes to `audit_logs`. Optimistic state updates.
 
-**`Rules.tsx`** — CRUD for custom fraud rules. Toggle active/paused (optimistic). Inline delete confirmation. `RuleModal` with condition builder (optgroup select), operator/value inputs, live rule sentence preview. `condition_value` stored as `"operator:value"`.
+**`Rules.tsx`** — CRUD for custom fraud rules. Toggle active/paused (optimistic). Inline delete confirmation. `RuleModal` with condition builder (optgroup select), operator/value inputs, live rule sentence preview. `condition_value` stored as `"operator:value"`. Writes audit logs on create/update/delete/toggle.
 
-**`ApiKeys.tsx`** — API key management. Generate keys (prefix shown, full key shown once on creation). Revoke with confirmation. Shows `requests_count` and `last_used_at`.
+**`ApiKeys.tsx`** — API key management. Generate keys (SHA-256 hash stored, full key shown once). Revoke with 2-click confirmation. Shows `requests_count` and `last_used_at`. Writes audit logs on create/revoke.
 
-**`Webhooks.tsx`** — Webhook endpoint management.
+**`Webhooks.tsx`** — Webhook endpoint management. Writes audit logs on create/update/delete.
 - Cards per webhook: status toggle (active/disabled, optimistic), masked secret with show/hide/copy, test delivery button
 - Test calls `POST /api/webhooks/test` with Supabase session JWT
 - Expandable delivery history (lazy-fetches `webhook_deliveries`; shows migration notice if table missing)
@@ -187,9 +195,15 @@ Valid `event_type` values: `signup`, `login`, `transaction`, `withdrawal`, `refe
 - **Vercel**: `https://genuinux.vercel.app` (auto-deploys on push to `main`)
 - **Auto-sync hook**: `.claude/settings.json` Stop hook runs `.claude/sync.sh` after every Claude session — commits staged changes, pushes to GitHub, deploys to Vercel production. `VERCEL_TOKEN` is stored in the gitignored `.claude/settings.local.json`.
 
+### Public Pages
+- `/demo` — `Demo.tsx` — Client-side risk engine demo with 5 presets. Runs `analyze()` in-browser, no auth required.
+- `/docs` — `Docs.tsx` — Full API reference with 12 sections, code blocks, copy buttons. No auth required.
+
 ### Pending / Not Yet Built
-- `/dashboard/settings` — Settings page (nav item exists, no route)
-- `webhook_deliveries` Supabase migration — run the v2 block at the bottom of `supabase/schema.sql`
+- Supabase v4 migration must be run manually in the SQL editor (org auto-create, escalated enum, audit_logs INSERT policy).
+- Invite team members flow in Settings → Team (shows "Coming Soon" banner).
+- Stripe billing integration in Settings → Billing (placeholder).
+- Password reset flow (Login has "Forgot?" link with `href="#"`).
 
 ## TypeScript Config
 

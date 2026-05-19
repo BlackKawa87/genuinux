@@ -192,6 +192,7 @@ function OrgTab({
   isOwner: boolean
   onSaved: (o: Organization) => void
 }) {
+  const { user } = useAuth()
   const [name,     setName]     = useState(org.name)
   const [website,  setWebsite]  = useState(org.website   ?? '')
   const [industry, setIndustry] = useState(org.industry  ?? '')
@@ -211,6 +212,12 @@ function OrgTab({
       .single()
     setSaving(false)
     if (error) { setErrMsg(error.message); return }
+    void supabase.from('audit_logs').insert({
+      organization_id: org.id,
+      user_id: user?.id ?? null,
+      action: 'org.updated',
+      metadata_json: { name: name.trim(), website: website.trim() || null, industry: industry.trim() || null },
+    })
     setSaved(true)
     onSaved(data as Organization)
     setTimeout(() => setSaved(false), 3000)

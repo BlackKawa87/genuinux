@@ -140,15 +140,13 @@ export default function AppLayout() {
           className="px-3 pb-3 pt-2 flex-shrink-0 space-y-0.5"
           style={{ borderTop: '1px solid #1E2D3D' }}
         >
-          <a
-            href="https://docs.genuinux.io"
-            target="_blank"
-            rel="noopener noreferrer"
+          <Link
+            to="/docs"
             className="nav-item"
           >
             <BookOpen size={14} />
             <span>Documentation</span>
-          </a>
+          </Link>
           <Link
             to="/dashboard/settings"
             className={`nav-item${isActive('/dashboard/settings') ? ' active' : ''}`}

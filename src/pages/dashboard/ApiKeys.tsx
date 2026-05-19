@@ -205,6 +205,12 @@ export default function ApiKeys() {
       if (err) {
         setCreateError(err.message)
       } else {
+        void supabase.from('audit_logs').insert({
+          organization_id: orgId,
+          user_id: user?.id ?? null,
+          action: 'api_key.created',
+          metadata_json: { key_id: data.id, key_name: data.name, key_prefix: prefix },
+        })
         setRevealedKey({ id: data.id, name: data.name, fullKey })
         setShowCreate(false)
         setNewKeyName('')
@@ -237,8 +243,18 @@ export default function ApiKeys() {
       .update({ status: 'revoked' })
       .eq('id', id)
 
-    if (err) setError(err.message)
-    else setKeys(prev => prev.map(k => k.id === id ? { ...k, status: 'revoked' as const } : k))
+    if (err) {
+      setError(err.message)
+    } else {
+      const revokedKey = keys.find(k => k.id === id)
+      void supabase.from('audit_logs').insert({
+        organization_id: orgId,
+        user_id: user?.id ?? null,
+        action: 'api_key.revoked',
+        metadata_json: { key_id: id, key_name: revokedKey?.name ?? null },
+      })
+      setKeys(prev => prev.map(k => k.id === id ? { ...k, status: 'revoked' as const } : k))
+    }
     setRevoking(null)
   }
 

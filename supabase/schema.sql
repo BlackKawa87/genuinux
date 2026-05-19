@@ -336,3 +336,65 @@ CREATE POLICY "webhook_deliveries_select" ON webhook_deliveries
 -- set from the Settings → Risk Preferences tab.
 ALTER TABLE organizations
   ADD COLUMN IF NOT EXISTS settings_json JSONB NOT NULL DEFAULT '{}';
+
+-- ============================================================
+-- Schema v4 Migration — run separately after v3
+-- ============================================================
+
+-- 1. Auto-create organization on user sign-up.
+--    Replaces the v1 trigger that only created a profile.
+--    New users immediately have an org (owner role), so the
+--    entire dashboard works without manual onboarding.
+CREATE OR REPLACE FUNCTION handle_new_user()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER AS $func$
+DECLARE
+  new_org_id UUID;
+  org_name   TEXT;
+BEGIN
+  -- Derive a friendly default name from the email local-part
+  org_name := split_part(NEW.email, '@', 1) || '''s workspace';
+
+  INSERT INTO organizations (name, owner_id)
+  VALUES (org_name, NEW.id)
+  RETURNING id INTO new_org_id;
+
+  INSERT INTO profiles (user_id, email, organization_id, role)
+  VALUES (NEW.id, NEW.email, new_org_id, 'owner');
+
+  RETURN NEW;
+END;
+$func$;
+
+-- Backfill: create orgs for existing users who have no organization yet.
+-- Run once. Safe to re-run (DO block is idempotent via the WHERE check).
+DO $$
+DECLARE
+  rec RECORD;
+  new_org_id UUID;
+BEGIN
+  FOR rec IN
+    SELECT user_id, email FROM profiles WHERE organization_id IS NULL
+  LOOP
+    INSERT INTO organizations (name, owner_id)
+    VALUES (split_part(rec.email, '@', 1) || '''s workspace', rec.user_id)
+    RETURNING id INTO new_org_id;
+
+    UPDATE profiles
+    SET organization_id = new_org_id, role = 'owner'
+    WHERE user_id = rec.user_id;
+  END LOOP;
+END;
+$$;
+
+-- 2. Add 'escalated' value to review_status ENUM.
+--    Queue.tsx uses this status but the DB schema was missing it.
+--    ALTER TYPE ... ADD VALUE cannot run inside a transaction block,
+--    so run this statement on its own in the Supabase SQL editor.
+ALTER TYPE review_status ADD VALUE IF NOT EXISTS 'escalated';
+
+-- 3. Allow org members to INSERT into audit_logs.
+--    Previously audit_logs had no INSERT policy so all client-side
+--    audit writes silently failed. Service-role inserts (API layer)
+--    bypass RLS and still work regardless.
+CREATE POLICY "audit_logs_insert" ON audit_logs
+  FOR INSERT WITH CHECK (organization_id = current_org_id());

@@ -637,7 +637,16 @@ export default function Webhooks() {
 
   // ── Delete ────────────────────────────────────────────────
   const handleDelete = async (id: string) => {
+    const deleted = webhooks.find(w => w.id === id)
     await supabase.from('webhooks').delete().eq('id', id)
+    if (orgId && deleted) {
+      void supabase.from('audit_logs').insert({
+        organization_id: orgId,
+        user_id: user?.id ?? null,
+        action: 'webhook.deleted',
+        metadata_json: { webhook_id: id, endpoint_url: deleted.endpoint_url },
+      })
+    }
     setWebhooks(prev => prev.filter(w => w.id !== id))
   }
 
@@ -645,6 +654,15 @@ export default function Webhooks() {
   const handleSaved = (saved: Webhook) => {
     setWebhooks(prev => {
       const idx = prev.findIndex(w => w.id === saved.id)
+      const action = idx >= 0 ? 'webhook.updated' : 'webhook.created'
+      if (orgId) {
+        void supabase.from('audit_logs').insert({
+          organization_id: orgId,
+          user_id: user?.id ?? null,
+          action,
+          metadata_json: { webhook_id: saved.id, endpoint_url: saved.endpoint_url },
+        })
+      }
       return idx >= 0
         ? prev.map(w => w.id === saved.id ? saved : w)
         : [...prev, saved]

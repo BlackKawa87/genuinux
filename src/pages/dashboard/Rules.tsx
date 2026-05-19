@@ -443,7 +443,6 @@ export default function Rules() {
     setToggling(prev => new Set(prev).add(rule.id))
     const newStatus: RuleStatus = rule.status === 'active' ? 'paused' : 'active'
 
-    // Optimistic
     setRules(prev => prev.map(r => r.id === rule.id ? { ...r, status: newStatus } : r))
 
     const { error } = await supabase
@@ -452,15 +451,30 @@ export default function Rules() {
       .eq('id', rule.id)
 
     if (error) {
-      // Revert
       setRules(prev => prev.map(r => r.id === rule.id ? { ...r, status: rule.status } : r))
+    } else if (orgId) {
+      void supabase.from('audit_logs').insert({
+        organization_id: orgId,
+        user_id: user?.id ?? null,
+        action: 'rule.updated',
+        metadata_json: { rule_id: rule.id, name: rule.name, status: newStatus },
+      })
     }
 
     setToggling(prev => { const s = new Set(prev); s.delete(rule.id); return s })
   }
 
   const handleDelete = async (id: string) => {
+    const deleted = rules.find(r => r.id === id)
     await supabase.from('rules').delete().eq('id', id)
+    if (orgId && deleted) {
+      void supabase.from('audit_logs').insert({
+        organization_id: orgId,
+        user_id: user?.id ?? null,
+        action: 'rule.deleted',
+        metadata_json: { rule_id: id, name: deleted.name },
+      })
+    }
     setRules(prev => prev.filter(r => r.id !== id))
     setDeletingId(null)
   }
@@ -468,6 +482,15 @@ export default function Rules() {
   const handleSaved = (saved: Rule) => {
     setRules(prev => {
       const idx = prev.findIndex(r => r.id === saved.id)
+      const action = idx >= 0 ? 'rule.updated' : 'rule.created'
+      if (orgId) {
+        void supabase.from('audit_logs').insert({
+          organization_id: orgId,
+          user_id: user?.id ?? null,
+          action,
+          metadata_json: { rule_id: saved.id, name: saved.name, action: saved.action },
+        })
+      }
       return idx >= 0
         ? prev.map(r => r.id === saved.id ? saved : r)
         : [...prev, saved]
