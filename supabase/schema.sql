@@ -327,3 +327,12 @@ CREATE POLICY "webhook_deliveries_select" ON webhook_deliveries
   FOR SELECT USING (organization_id = current_org_id());
 
 -- Service role inserts (from serverless functions bypass RLS automatically)
+
+-- ============================================================
+-- Schema v3 Migration — run separately after v2
+-- ============================================================
+
+-- Adds settings_json to organizations for persisting risk preferences
+-- set from the Settings → Risk Preferences tab.
+ALTER TABLE organizations
+  ADD COLUMN IF NOT EXISTS settings_json JSONB NOT NULL DEFAULT '{}';

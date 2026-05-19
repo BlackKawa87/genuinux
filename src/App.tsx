@@ -11,6 +11,7 @@ import Queue from './pages/dashboard/Queue'
 import Rules from './pages/dashboard/Rules'
 import Webhooks from './pages/dashboard/Webhooks'
 import UsersPage from './pages/dashboard/Users'
+import SettingsPage from './pages/dashboard/Settings'
 
 export default function App() {
   return (
@@ -34,6 +35,7 @@ export default function App() {
           <Route path="api-keys" element={<ApiKeys />} />
           <Route path="webhooks" element={<Webhooks />} />
           <Route path="users" element={<UsersPage />} />
+          <Route path="settings" element={<SettingsPage />} />
         </Route>
       </Routes>
     </BrowserRouter>
