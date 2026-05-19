@@ -3,11 +3,13 @@ import type { ReactNode } from 'react'
 import {
   Search, X, RefreshCw, ChevronDown,
   Users, Globe, Monitor, AlertTriangle, Shield, Zap,
-  Activity,
+  Activity, Network,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import type { UserChecked, RiskEvent, Decision } from '../../types'
+import { getRelatedRiskEntities, SEV_COLORS as TG_SEV } from '../../lib/trustGraph'
+import type { TrustGraphResult } from '../../lib/trustGraph'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -497,6 +499,9 @@ function UserDetailPanel({
             )}
           </CollapsibleSection>
 
+          {/* Risk Network */}
+          <UserTrustGraphSection row={row} />
+
           {/* Recurring signals */}
           <CollapsibleSection
             title="Recurring Signals"
@@ -552,6 +557,190 @@ function LoadingRows() {
     <div className="flex items-center gap-2" style={{ color: '#475569' }}>
       <RefreshCw size={10} className="animate-spin" />
       <span className="text-xs">Loading…</span>
+    </div>
+  )
+}
+
+// ─── UserTrustGraphSection ────────────────────────────────────────────────────
+
+function UserTrustGraphSection({ row }: { row: UserRow }) {
+  const [open,    setOpen]    = useState(false)
+  const [fetched, setFetched] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [result,  setResult]  = useState<TrustGraphResult | null>(null)
+
+  const load = async () => {
+    if (fetched || loading) return
+    setLoading(true)
+    try {
+      const data = await getRelatedRiskEntities({
+        organization_id:  row.user.organization_id,
+        external_user_id: row.user.external_user_id,
+        ip_address:       row.distinct_ips[0]      ?? null,
+        device_id:        row.distinct_devices[0]  ?? null,
+        email:            row.user.email,
+        country:          row.user.country,
+      }, supabase)
+      setResult(data)
+    } finally {
+      setFetched(true)
+      setLoading(false)
+    }
+  }
+
+  const toggle = () => {
+    if (!open) void load()
+    setOpen(o => !o)
+  }
+
+  const score   = result?.summary.network_risk_score ?? 0
+  const topSev  = result?.summary.highest_severity ?? null
+  const hasData = result && (
+    result.suspicious_clusters.length > 0 ||
+    result.related_users.length > 0 ||
+    result.shared_ips.length > 0 ||
+    result.shared_devices.length > 0
+  )
+
+  return (
+    <div style={{ borderBottom: '1px solid #0D1B2A' }}>
+      <button
+        onClick={toggle}
+        className="w-full flex items-center justify-between px-6 py-3.5 transition-colors duration-100"
+        style={{ background: 'transparent' }}
+        onMouseEnter={e => (e.currentTarget.style.background = '#0B1220')}
+        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+      >
+        <div className="flex items-center gap-2.5">
+          <Network size={12} style={{ color: '#475569' }} />
+          <span className="text-xs font-semibold" style={{ color: '#94A3B8' }}>Risk Network</span>
+          {fetched && result && result.summary.total_connections > 0 && (
+            <span className="text-[10px] mono px-1.5 py-0.5 rounded"
+              style={{ background: '#0B1220', color: '#475569', border: '1px solid #1E2D3D' }}>
+              {result.summary.total_connections}
+            </span>
+          )}
+          {fetched && topSev && (
+            <span className="text-[10px] mono px-1.5 py-0.5 rounded"
+              style={{ background: TG_SEV[topSev].bg, color: TG_SEV[topSev].text, border: `1px solid ${TG_SEV[topSev].border}` }}>
+              {topSev}
+            </span>
+          )}
+        </div>
+        <ChevronDown size={12}
+          style={{ color: '#475569', transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+      </button>
+
+      {open && (
+        <div className="px-6 pb-5 space-y-4">
+          {loading && (
+            <div className="flex items-center gap-2" style={{ color: '#475569' }}>
+              <RefreshCw size={10} className="animate-spin" />
+              <span className="text-xs">Analyzing risk network…</span>
+            </div>
+          )}
+
+          {fetched && !hasData && (
+            <p className="text-xs" style={{ color: '#2D4057' }}>
+              No cross-account connections detected.
+            </p>
+          )}
+
+          {fetched && result && hasData && (
+            <>
+              {/* Score bar */}
+              <div className="p-3 rounded-lg" style={{ background: '#050B14', border: '1px solid #1E2D3D' }}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#475569' }}>
+                    Network Risk Score
+                  </span>
+                  <span className="text-sm font-bold mono"
+                    style={{ color: score >= 70 ? '#EF4444' : score >= 40 ? '#F59E0B' : '#16C784' }}>
+                    {score}
+                  </span>
+                </div>
+                <div className="rounded-full overflow-hidden" style={{ height: 4, background: '#1E2D3D' }}>
+                  <div className="h-full rounded-full transition-all duration-700"
+                    style={{ width: `${score}%`, background: score >= 70 ? '#EF4444' : score >= 40 ? '#F59E0B' : '#16C784' }} />
+                </div>
+                <p className="text-[10px] mono mt-2" style={{ color: '#475569' }}>
+                  {result.summary.total_connections} connection{result.summary.total_connections !== 1 ? 's' : ''} · {result.suspicious_clusters.length} cluster{result.suspicious_clusters.length !== 1 ? 's' : ''}
+                </p>
+              </div>
+
+              {/* Clusters */}
+              {result.suspicious_clusters.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#475569' }}>
+                    Suspicious Patterns
+                  </p>
+                  {result.suspicious_clusters.map((c, i) => (
+                    <div key={i} className="rounded-lg overflow-hidden"
+                      style={{ border: `1px solid ${TG_SEV[c.severity].border}`, borderLeft: `3px solid ${TG_SEV[c.severity].text}` }}>
+                      <div className="px-3 py-2.5" style={{ background: TG_SEV[c.severity].bg }}>
+                        <div className="flex items-start justify-between gap-2 mb-1">
+                          <p className="text-xs font-semibold" style={{ color: '#E2E8F0' }}>{c.title}</p>
+                          <span className="text-[9px] mono px-1.5 py-0.5 rounded flex-shrink-0"
+                            style={{ color: TG_SEV[c.severity].text, border: `1px solid ${TG_SEV[c.severity].border}` }}>
+                            {c.severity.toUpperCase()}
+                          </span>
+                        </div>
+                        <p className="text-[11px] leading-relaxed" style={{ color: '#94A3B8' }}>
+                          {c.description}
+                        </p>
+                        {c.evidence.length > 0 && (
+                          <ul className="mt-1.5 space-y-0.5">
+                            {c.evidence.map((e, j) => (
+                              <li key={j} className="text-[10px] mono flex items-center gap-1.5" style={{ color: '#475569' }}>
+                                <span style={{ color: TG_SEV[c.severity].text }}>›</span>
+                                {e}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Connected accounts (condensed) */}
+              {result.related_users.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: '#475569' }}>
+                    Connected Accounts ({result.related_users.length})
+                  </p>
+                  <div className="space-y-1.5">
+                    {result.related_users.slice(0, 8).map(u => (
+                      <div key={u.external_user_id} className="flex items-center gap-3 px-3 py-2 rounded-lg"
+                        style={{ background: '#050B14', border: '1px solid #1E2D3D' }}>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[11px] mono truncate" style={{ color: '#94A3B8' }}>
+                            {u.external_user_id}
+                          </p>
+                          <p className="text-[9px] mt-0.5" style={{ color: '#475569' }}>
+                            via {u.connection_type === 'shared_ip' ? 'IP' : u.connection_type === 'shared_device' ? 'device' : 'email'} · {u.event_count} events
+                            {u.has_block ? ' · blocked' : ''}
+                          </p>
+                        </div>
+                        <span className="text-xs mono font-semibold flex-shrink-0"
+                          style={{ color: u.highest_fraud_score >= 70 ? '#EF4444' : u.highest_fraud_score >= 40 ? '#F59E0B' : '#16C784' }}>
+                          F{u.highest_fraud_score}
+                        </span>
+                      </div>
+                    ))}
+                    {result.related_users.length > 8 && (
+                      <p className="text-[10px] text-center" style={{ color: '#2D4057' }}>
+                        +{result.related_users.length - 8} more
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
     </div>
   )
 }
