@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import type { ReactNode } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Building2, Users, ShieldCheck, CreditCard, Lock,
   RefreshCw, Save, CheckCircle2, AlertTriangle, Info,
@@ -316,7 +317,19 @@ CREATE TABLE IF NOT EXISTS pending_invites (
   accepted_at      timestamptz
 );
 CREATE INDEX IF NOT EXISTS pending_invites_org  ON pending_invites (organization_id);
-CREATE INDEX IF NOT EXISTS pending_invites_email ON pending_invites (email);`
+CREATE INDEX IF NOT EXISTS pending_invites_email ON pending_invites (email);
+
+-- RLS
+ALTER TABLE pending_invites ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "org_members_read_invites"
+  ON pending_invites FOR SELECT
+  USING (organization_id = current_org_id());
+
+CREATE POLICY "org_admins_manage_invites"
+  ON pending_invites FOR ALL
+  USING (organization_id = current_org_id() AND current_user_role() IN ('owner', 'admin'))
+  WITH CHECK (organization_id = current_org_id() AND current_user_role() IN ('owner', 'admin'));`
 
 function TeamTab({ members, currentProfile }: { members: Profile[]; currentProfile: Profile | null }) {
   const { session } = useAuth()
@@ -767,12 +780,13 @@ const STRIPE_MIGRATION_SQL = `-- Run in Supabase SQL editor to enable Stripe bil
 ALTER TABLE organizations
   ADD COLUMN IF NOT EXISTS stripe_customer_id text;`
 
-function BillingTab({ plan }: { plan: string; orgId: string }) {
+function BillingTab({ plan, billingSuccess }: { plan: string; orgId: string; billingSuccess?: boolean }) {
   const { session } = useAuth()
   const [upgrading, setUpgrading] = useState<string | null>(null)
   const [portalLoading, setPortalLoading] = useState(false)
   const [billingError, setBillingError] = useState<string | null>(null)
   const [showStripeMigration, setShowStripeMigration] = useState(false)
+  const [showSuccess, setShowSuccess] = useState(billingSuccess ?? false)
 
   const handleUpgrade = async (planId: string) => {
     if (!session?.access_token) return
@@ -812,6 +826,23 @@ function BillingTab({ plan }: { plan: string; orgId: string }) {
 
   return (
     <div className="space-y-5">
+
+      {showSuccess && (
+        <div
+          className="flex items-center justify-between px-4 py-3 rounded-lg"
+          style={{ background: 'rgba(22,199,132,0.08)', border: '1px solid rgba(22,199,132,0.25)' }}
+        >
+          <div className="flex items-center gap-2.5">
+            <CheckCircle2 size={14} style={{ color: '#16C784' }} />
+            <span className="text-sm font-semibold" style={{ color: '#16C784' }}>Subscription activated!</span>
+            <span className="text-xs" style={{ color: '#94A3B8' }}>Your plan has been updated. Welcome aboard.</span>
+          </div>
+          <button onClick={() => setShowSuccess(false)} style={{ color: '#475569' }}>
+            <X size={13} />
+          </button>
+        </div>
+      )}
+
       <SectionCard
         title="Current Plan"
         action={
@@ -1144,7 +1175,10 @@ app.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
 
 export default function SettingsPage() {
   const { user } = useAuth()
-  const [tab,       setTab]       = useState<TabId>('org')
+  const [searchParams] = useSearchParams()
+  const initialTab = (searchParams.get('tab') as TabId | null) ?? 'org'
+  const billingSuccess = searchParams.get('success') === '1' && initialTab === 'billing'
+  const [tab,       setTab]       = useState<TabId>(TABS.some(t => t.id === initialTab) ? initialTab : 'org')
   const [org,       setOrg]       = useState<Organization | null>(null)
   const [profile,   setProfile]   = useState<Profile | null>(null)
   const [members,   setMembers]   = useState<Profile[]>([])
@@ -1262,7 +1296,7 @@ export default function SettingsPage() {
         <RiskTab prefs={riskPrefs} orgId={org.id} isOwner={isOwner} />
       )}
       {tab === 'billing' && (
-        <BillingTab plan={org.plan} orgId={org.id} />
+        <BillingTab plan={org.plan} orgId={org.id} billingSuccess={billingSuccess} />
       )}
       {tab === 'security' && (
         <SecurityTab auditLogs={auditLogs} />

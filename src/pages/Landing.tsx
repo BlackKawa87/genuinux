@@ -890,23 +890,39 @@ export default function Landing() {
               </p>
             </div>
 
-            {[
-              { title: 'Product',    links: ['RiskScore', 'DeviceID', 'BehaviorAI', 'DocVerify', 'SessionGuard'] },
-              { title: 'Company',    links: ['About', 'Blog', 'Careers', 'Press'] },
-              { title: 'Developers', links: ['Documentation', 'API Reference', 'Status', 'Changelog'] },
-            ].map((col, i) => (
+            {([
+              { title: 'Product', links: [
+                { label: 'RiskScore',    href: '/#product' },
+                { label: 'DeviceID',     href: '/#product' },
+                { label: 'BehaviorAI',   href: '/#product' },
+                { label: 'DocVerify',    href: '/#product' },
+                { label: 'SessionGuard', href: '/#product' },
+              ]},
+              { title: 'Company', links: [
+                { label: 'About',    href: 'mailto:hello@genuinux.io' },
+                { label: 'Blog',     href: '/blog/detect-account-takeover' },
+                { label: 'Careers',  href: 'mailto:careers@genuinux.io' },
+                { label: 'Press',    href: 'mailto:press@genuinux.io' },
+              ]},
+              { title: 'Developers', links: [
+                { label: 'Documentation', href: '/docs' },
+                { label: 'API Reference', href: '/docs' },
+                { label: 'Live Demo',     href: '/demo' },
+                { label: 'Changelog',     href: 'mailto:hello@genuinux.io' },
+              ]},
+            ] as { title: string; links: { label: string; href: string }[] }[]).map((col, i) => (
               <div key={i}>
                 <p className="text-xs font-semibold uppercase tracking-wider mb-4" style={{ color: '#64748B' }}>
                   {col.title}
                 </p>
                 <ul className="space-y-2.5">
                   {col.links.map(l => (
-                    <li key={l}>
-                      <a href="#" className="text-xs transition-colors duration-150"
+                    <li key={l.label}>
+                      <a href={l.href} className="text-xs transition-colors duration-150"
                         style={{ color: '#475569' }}
                         onMouseEnter={e => (e.currentTarget.style.color = '#94A3B8')}
                         onMouseLeave={e => (e.currentTarget.style.color = '#475569')}>
-                        {l}
+                        {l.label}
                       </a>
                     </li>
                   ))}
@@ -919,12 +935,17 @@ export default function Landing() {
             style={{ borderTop: '1px solid #1E293B' }}>
             <p className="text-xs" style={{ color: '#475569' }}>© 2026 Genuinux. AI Trust Infrastructure.</p>
             <div className="flex items-center gap-6">
-              {['Privacy', 'Terms', 'Security', 'Cookie Policy'].map(l => (
-                <a key={l} href="#" className="text-xs transition-colors duration-150"
+              {([
+                { label: 'Privacy',       href: 'mailto:legal@genuinux.io' },
+                { label: 'Terms',         href: 'mailto:legal@genuinux.io' },
+                { label: 'Security',      href: 'mailto:security@genuinux.io' },
+                { label: 'Cookie Policy', href: 'mailto:legal@genuinux.io' },
+              ] as { label: string; href: string }[]).map(l => (
+                <a key={l.label} href={l.href} className="text-xs transition-colors duration-150"
                   style={{ color: '#475569' }}
                   onMouseEnter={e => (e.currentTarget.style.color = '#94A3B8')}
                   onMouseLeave={e => (e.currentTarget.style.color = '#475569')}>
-                  {l}
+                  {l.label}
                 </a>
               ))}
             </div>

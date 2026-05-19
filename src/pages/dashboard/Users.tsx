@@ -558,12 +558,15 @@ function LoadingRows() {
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
+const FREE_HISTORY_HOURS = 48
+
 export default function UsersPage() {
   const { user } = useAuth()
-  const [orgId,   setOrgId]   = useState<string | null>(null)
-  const [rows,    setRows]    = useState<UserRow[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error,   setError]   = useState<string | null>(null)
+  const [orgId,    setOrgId]    = useState<string | null>(null)
+  const [freePlan, setFreePlan] = useState(false)
+  const [rows,     setRows]     = useState<UserRow[]>([])
+  const [loading,  setLoading]  = useState(true)
+  const [error,    setError]    = useState<string | null>(null)
 
   const [search,      setSearch]      = useState('')
   const [susOnly,     setSusOnly]     = useState(false)
@@ -574,11 +577,14 @@ export default function UsersPage() {
     void (async () => {
       const { data: profile } = await supabase
         .from('profiles')
-        .select('organization_id')
+        .select('organization_id, organizations(plan)')
         .eq('user_id', user.id)
         .single()
       if (profile?.organization_id) {
         setOrgId(profile.organization_id as string)
+        const orgs = profile.organizations as unknown as { plan: string }[] | { plan: string } | null
+        const plan = Array.isArray(orgs) ? orgs[0]?.plan : orgs?.plan
+        setFreePlan(plan === 'free' || !plan)
       } else {
         setError('No organization linked to this account.')
         setLoading(false)
@@ -590,6 +596,19 @@ export default function UsersPage() {
     if (!orgId) return
     setLoading(true)
 
+    const cutoff = freePlan
+      ? new Date(Date.now() - FREE_HISTORY_HOURS * 60 * 60 * 1000).toISOString()
+      : null
+
+    let eventsQuery = supabase
+      .from('risk_events')
+      .select('id, external_user_id, event_type, trust_score, fraud_score, risk_level, decision, ip_address, device_id, signals_json, created_at')
+      .eq('organization_id', orgId)
+      .order('created_at', { ascending: false })
+      .limit(2000)
+
+    if (cutoff) eventsQuery = eventsQuery.gte('created_at', cutoff)
+
     const [usersRes, eventsRes] = await Promise.all([
       supabase
         .from('users_checked')
@@ -598,12 +617,7 @@ export default function UsersPage() {
         .order('created_at', { ascending: false })
         .limit(500),
 
-      supabase
-        .from('risk_events')
-        .select('id, external_user_id, event_type, trust_score, fraud_score, risk_level, decision, ip_address, device_id, signals_json, created_at')
-        .eq('organization_id', orgId)
-        .order('created_at', { ascending: false })
-        .limit(2000),
+      eventsQuery,
     ])
 
     if (usersRes.error) {
@@ -616,7 +630,7 @@ export default function UsersPage() {
     const events = (eventsRes.data ?? []) as EventSummary[]
     setRows(buildUserRows(users, events))
     setLoading(false)
-  }, [orgId])
+  }, [orgId, freePlan])
 
   useEffect(() => { void fetchData() }, [fetchData])
 
@@ -655,6 +669,17 @@ export default function UsersPage() {
 
   return (
     <div className="p-7">
+
+      {freePlan && (
+        <div
+          className="flex items-center gap-2.5 px-4 py-2.5 rounded-lg mb-5 text-xs"
+          style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', color: '#F59E0B' }}
+        >
+          <AlertTriangle size={12} />
+          Free plan: showing last 48 hours of data only.
+          <a href="/dashboard/settings?tab=billing" className="underline ml-1" style={{ color: '#F59E0B' }}>Upgrade for full history</a>
+        </div>
+      )}
 
       {/* Sub-header */}
       <div className="flex items-center justify-between mb-5">

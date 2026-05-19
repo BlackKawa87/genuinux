@@ -179,9 +179,9 @@ export default function Register() {
 
           <p className="text-xs mt-5 text-center" style={{ color: '#94A3B8' }}>
             By creating a workspace you agree to our{' '}
-            <a href="#" style={{ color: '#64748B' }}>Terms</a>
+            <a href="mailto:legal@genuinux.io" style={{ color: '#64748B' }}>Terms</a>
             {' '}and{' '}
-            <a href="#" style={{ color: '#64748B' }}>Privacy Policy</a>
+            <a href="mailto:legal@genuinux.io" style={{ color: '#64748B' }}>Privacy Policy</a>
           </p>
         </div>
 

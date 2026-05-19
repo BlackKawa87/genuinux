@@ -696,7 +696,7 @@ export default function Rules() {
       )}
 
       {/* Examples hint */}
-      {rules.length === 0 && false /* show after first rule */ ? null : rules.length > 0 && (
+      {rules.length > 0 && (
         <div className="mt-4 px-1">
           <p className="text-[11px]" style={{ color: '#2D4057' }}>
             Example rules:{' '}
