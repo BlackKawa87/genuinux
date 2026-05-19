@@ -239,7 +239,7 @@ function WebhookModal({ webhook, orgId, onSave, onClose }: ModalProps) {
                       className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0"
                       style={{
                         background: checked ? ev.color : 'transparent',
-                        border: `1.5px solid ${checked ? ev.color : '#1E2D3D'}`,
+                        border: `1.5px solid ${checked ? ev.color : T.border}`,
                       }}
                     >
                       {checked && <CheckCircle2 size={10} style={{ color: '#000' }} />}
@@ -877,7 +877,7 @@ function DeliveryLogs({ orgId, webhooks }: { orgId: string; webhooks: Webhook[] 
                         ? 'rgba(22,199,132,0.08)'
                         : 'rgba(239,68,68,0.08)',
                     color: !hasCode
-                      ? '#475569'
+                      ? T.textDim
                       : d.response_status! < 300
                         ? '#16C784'
                         : '#EF4444',

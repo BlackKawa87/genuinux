@@ -196,7 +196,7 @@ function TrendLine({ points, color = '#F59E0B', textDim }: { points: number[]; c
 
 // ─── Primitives ───────────────────────────────────────────────────────────────
 
-function EmptyChart({ label, textDim }: { label: string; textDim: string }) {
+function EmptyChart({ label, textDim = '#475569' }: { label: string; textDim?: string }) {
   return (
     <div className="flex items-center justify-center h-14" style={{ color: textDim }}>
       <span className="text-xs">{label}</span>
