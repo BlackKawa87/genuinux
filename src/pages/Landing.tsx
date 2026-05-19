@@ -5,7 +5,7 @@ import {
   Cpu, Fingerprint, FileSearch, Lock, Globe, ChevronRight,
   ShoppingCart, Gamepad2, Landmark, Coins, MonitorSmartphone,
   UserCheck, LogIn, CreditCard, ArrowLeftRight, MousePointerClick,
-  Menu, X, BookOpen, Terminal, Users,
+  Menu, X, BookOpen, Terminal, Users, Eye, MessageSquare,
 } from 'lucide-react'
 
 const C = {
@@ -175,7 +175,7 @@ const TEAMS = [
     icon: Terminal,
     role: 'Engineering',
     tagline: 'One integration. Everything included.',
-    features: ['Single API endpoint, any language', 'Webhook delivery with HMAC signatures', 'API key management + usage tracking', 'Under 50ms p95, 99.9% target uptime'],
+    features: ['Single API endpoint, any language', 'Webhook signing with HMAC-SHA256', 'API key management + usage tracking', 'Explainable signals for every decision'],
   },
 ]
 
@@ -218,11 +218,37 @@ const BLOG_POSTS = [
     desc:  'A step-by-step guide to writing, testing, and deploying custom rules without touching your production code.' },
 ]
 
-const CERTS = [
-  { label: 'SOC 2 Type II', sub: 'Security & Availability'  },
-  { label: 'ISO 27001',     sub: 'Information Security'     },
-  { label: 'GDPR Ready',    sub: 'EU Data Protection'       },
-  { label: 'PCI DSS',       sub: 'Payment Card Industry'    },
+const TRUST_CARDS = [
+  {
+    icon: MessageSquare,
+    title: 'Explainable decisions',
+    desc: 'Every verdict comes with signals, risk reasons, and a plain-English recommendation. No black boxes — every decision can be justified to your team or your users.',
+  },
+  {
+    icon: FileSearch,
+    title: 'Audit-ready logs',
+    desc: 'Rule changes, API key creation, and review actions are written to an immutable audit log. Built for teams that need a full chain of custody.',
+  },
+  {
+    icon: Lock,
+    title: 'Secure API keys',
+    desc: 'Keys are SHA-256 hashed on creation. The raw value is shown exactly once and never stored. Revoke instantly from the dashboard.',
+  },
+  {
+    icon: Users,
+    title: 'Role-based access',
+    desc: 'Owner, admin, and member roles control who can manage keys, webhooks, rules, and organization settings. Least-privilege by default.',
+  },
+  {
+    icon: Shield,
+    title: 'Privacy-first design',
+    desc: 'You control what data you send. No PII is required. All signals are derived from what you explicitly provide — nothing is inferred or scraped.',
+  },
+  {
+    icon: Eye,
+    title: 'Safe rollout with Shadow Mode',
+    desc: 'Run the full engine in observation mode before going live. Validate accuracy on real traffic without affecting a single user decision.',
+  },
 ]
 
 export default function Landing() {
@@ -372,24 +398,34 @@ export default function Landing() {
           style={{ background: `linear-gradient(to bottom, transparent, ${C.bg})` }} />
       </section>
 
-      {/* ── Certifications ──────────────────────────────────── */}
+      {/* ── Built for trust ─────────────────────────────────── */}
       <section style={{ background: C.surface, borderTop: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}` }}>
-        <div className="max-w-5xl mx-auto px-6 py-10">
-          <p className="text-xs font-semibold uppercase tracking-widest text-center mb-8" style={{ color: C.textMut }}>
-            Compliance & Certifications
-          </p>
-          <div className="flex flex-wrap items-center justify-center gap-6">
-            {CERTS.map((c, i) => (
-              <div key={i} className="flex items-center gap-3 px-5 py-3 rounded-xl"
-                style={{ border: `1px solid ${C.border}`, background: C.bg }}>
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center"
+        <div className="max-w-5xl mx-auto px-6 py-20">
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold mb-5"
+              style={{ background: C.trustBg, border: `1px solid ${C.trustBd}`, color: C.trustT }}>
+              <Shield size={13} />
+              Built for trust
+            </div>
+            <h2 className="font-bold mb-3"
+              style={{ fontSize: 'clamp(1.75rem, 3.5vw, 2.25rem)', letterSpacing: '-0.03em', color: C.text }}>
+              Security and transparency,
+              <span style={{ color: C.trust }}> by design.</span>
+            </h2>
+            <p className="text-base max-w-xl mx-auto" style={{ color: C.textSec }}>
+              Built for teams that need to move fast without cutting corners on auditability, explainability, or data control.
+            </p>
+          </div>
+          <div className="grid md:grid-cols-3 gap-5">
+            {TRUST_CARDS.map((card, i) => (
+              <div key={i} className="p-6 rounded-2xl"
+                style={{ background: C.bg, border: `1px solid ${C.border}`, boxShadow: C.shadow }}>
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-4"
                   style={{ background: C.trustBg, border: `1px solid ${C.trustBd}` }}>
-                  <Shield size={14} style={{ color: C.trust }} />
+                  <card.icon size={15} style={{ color: C.trust }} />
                 </div>
-                <div>
-                  <p className="text-sm font-bold" style={{ color: C.text }}>{c.label}</p>
-                  <p className="text-xs" style={{ color: C.textMut }}>{c.sub}</p>
-                </div>
+                <h3 className="text-sm font-bold mb-2" style={{ color: C.text }}>{card.title}</h3>
+                <p className="text-xs leading-relaxed" style={{ color: C.textSec }}>{card.desc}</p>
               </div>
             ))}
           </div>

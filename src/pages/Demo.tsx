@@ -736,8 +736,8 @@ export default function Demo() {
           <div className="flex items-center justify-center gap-6 mt-10">
             {[
               '&lt; 50ms average latency',
-              '99.9% uptime SLA',
-              'GDPR compliant',
+              'Webhook signing with HMAC-SHA256',
+              'Designed for GDPR-aware teams',
               'No data stored in demo',
             ].map(t => (
               <span key={t} className="text-[11px] flex items-center gap-1.5" style={{ color: '#2D4057' }}>
