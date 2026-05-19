@@ -27,71 +27,41 @@ export default function Join() {
   const processInvite = async () => {
     const { data: { session } } = await supabase.auth.getSession()
 
-    // If not authenticated yet, wait for auth state change (user just clicked invite link)
     if (!session) {
+      // User just clicked the email invite link — wait for auth state to settle
       const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, sess) => {
         if (event === 'SIGNED_IN' && sess) {
           subscription.unsubscribe()
-          await acceptInvite(sess.user.id, sess.user.email ?? '')
+          await callAcceptEndpoint(sess.access_token)
         }
       })
       return
     }
 
-    await acceptInvite(session.user.id, session.user.email ?? '')
+    await callAcceptEndpoint(session.access_token)
   }
 
-  const acceptInvite = async (userId: string, userEmail: string) => {
+  const callAcceptEndpoint = async (accessToken: string) => {
     setStage('joining')
 
-    // Fetch the pending invite by token
-    const { data: invite, error: invErr } = await supabase
-      .from('pending_invites')
-      .select('*, organizations(name)')
-      .eq('id', token)
-      .is('accepted_at', null)
-      .single()
+    const res = await fetch('/api/team/accept', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ inviteToken: token }),
+    })
 
-    if (invErr || !invite) {
+    const json = await res.json() as { success?: boolean; org_name?: string; error?: string }
+
+    if (!res.ok) {
       setStage('error')
-      setMessage('This invite link is invalid or has already been used.')
+      setMessage(json.error ?? 'Failed to join organization. Please contact support.')
       return
     }
 
-    if (new Date(invite.expires_at) < new Date()) {
-      setStage('error')
-      setMessage('This invite link has expired. Ask your team admin to send a new one.')
-      return
-    }
-
-    // Verify the invite email matches the logged-in user
-    if (invite.email.toLowerCase() !== userEmail.toLowerCase()) {
-      setStage('error')
-      setMessage(`This invite was sent to ${invite.email}. Please sign in with that email.`)
-      return
-    }
-
-    const orgNameVal = (invite.organizations as { name: string } | null)?.name ?? 'the organization'
-    setOrgName(orgNameVal)
-
-    // Update the user's profile to the invited org and role
-    const { error: profErr } = await supabase
-      .from('profiles')
-      .update({ organization_id: invite.organization_id, role: invite.role })
-      .eq('user_id', userId)
-
-    if (profErr) {
-      setStage('error')
-      setMessage('Failed to update your profile. Please contact support.')
-      return
-    }
-
-    // Mark invite as accepted
-    await supabase
-      .from('pending_invites')
-      .update({ accepted_at: new Date().toISOString() })
-      .eq('id', token)
-
+    setOrgName(json.org_name ?? 'the organization')
     setStage('success')
     setTimeout(() => navigate('/dashboard'), 3000)
   }
