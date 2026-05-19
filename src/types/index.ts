@@ -33,7 +33,7 @@ export type FeedbackType =
   | 'manual_review_wrong'
 export type ApiKeyStatus = 'active' | 'revoked'
 export type RuleStatus = 'active' | 'paused'
-export type ReviewStatus = 'pending' | 'approved' | 'rejected' | 'escalated'
+export type ReviewStatus = 'pending' | 'in_review' | 'approved' | 'rejected' | 'escalated'
 
 export interface Organization {
   id: string
