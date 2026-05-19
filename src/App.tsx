@@ -3,6 +3,7 @@ import Landing from './pages/Landing'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import Demo from './pages/Demo'
+import Docs from './pages/Docs'
 import AppLayout from './components/layout/AppLayout'
 import ProtectedRoute from './components/ProtectedRoute'
 import Overview from './pages/dashboard/Overview'
@@ -22,6 +23,7 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/demo" element={<Demo />} />
+        <Route path="/docs" element={<Docs />} />
         <Route
           path="/dashboard"
           element={
