@@ -1,31 +1,13 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  Shield,
-  Activity,
-  ArrowRight,
-  CheckCircle,
-  AlertTriangle,
-  Cpu,
-  Fingerprint,
-  FileSearch,
-  Lock,
-  Globe,
-  ChevronRight,
-  BarChart3,
-  ShoppingCart,
-  Gamepad2,
-  Landmark,
-  Coins,
-  MonitorSmartphone,
-  UserCheck,
-  LogIn,
-  CreditCard,
-  ArrowLeftRight,
-  MousePointerClick,
+  Shield, Activity, ArrowRight, CheckCircle, AlertTriangle,
+  Cpu, Fingerprint, FileSearch, Lock, Globe, ChevronRight,
+  ShoppingCart, Gamepad2, Landmark, Coins, MonitorSmartphone,
+  UserCheck, LogIn, CreditCard, ArrowLeftRight, MousePointerClick,
+  Menu, X, BookOpen, Terminal, Users,
 } from 'lucide-react'
 
-// ── Palette ──────────────────────────────────────────────────
 const C = {
   bg:       '#F8FAFC',
   surface:  '#FFFFFF',
@@ -43,13 +25,11 @@ const C = {
   darkBd:   '#334155',
   red:      '#EF4444',
   redBg:    'rgba(239,68,68,0.08)',
-  redT:     '#DC2626',
   shadow:   '0 1px 3px rgba(15,23,42,0.04), 0 1px 8px rgba(15,23,42,0.04)',
   shadowMd: '0 4px 20px rgba(15,23,42,0.07), 0 1px 4px rgba(15,23,42,0.04)',
   shadowLg: '0 24px 64px rgba(15,23,42,0.09), 0 4px 20px rgba(15,23,42,0.05)',
 }
 
-// ── Hero sub-cards ────────────────────────────────────────────
 function AllowCard() {
   return (
     <div className="rounded-2xl overflow-hidden flex-1"
@@ -101,7 +81,7 @@ function BlockCard() {
           <p className="text-[10px] mono mt-0.5" style={{ color: C.textMut }}>31ms</p>
         </div>
         <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold"
-          style={{ background: C.redBg, color: C.redT }}>
+          style={{ background: C.redBg, color: '#DC2626' }}>
           <span className="w-1.5 h-1.5 rounded-full" style={{ background: C.red, display: 'inline-block' }} />
           BLOCK
         </span>
@@ -132,88 +112,129 @@ function BlockCard() {
   )
 }
 
-// ── Data ──────────────────────────────────────────────────────
-
-const MODULES = [
-  {
-    icon: Activity,
-    name: 'RiskScore',
-    tag: 'Core Engine',
-    desc: 'Combines 300+ signals into a single trust score. Every request returns a clear allow, review, or block verdict in under 50ms.',
-  },
-  {
-    icon: Fingerprint,
-    name: 'DeviceID',
-    tag: 'Device Intelligence',
-    desc: 'Persistent device fingerprinting across browsers and sessions. Detects emulators, rooted devices, and automation tools.',
-  },
-  {
-    icon: Cpu,
-    name: 'BehaviorAI',
-    tag: 'Behavioral ML',
-    desc: 'Baseline each user\'s normal behavior patterns. Flags anomalies like velocity spikes, unusual hours, and session hijacking.',
-  },
-  {
-    icon: FileSearch,
-    name: 'DocVerify',
-    tag: 'Identity',
-    desc: 'Automated document capture and validation. Detects forgeries, expired IDs, and mismatches between document and selfie.',
-  },
-  {
-    icon: Lock,
-    name: 'SessionGuard',
-    tag: 'Auth Security',
-    desc: 'Continuous session monitoring for account takeover patterns. Re-authenticate silently when risk spikes during a session.',
-  },
+const NAV_LINKS = [
+  { label: 'Product',     id: 'product'     },
+  { label: 'Developers',  id: 'developers'  },
+  { label: 'Pricing',     id: 'pricing'     },
+  { label: 'Blog',        id: 'blog'        },
 ]
 
-const STATS = [
-  { value: '10M+',   label: 'Signals/month' },
-  { value: '<50ms',  label: 'Median latency' },
-  { value: '99.7%',  label: 'Detection accuracy' },
-  { value: '300+',   label: 'Risk signals' },
-  { value: '500+',   label: 'Active clients' },
-  { value: '$2B+',   label: 'Fraud prevented' },
-  { value: '85%',    label: 'Avg conversion kept' },
-  { value: '99.9%',  label: 'Guaranteed uptime' },
+const MODULES = [
+  { icon: Activity,     name: 'RiskScore',     tag: 'Core Engine',     desc: 'Combines 300+ signals into a single trust score. Every request returns a clear allow, review, or block verdict in under 50ms.' },
+  { icon: Fingerprint,  name: 'DeviceID',      tag: 'Device Intel',    desc: 'Persistent device fingerprinting across browsers and sessions. Detects emulators, rooted devices, and automation tools.' },
+  { icon: Cpu,          name: 'BehaviorAI',    tag: 'Behavioral ML',   desc: "Baseline each user's normal behavior patterns. Flags anomalies like velocity spikes, unusual hours, and session hijacking." },
+  { icon: FileSearch,   name: 'DocVerify',     tag: 'Identity',        desc: 'Automated document capture and validation. Detects forgeries, expired IDs, and mismatches between document and selfie.' },
+  { icon: Lock,         name: 'SessionGuard',  tag: 'Auth Security',   desc: 'Continuous session monitoring for account takeover patterns. Re-authenticate silently when risk spikes during a session.' },
+]
+
+const PROBLEM_SIGNALS = [
+  { icon: AlertTriangle, title: 'Bot-driven signups',        desc: 'Automated account creation that passes CAPTCHA and bypasses rate limits — invisible to rules without behavioral context.' },
+  { icon: Activity,      title: 'Velocity attacks',          desc: 'The same identity hits your platform across sessions, IPs, and devices — too fast for humans, invisible to static thresholds.' },
+  { icon: Fingerprint,   title: 'Device recycling',          desc: 'Spoofed or shared device fingerprints let bad actors appear as new users every time, defeating session-based protection.' },
+  { icon: Users,         title: 'Synthetic identity rings',  desc: 'Coordinated fraud networks create thousands of real-looking accounts. No single account looks fraudulent in isolation.' },
+]
+
+const SCALE_CLAIMS = [
+  { value: '< 50ms', label: 'Median decision latency'  },
+  { value: '300+',   label: 'Risk signals per event'   },
+  { value: '7',      label: 'Event types supported'    },
+  { value: '1 call', label: 'Full-stack protection'    },
 ]
 
 const VERTICALS = [
-  { icon: Landmark,       label: 'Fintech & Banking',           desc: 'AML, KYC, payment fraud, synthetic identity' },
-  { icon: ShoppingCart,   label: 'Retail & E-commerce',         desc: 'Promo abuse, chargebacks, fake accounts' },
-  { icon: Gamepad2,       label: 'iGaming & Betting',           desc: 'Age verification, multi-accounting, bonus fraud' },
-  { icon: Coins,          label: 'Crypto & DeFi',               desc: 'Wallet fraud, rug-pull protection, bot trading' },
-  { icon: Globe,          label: 'Marketplaces',                desc: 'Seller fraud, fake reviews, listing manipulation' },
-  { icon: MonitorSmartphone, label: 'SaaS & Subscriptions',    desc: 'Trial abuse, credential stuffing, seat sharing' },
+  { icon: Landmark,          label: 'Fintech & Banking',       desc: 'AML, KYC, payment fraud, synthetic identity' },
+  { icon: ShoppingCart,      label: 'Retail & E-commerce',     desc: 'Promo abuse, chargebacks, fake accounts' },
+  { icon: Gamepad2,          label: 'iGaming & Betting',       desc: 'Age verification, multi-accounting, bonus fraud' },
+  { icon: Coins,             label: 'Crypto & DeFi',           desc: 'Wallet fraud, rug-pull protection, bot trading' },
+  { icon: Globe,             label: 'Marketplaces',            desc: 'Seller fraud, fake reviews, listing manipulation' },
+  { icon: MonitorSmartphone, label: 'SaaS & Subscriptions',   desc: 'Trial abuse, credential stuffing, seat sharing' },
 ]
 
 const JOURNEY = [
-  { icon: UserCheck,      label: 'Signup & Onboarding',    desc: 'Stop fake account creation before it starts. Verify identity without adding friction to genuine users.' },
-  { icon: LogIn,          label: 'Authentication',         desc: 'Detect account takeover attempts in real time. Step-up auth only when risk is actually elevated.' },
-  { icon: CreditCard,     label: 'Payments & Checkout',    desc: 'Block stolen cards and payment fraud while keeping checkout conversion high for legitimate customers.' },
-  { icon: ArrowLeftRight, label: 'Withdrawals & Transfers', desc: 'Flag unusual withdrawal patterns, velocity anomalies, and money mule networks automatically.' },
-  { icon: MousePointerClick, label: 'Continuous Sessions', desc: 'Monitor the full session lifecycle. Re-evaluate risk as behavior changes — not just at login.' },
+  { icon: UserCheck,        label: 'Signup & Onboarding',     desc: 'Stop fake account creation before it starts. Verify identity without adding friction to genuine users.' },
+  { icon: LogIn,            label: 'Authentication',          desc: 'Detect account takeover attempts in real time. Step-up auth only when risk is actually elevated.' },
+  { icon: CreditCard,       label: 'Payments & Checkout',     desc: 'Block stolen cards and payment fraud while keeping checkout conversion high for legitimate customers.' },
+  { icon: ArrowLeftRight,   label: 'Withdrawals & Transfers', desc: 'Flag unusual withdrawal patterns, velocity anomalies, and money mule networks automatically.' },
+  { icon: MousePointerClick,label: 'Continuous Sessions',     desc: 'Monitor the full session lifecycle. Re-evaluate risk as behavior changes — not just at login.' },
+]
+
+const TEAMS = [
+  {
+    icon: UserCheck,
+    role: 'Risk & Compliance',
+    tagline: 'Full visibility into every decision.',
+    features: ['Real-time event dashboard', 'Manual review queue with audit logs', 'Custom rule builder with live preview', 'Signal explanations for every verdict'],
+  },
+  {
+    icon: Activity,
+    role: 'Product & Growth',
+    tagline: 'Stop fraud without stopping growth.',
+    features: ['Risk-aware onboarding flows', 'Conversion-safe: flag real risk only', 'Explainable decisions for support teams', 'Confidence scores, not just block/allow'],
+  },
+  {
+    icon: Terminal,
+    role: 'Engineering',
+    tagline: 'One integration. Everything included.',
+    features: ['Single API endpoint, any language', 'Webhook delivery with HMAC signatures', 'API key management + usage tracking', 'Under 50ms p95, 99.9% target uptime'],
+  },
+]
+
+const PRICING_PLANS = [
+  {
+    name: 'Free',
+    desc: 'For individuals and early-stage teams.',
+    highlight: false,
+    cta: 'Start for free',
+    ctaTo: '/register' as const,
+    features: ['Up to 10,000 events / month', 'Core RiskScore API', '7-day event history', 'API key management', 'Community support'],
+  },
+  {
+    name: 'Growth',
+    desc: 'For scaling products with real fraud exposure.',
+    highlight: true,
+    cta: 'Contact us',
+    ctaTo: '/demo' as const,
+    features: ['Up to 500,000 events / month', 'All core modules', '90-day event history', 'Webhook delivery', 'Custom rules (up to 25)', 'Email support'],
+  },
+  {
+    name: 'Enterprise',
+    desc: 'For platforms with advanced compliance needs.',
+    highlight: false,
+    cta: 'Contact sales',
+    ctaTo: '/demo' as const,
+    features: ['Unlimited events', 'All modules including DocVerify', 'Full data retention', 'Dedicated SLA & support', 'SSO & advanced audit logs', 'Custom integrations'],
+  },
+]
+
+const BLOG_POSTS = [
+  { category: 'Fraud Detection',  title: 'How to detect account takeover before it happens',         desc: 'An overview of behavioral signals that predict ATO attempts — and how to act on them in real time.' },
+  { category: 'Risk Strategy',    title: 'The true cost of false positives in fraud prevention',      desc: 'Every blocked legitimate user has a cost. We break down how to measure it and optimize your thresholds.' },
+  { category: 'Developer Guide',  title: 'Building your first custom fraud rule with Genuinux',       desc: 'A step-by-step guide to writing, testing, and deploying custom rules without touching your production code.' },
 ]
 
 const CERTS = [
-  { label: 'SOC 2 Type II', sub: 'Security & Availability' },
-  { label: 'ISO 27001',     sub: 'Information Security' },
-  { label: 'GDPR Ready',    sub: 'EU Data Protection' },
-  { label: 'PCI DSS',       sub: 'Payment Card Industry' },
+  { label: 'SOC 2 Type II', sub: 'Security & Availability'  },
+  { label: 'ISO 27001',     sub: 'Information Security'     },
+  { label: 'GDPR Ready',    sub: 'EU Data Protection'       },
+  { label: 'PCI DSS',       sub: 'Payment Card Industry'    },
 ]
 
-// ── Main ──────────────────────────────────────────────────────
-
 export default function Landing() {
-  const [scrolled, setScrolled] = useState(false)
-  const [hoveredModule, setHoveredModule] = useState<number | null>(null)
-  const [hoveredVertical, setHoveredVertical] = useState<number | null>(null)
+  const [scrolled,         setScrolled]         = useState(false)
+  const [hoveredModule,    setHoveredModule]    = useState<number | null>(null)
+  const [hoveredVertical,  setHoveredVertical]  = useState<number | null>(null)
+  const [mobileMenuOpen,   setMobileMenuOpen]   = useState(false)
 
   useEffect(() => {
     const handler = () => setScrolled(window.scrollY > 12)
     window.addEventListener('scroll', handler, { passive: true })
     return () => window.removeEventListener('scroll', handler)
   }, [])
+
+  const scrollTo = (id: string) => {
+    setMobileMenuOpen(false)
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
+  }
 
   return (
     <div style={{ background: C.bg, color: C.text, minHeight: '100vh' }}>
@@ -224,23 +245,24 @@ export default function Landing() {
           background: 'rgba(248,250,252,0.92)',
           backdropFilter: 'blur(14px)',
           WebkitBackdropFilter: 'blur(14px)',
-          borderBottom: `1px solid ${scrolled ? C.border : 'transparent'}`,
+          borderBottom: `1px solid ${scrolled || mobileMenuOpen ? C.border : 'transparent'}`,
           boxShadow: scrolled ? '0 1px 20px rgba(15,23,42,0.06)' : 'none',
         }}>
         <div className="flex items-center justify-between px-6 py-4 max-w-7xl mx-auto">
-          <div className="flex items-center gap-2.5">
+          <Link to="/" className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center"
               style={{ background: C.trustBg, border: `1px solid ${C.trustBd}` }}>
               <Shield size={15} style={{ color: C.trust }} />
             </div>
             <span className="text-base font-bold" style={{ color: C.text }}>Genuinux</span>
-          </div>
+          </Link>
 
           <div className="hidden md:flex items-center gap-8">
-            {['Product', 'Developers', 'Pricing', 'Blog'].map(label => (
-              <a key={label} href="#"
+            {NAV_LINKS.map(({ label, id }) => (
+              <a key={label} href={`#${id}`}
                 className="text-sm transition-colors duration-150"
                 style={{ color: C.textSec }}
+                onClick={e => { e.preventDefault(); scrollTo(id) }}
                 onMouseEnter={e => (e.currentTarget.style.color = C.text)}
                 onMouseLeave={e => (e.currentTarget.style.color = C.textSec)}>
                 {label}
@@ -248,7 +270,7 @@ export default function Landing() {
             ))}
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="hidden md:flex items-center gap-3">
             <Link to="/login"
               className="text-sm font-medium px-4 py-2 rounded-lg transition-colors duration-150"
               style={{ color: C.textSec, border: `1px solid ${C.border}` }}
@@ -264,14 +286,46 @@ export default function Landing() {
               Get started <ArrowRight size={14} />
             </Link>
           </div>
+
+          <button
+            className="md:hidden p-2 rounded-lg transition-colors duration-150"
+            style={{ color: C.textSec, border: `1px solid ${C.border}` }}
+            onClick={() => setMobileMenuOpen(o => !o)}>
+            {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
+          </button>
         </div>
+
+        {mobileMenuOpen && (
+          <div className="md:hidden px-6 pb-5" style={{ borderTop: `1px solid ${C.border}` }}>
+            <div className="py-4 space-y-0.5">
+              {NAV_LINKS.map(({ label, id }) => (
+                <a key={label} href={`#${id}`}
+                  className="block px-3 py-2.5 rounded-lg text-sm transition-colors duration-150"
+                  style={{ color: C.textSec }}
+                  onClick={e => { e.preventDefault(); scrollTo(id) }}>
+                  {label}
+                </a>
+              ))}
+            </div>
+            <div className="flex gap-2 pt-3" style={{ borderTop: `1px solid ${C.border}` }}>
+              <Link to="/login" onClick={() => setMobileMenuOpen(false)}
+                className="flex-1 text-sm py-2.5 rounded-lg text-center"
+                style={{ border: `1px solid ${C.border}`, color: C.textSec }}>
+                Sign in
+              </Link>
+              <Link to="/register" onClick={() => setMobileMenuOpen(false)}
+                className="flex-1 text-sm py-2.5 rounded-lg text-center font-bold"
+                style={{ background: C.dark, color: '#FFFFFF' }}>
+                Get started
+              </Link>
+            </div>
+          </div>
+        )}
       </nav>
 
       {/* ── Hero ────────────────────────────────────────────── */}
       <section className="relative pt-32 pb-24 px-6 flex flex-col items-center text-center overflow-hidden"
-        style={{
-          background: `radial-gradient(ellipse 80% 50% at 50% -10%, rgba(22,199,132,0.07) 0%, transparent 65%), ${C.bg}`,
-        }}>
+        style={{ background: `radial-gradient(ellipse 80% 50% at 50% -10%, rgba(22,199,132,0.07) 0%, transparent 65%), ${C.bg}` }}>
         <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold mb-7 anim-0"
           style={{ background: C.trustBg, border: `1px solid ${C.trustBd}`, color: C.trustT }}>
           <span className="w-1.5 h-1.5 rounded-full pulse-dot" style={{ background: C.trust, display: 'inline-block' }} />
@@ -285,23 +339,26 @@ export default function Landing() {
           <span style={{ color: C.trust }}>Not customers.</span>
         </h1>
 
-        <p className="text-lg md:text-xl max-w-xl mx-auto leading-relaxed mb-10 anim-2"
-          style={{ color: C.textSec }}>
+        <p className="text-lg md:text-xl max-w-xl mx-auto leading-relaxed mb-4 anim-2" style={{ color: C.textSec }}>
           Real-time risk intelligence for every user, session, and event.
           Stop bad actors without adding friction for legitimate users.
+        </p>
+
+        <p className="text-sm mb-10 anim-2" style={{ color: C.textMut }}>
+          Built for risk, product, and engineering teams — one API, full-stack protection.
         </p>
 
         <div className="flex flex-col sm:flex-row items-center gap-3 mb-16 anim-3">
           <Link to="/register" className="btn-trust px-6 py-3 text-sm gap-2 rounded-lg">
             Start for free <ArrowRight size={15} />
           </Link>
-          <a href="#"
+          <Link to="/demo"
             className="px-6 py-3 text-sm flex items-center gap-2 rounded-lg transition-colors duration-150"
             style={{ color: C.textSec, border: `1px solid ${C.border}` }}
             onMouseEnter={e => (e.currentTarget.style.color = C.text)}
             onMouseLeave={e => (e.currentTarget.style.color = C.textSec)}>
             Schedule a demo <ChevronRight size={13} />
-          </a>
+          </Link>
         </div>
 
         <div className="flex gap-4 justify-center flex-wrap anim-4 w-full max-w-[580px] mx-auto">
@@ -321,8 +378,7 @@ export default function Landing() {
           </p>
           <div className="flex flex-wrap items-center justify-center gap-6">
             {CERTS.map((c, i) => (
-              <div key={i}
-                className="flex items-center gap-3 px-5 py-3 rounded-xl"
+              <div key={i} className="flex items-center gap-3 px-5 py-3 rounded-xl"
                 style={{ border: `1px solid ${C.border}`, background: C.bg }}>
                 <div className="w-8 h-8 rounded-lg flex items-center justify-center"
                   style={{ background: C.trustBg, border: `1px solid ${C.trustBd}` }}>
@@ -338,108 +394,123 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ── Platform Overview ────────────────────────────────── */}
+      {/* ── Problem ─────────────────────────────────────────── */}
       <section className="max-w-6xl mx-auto px-6 py-24">
-        <div className="flex flex-col lg:flex-row items-center gap-12">
-          {/* Left: mock dashboard */}
-          <div className="flex-1 w-full"
-            style={{
-              background: C.dark,
-              borderRadius: '16px',
-              border: `1px solid ${C.darkBd}`,
-              boxShadow: C.shadowLg,
-              minHeight: '340px',
-              padding: '24px',
-              position: 'relative',
-              overflow: 'hidden',
-            }}>
-            {/* Mock dashboard header */}
-            <div className="flex items-center gap-2 mb-5">
-              <div className="w-3 h-3 rounded-full" style={{ background: '#EF4444' }} />
-              <div className="w-3 h-3 rounded-full" style={{ background: '#F59E0B' }} />
-              <div className="w-3 h-3 rounded-full" style={{ background: '#22C55E' }} />
-              <div className="flex-1 mx-4 h-5 rounded" style={{ background: '#1E2D3D', maxWidth: '200px' }} />
+        <div className="text-center mb-14">
+          <h2 className="font-bold mb-4"
+            style={{ fontSize: 'clamp(2rem, 4vw, 2.75rem)', letterSpacing: '-0.03em', color: C.text }}>
+            Fraud no longer
+            <br />
+            <span style={{ color: C.trust }}>looks obvious.</span>
+          </h2>
+          <p className="text-base max-w-xl mx-auto leading-relaxed" style={{ color: C.textSec }}>
+            Modern fraud hides in patterns — not individual bad transactions.
+            By the time a static rule catches it, the damage is already done.
+          </p>
+        </div>
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
+          {PROBLEM_SIGNALS.map((p, i) => (
+            <div key={i} className="p-6 rounded-2xl"
+              style={{ background: C.surface, border: `1px solid ${C.border}`, boxShadow: C.shadow }}>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-4"
+                style={{ background: C.redBg, border: '1px solid rgba(239,68,68,0.15)' }}>
+                <p.icon size={17} style={{ color: C.red }} />
+              </div>
+              <h3 className="text-sm font-bold mb-2" style={{ color: C.text }}>{p.title}</h3>
+              <p className="text-xs leading-relaxed" style={{ color: C.textSec }}>{p.desc}</p>
             </div>
-            {/* Mock metric cards */}
-            <div className="grid grid-cols-3 gap-3 mb-5">
-              {[
-                { label: 'Total Requests', val: '2.4M', color: C.trust },
-                { label: 'Fraud Blocked', val: '18,293', color: '#EF4444' },
-                { label: 'Avg Trust Score', val: '76.4', color: '#60A5FA' },
-              ].map((m, i) => (
-                <div key={i} className="p-3 rounded-lg" style={{ background: '#0B1220', border: '1px solid #1E2D3D' }}>
-                  <p className="text-[10px] mb-1" style={{ color: '#94A3B8' }}>{m.label}</p>
-                  <p className="text-xl font-bold mono" style={{ color: m.color }}>{m.val}</p>
-                </div>
-              ))}
-            </div>
-            {/* Mock event rows */}
-            <div className="space-y-2">
-              {[
-                { id: 'usr_k9x2m', ev: 'checkout', score: 94, dec: 'ALLOW', color: C.trust },
-                { id: 'usr_8f3k2p', ev: 'login',    score: 12, dec: 'BLOCK', color: '#EF4444' },
-                { id: 'usr_m3j7x',  ev: 'signup',   score: 61, dec: 'REVIEW', color: '#F59E0B' },
-              ].map((r, i) => (
-                <div key={i} className="flex items-center gap-3 px-3 py-2 rounded-lg"
-                  style={{ background: '#0B1220', border: '1px solid #1E2D3D' }}>
-                  <p className="text-xs mono flex-1" style={{ color: '#94A3B8' }}>{r.id}</p>
-                  <p className="text-xs" style={{ color: '#475569' }}>{r.ev}</p>
-                  <p className="text-xs mono w-8 text-right" style={{ color: r.color }}>{r.score}</p>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full mono"
-                    style={{ background: `${r.color}15`, color: r.color }}>{r.dec}</span>
-                </div>
-              ))}
-            </div>
-            {/* Scan animation overlay */}
-            <div className="scan-anim" />
-          </div>
+          ))}
+        </div>
+      </section>
 
-          {/* Right: copy */}
-          <div className="flex-1">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold mb-5"
-              style={{ background: C.trustBg, border: `1px solid ${C.trustBd}`, color: C.trustT }}>
-              One Platform
+      {/* ── Platform Overview ─────────────────── id="product" */}
+      <section id="product" style={{ background: C.surface, borderTop: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}` }}>
+        <div className="max-w-6xl mx-auto px-6 py-24">
+          <div className="flex flex-col lg:flex-row items-center gap-12">
+            <div className="flex-1 w-full" style={{
+              background: C.dark, borderRadius: '16px', border: `1px solid ${C.darkBd}`,
+              boxShadow: C.shadowLg, minHeight: '340px', padding: '24px',
+              position: 'relative', overflow: 'hidden',
+            }}>
+              <div className="flex items-center gap-2 mb-5">
+                <div className="w-3 h-3 rounded-full" style={{ background: '#EF4444' }} />
+                <div className="w-3 h-3 rounded-full" style={{ background: '#F59E0B' }} />
+                <div className="w-3 h-3 rounded-full" style={{ background: '#22C55E' }} />
+                <div className="flex-1 mx-4 h-5 rounded" style={{ background: '#1E2D3D', maxWidth: '200px' }} />
+              </div>
+              <div className="grid grid-cols-3 gap-3 mb-5">
+                {[
+                  { label: 'Total Requests', val: '2.4M',   color: C.trust    },
+                  { label: 'Fraud Blocked',  val: '18,293', color: '#EF4444'  },
+                  { label: 'Avg Trust Score',val: '76.4',   color: '#60A5FA'  },
+                ].map((m, i) => (
+                  <div key={i} className="p-3 rounded-lg" style={{ background: '#0B1220', border: '1px solid #1E2D3D' }}>
+                    <p className="text-[10px] mb-1" style={{ color: '#94A3B8' }}>{m.label}</p>
+                    <p className="text-xl font-bold mono" style={{ color: m.color }}>{m.val}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="space-y-2">
+                {[
+                  { id: 'usr_k9x2m', ev: 'checkout', score: 94, dec: 'ALLOW',  color: C.trust   },
+                  { id: 'usr_8f3k2p', ev: 'login',   score: 12, dec: 'BLOCK',  color: '#EF4444' },
+                  { id: 'usr_m3j7x',  ev: 'signup',  score: 61, dec: 'REVIEW', color: '#F59E0B' },
+                ].map((r, i) => (
+                  <div key={i} className="flex items-center gap-3 px-3 py-2 rounded-lg"
+                    style={{ background: '#0B1220', border: '1px solid #1E2D3D' }}>
+                    <p className="text-xs mono flex-1" style={{ color: '#94A3B8' }}>{r.id}</p>
+                    <p className="text-xs" style={{ color: '#475569' }}>{r.ev}</p>
+                    <p className="text-xs mono w-8 text-right" style={{ color: r.color }}>{r.score}</p>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full mono"
+                      style={{ background: `${r.color}15`, color: r.color }}>{r.dec}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="scan-anim" />
             </div>
-            <h2 className="font-bold mb-5"
-              style={{ fontSize: 'clamp(1.75rem, 3.5vw, 2.5rem)', letterSpacing: '-0.03em', color: C.text }}>
-              Full-stack fraud prevention,
-              <span style={{ color: C.trust }}> one API call.</span>
-            </h2>
-            <p className="text-base leading-relaxed mb-8" style={{ color: C.textSec }}>
-              Stop stitching together five different vendors. Genuinux delivers device intelligence,
-              behavioral ML, identity verification, and session monitoring from a single endpoint.
-              Your stack stays clean. Your fraud rate drops on day one.
-            </p>
-            <div className="space-y-3">
-              {[
-                'One integration, all risk signals unified',
-                'Real-time decisions, never batch-processed',
-                'Webhook alerts + dashboard for your team',
-              ].map((item, i) => (
-                <div key={i} className="flex items-center gap-3 text-sm" style={{ color: C.textSec }}>
-                  <CheckCircle size={15} style={{ color: C.trust, flexShrink: 0 }} />
-                  {item}
-                </div>
-              ))}
-            </div>
-            <div className="mt-8 flex gap-3">
-              <Link to="/register" className="btn-trust px-5 py-2.5 text-sm gap-2 rounded-lg">
-                Start for free <ArrowRight size={14} />
-              </Link>
-              <a href="#"
-                className="px-5 py-2.5 text-sm flex items-center gap-2 rounded-lg transition-colors duration-150"
-                style={{ color: C.textSec, border: `1px solid ${C.border}` }}
-                onMouseEnter={e => (e.currentTarget.style.color = C.text)}
-                onMouseLeave={e => (e.currentTarget.style.color = C.textSec)}>
-                View docs <ChevronRight size={13} />
-              </a>
+
+            <div className="flex-1">
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold mb-5"
+                style={{ background: C.trustBg, border: `1px solid ${C.trustBd}`, color: C.trustT }}>
+                One Platform
+              </div>
+              <h2 className="font-bold mb-5"
+                style={{ fontSize: 'clamp(1.75rem, 3.5vw, 2.5rem)', letterSpacing: '-0.03em', color: C.text }}>
+                Full-stack fraud prevention,
+                <span style={{ color: C.trust }}> one API call.</span>
+              </h2>
+              <p className="text-base leading-relaxed mb-8" style={{ color: C.textSec }}>
+                Stop stitching together five different vendors. Genuinux delivers device intelligence,
+                behavioral ML, identity verification, and session monitoring from a single endpoint.
+                Your stack stays clean. Your fraud rate drops on day one.
+              </p>
+              <div className="space-y-3">
+                {['One integration, all risk signals unified', 'Real-time decisions, never batch-processed', 'Webhook alerts + dashboard for your team'].map((item, i) => (
+                  <div key={i} className="flex items-center gap-3 text-sm" style={{ color: C.textSec }}>
+                    <CheckCircle size={15} style={{ color: C.trust, flexShrink: 0 }} />
+                    {item}
+                  </div>
+                ))}
+              </div>
+              <div className="mt-8 flex gap-3">
+                <Link to="/register" className="btn-trust px-5 py-2.5 text-sm gap-2 rounded-lg">
+                  Start for free <ArrowRight size={14} />
+                </Link>
+                <Link to="/docs"
+                  className="px-5 py-2.5 text-sm flex items-center gap-2 rounded-lg transition-colors duration-150"
+                  style={{ color: C.textSec, border: `1px solid ${C.border}` }}
+                  onMouseEnter={e => (e.currentTarget.style.color = C.text)}
+                  onMouseLeave={e => (e.currentTarget.style.color = C.textSec)}>
+                  View docs <ChevronRight size={13} />
+                </Link>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
       {/* ── Product Modules ──────────────────────────────────── */}
-      <section style={{ background: C.surface, borderTop: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}` }}>
+      <section>
         <div className="max-w-6xl mx-auto px-6 py-24">
           <div className="text-center mb-14">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold mb-5"
@@ -458,8 +529,7 @@ export default function Landing() {
 
           <div className="grid md:grid-cols-5 gap-4">
             {MODULES.map((m, i) => (
-              <div key={i}
-                className="p-6 rounded-2xl cursor-default"
+              <div key={i} className="p-6 rounded-2xl cursor-default"
                 style={{
                   background: hoveredModule === i ? C.bg : C.surface,
                   border: `1px solid ${hoveredModule === i ? C.trustBd : C.border}`,
@@ -473,9 +543,7 @@ export default function Landing() {
                   style={{ background: C.trustBg, border: `1px solid ${C.trustBd}` }}>
                   <m.icon size={17} style={{ color: C.trust }} />
                 </div>
-                <p className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: C.textMut }}>
-                  {m.tag}
-                </p>
+                <p className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: C.textMut }}>{m.tag}</p>
                 <h3 className="text-base font-bold mb-2 mono" style={{ color: C.text }}>{m.name}</h3>
                 <p className="text-xs leading-relaxed" style={{ color: C.textSec }}>{m.desc}</p>
               </div>
@@ -484,16 +552,16 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ── Stats Bar ────────────────────────────────────────── */}
+      {/* ── Built for Scale ──────────────────────────────────── */}
       <section style={{ background: C.dark }}>
         <div className="max-w-6xl mx-auto px-6 py-16">
           <p className="text-xs font-semibold uppercase tracking-widest text-center mb-10" style={{ color: '#475569' }}>
-            Genuinux by the numbers
+            Built for scale
           </p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            {STATS.map((s, i) => (
+            {SCALE_CLAIMS.map((s, i) => (
               <div key={i} className="text-center">
-                <p className="text-3xl font-bold mono mb-1.5" style={{ color: i % 3 === 0 ? C.trust : '#FFFFFF' }}>
+                <p className="text-3xl font-bold mono mb-1.5" style={{ color: i === 0 ? C.trust : '#FFFFFF' }}>
                   {s.value}
                 </p>
                 <p className="text-sm" style={{ color: '#94A3B8' }}>{s.label}</p>
@@ -516,15 +584,14 @@ export default function Landing() {
               Built for your vertical.
             </h2>
             <p className="text-base leading-relaxed" style={{ color: C.textSec }}>
-              Fraud patterns vary by industry. Genuinux ships pre-tuned rule sets and ML models
-              for each vertical so you don't start from scratch.
+              Fraud patterns vary by industry. Genuinux ships pre-tuned signal weights and detection logic
+              for each vertical — no starting from scratch.
             </p>
           </div>
 
           <div className="flex-1 grid md:grid-cols-2 gap-4">
             {VERTICALS.map((v, i) => (
-              <div key={i}
-                className="flex items-start gap-4 p-5 rounded-xl cursor-default"
+              <div key={i} className="flex items-start gap-4 p-5 rounded-xl cursor-default"
                 style={{
                   background: hoveredVertical === i ? C.trustBg : C.surface,
                   border: `1px solid ${hoveredVertical === i ? C.trustBd : C.border}`,
@@ -573,33 +640,35 @@ export default function Landing() {
                 </div>
                 <h3 className="text-sm font-bold mb-2" style={{ color: C.text }}>{j.label}</h3>
                 <p className="text-xs leading-relaxed" style={{ color: C.textSec }}>{j.desc}</p>
-                {i < JOURNEY.length - 1 && (
-                  <div className="hidden md:block absolute" />
-                )}
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ── How It Works ─────────────────────────────────────── */}
-      <section className="max-w-5xl mx-auto px-6 py-24">
+      {/* ── Developers ──────────────────────── id="developers" */}
+      <section id="developers" className="max-w-5xl mx-auto px-6 py-24">
         <div className="text-center mb-14">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold mb-5"
+            style={{ background: C.trustBg, border: `1px solid ${C.trustBd}`, color: C.trustT }}>
+            <Terminal size={13} />
+            For Developers
+          </div>
           <h2 className="font-bold"
             style={{ fontSize: 'clamp(2rem, 4vw, 2.75rem)', letterSpacing: '-0.03em', color: C.text }}>
             Integrate in minutes.
             <span style={{ color: C.trust }}> Protect forever.</span>
           </h2>
           <p className="text-base mt-4 max-w-xl mx-auto" style={{ color: C.textSec }}>
-            No infrastructure changes. No weeks of setup. One API call.
+            No infrastructure changes. No weeks of setup. One API call, any language.
           </p>
         </div>
 
         <div className="grid md:grid-cols-3 gap-10">
           {[
-            { n: '01', title: 'Install the SDK', time: '5 minutes', desc: 'One package. Zero infrastructure changes. Works with any backend language.', code: 'npm install @genuinux/sdk' },
-            { n: '02', title: 'Send your first event', time: '5 minutes', desc: "Call analyze() with a user ID, IP, and event type. That's it.", code: 'await genuinux.analyze({ user_id, event, ip })' },
-            { n: '03', title: 'Start blocking fraud', time: 'Instant', desc: 'Act on the decision. Your platform is protected from the first request.', code: 'if (result.decision === "block") return 403' },
+            { n: '01', title: 'Install the SDK',       time: '2 minutes', desc: 'One package. Zero infrastructure changes. Works with any backend language.',            code: 'npm install @genuinux/sdk'                                  },
+            { n: '02', title: 'Send your first event', time: '5 minutes', desc: "Call analyze() with a user ID, IP, and event type. That's it.",                        code: 'await genuinux.analyze({ user_id, event, ip })'             },
+            { n: '03', title: 'Start blocking fraud',  time: 'Instant',   desc: 'Act on the decision in your own handler. Protected from the very first request.',      code: 'if (result.decision === "block") return 403'                },
           ].map((s, i) => (
             <div key={i}>
               <div className="w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold mono mb-5"
@@ -609,48 +678,161 @@ export default function Landing() {
               <h3 className="text-lg font-bold mb-1" style={{ color: C.text }}>{s.title}</h3>
               <p className="text-xs font-semibold mono mb-3" style={{ color: C.trust }}>{s.time}</p>
               <p className="text-sm leading-relaxed mb-4" style={{ color: C.textSec }}>{s.desc}</p>
-              <div className="px-4 py-3 rounded-xl text-xs mono"
-                style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.textSec }}>
+              <div className="px-4 py-3.5 rounded-xl text-xs mono"
+                style={{ background: C.dark, color: C.trust, border: `1px solid ${C.darkBd}` }}>
                 {s.code}
               </div>
             </div>
           ))}
         </div>
+
+        <div className="mt-12 text-center">
+          <Link to="/docs"
+            className="inline-flex items-center gap-2 text-sm font-medium transition-opacity duration-150"
+            style={{ color: C.trust }}
+            onMouseEnter={e => (e.currentTarget.style.opacity = '0.75')}
+            onMouseLeave={e => (e.currentTarget.style.opacity = '1')}>
+            View full API documentation <ArrowRight size={14} />
+          </Link>
+        </div>
       </section>
 
-      {/* ── Social Proof ─────────────────────────────────────── */}
+      {/* ── Teams ────────────────────────────────────────────── */}
       <section style={{ background: C.surface, borderTop: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}` }}>
-        <div className="max-w-5xl mx-auto px-6 py-20">
-          <p className="text-xs font-semibold uppercase tracking-widest text-center mb-10" style={{ color: C.textMut }}>
-            What teams say
-          </p>
+        <div className="max-w-5xl mx-auto px-6 py-24">
+          <div className="text-center mb-14">
+            <h2 className="font-bold"
+              style={{ fontSize: 'clamp(2rem, 4vw, 2.75rem)', letterSpacing: '-0.03em', color: C.text }}>
+              Built for the teams
+              <span style={{ color: C.trust }}> who own trust.</span>
+            </h2>
+            <p className="text-base mt-4 max-w-xl mx-auto" style={{ color: C.textSec }}>
+              Whether you're stopping fraud, analyzing risk, or writing the integration — Genuinux fits your workflow.
+            </p>
+          </div>
+
           <div className="grid md:grid-cols-3 gap-6">
-            {[
-              {
-                quote: "We cut chargebacks by 67% in the first month. The RiskScore module alone paid for itself in week one.",
-                name: 'Sarah Chen', role: 'Head of Risk · NovaPay',
-              },
-              {
-                quote: "Finally a fraud API that doesn't require a PhD to integrate. We were live in under a day.",
-                name: 'Marcus Reyes', role: 'CTO · Stackr',
-              },
-              {
-                quote: "The behavioral anomaly detection catches things our rules engine never would. It's like having an extra team.",
-                name: 'Anya Patel', role: 'VP Engineering · BetFusion',
-              },
-            ].map((t, i) => (
-              <div key={i} className="p-6 rounded-2xl"
+            {TEAMS.map((t, i) => (
+              <div key={i} className="p-7 rounded-2xl"
                 style={{ background: C.bg, border: `1px solid ${C.border}`, boxShadow: C.shadow }}>
-                <div className="flex gap-1 mb-4">
-                  {[...Array(5)].map((_, j) => (
-                    <BarChart3 key={j} size={12} style={{ color: C.trust }} />
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-5"
+                  style={{ background: C.trustBg, border: `1px solid ${C.trustBd}` }}>
+                  <t.icon size={17} style={{ color: C.trust }} />
+                </div>
+                <p className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: C.textMut }}>For</p>
+                <h3 className="text-lg font-bold mb-1.5" style={{ color: C.text }}>{t.role}</h3>
+                <p className="text-sm mb-5" style={{ color: C.textSec }}>{t.tagline}</p>
+                <ul className="space-y-2">
+                  {t.features.map((f, j) => (
+                    <li key={j} className="flex items-center gap-2.5 text-xs" style={{ color: C.textSec }}>
+                      <CheckCircle size={11} style={{ color: C.trust, flexShrink: 0 }} />
+                      {f}
+                    </li>
                   ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Pricing ──────────────────────────── id="pricing" */}
+      <section id="pricing" className="max-w-5xl mx-auto px-6 py-24">
+        <div className="text-center mb-14">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold mb-5"
+            style={{ background: C.trustBg, border: `1px solid ${C.trustBd}`, color: C.trustT }}>
+            Pricing
+          </div>
+          <h2 className="font-bold"
+            style={{ fontSize: 'clamp(2rem, 4vw, 2.75rem)', letterSpacing: '-0.03em', color: C.text }}>
+            Simple, transparent pricing.
+          </h2>
+          <p className="text-base mt-4" style={{ color: C.textSec }}>
+            Start for free. Scale when you're ready. No hidden fees.
+          </p>
+        </div>
+
+        <div className="grid md:grid-cols-3 gap-6">
+          {PRICING_PLANS.map((plan, i) => (
+            <div key={i} className="p-7 rounded-2xl flex flex-col"
+              style={{
+                background: plan.highlight ? C.dark : C.surface,
+                border: `1px solid ${plan.highlight ? C.trust : C.border}`,
+                boxShadow: plan.highlight ? C.shadowLg : C.shadow,
+              }}>
+              {plan.highlight && (
+                <div className="text-[10px] font-bold uppercase tracking-widest mb-5 px-2.5 py-1 rounded-full self-start"
+                  style={{ background: C.trustBg, color: C.trust, border: `1px solid ${C.trustBd}` }}>
+                  Most popular
                 </div>
-                <p className="text-sm leading-relaxed mb-5" style={{ color: C.textSec }}>"{t.quote}"</p>
-                <div>
-                  <p className="text-sm font-bold" style={{ color: C.text }}>{t.name}</p>
-                  <p className="text-xs mt-0.5" style={{ color: C.textMut }}>{t.role}</p>
+              )}
+              <h3 className="text-xl font-bold mb-1" style={{ color: plan.highlight ? '#FFFFFF' : C.text }}>
+                {plan.name}
+              </h3>
+              <p className="text-sm mb-6" style={{ color: plan.highlight ? '#94A3B8' : C.textSec }}>
+                {plan.desc}
+              </p>
+              <ul className="space-y-2.5 flex-1 mb-8">
+                {plan.features.map((f, j) => (
+                  <li key={j} className="flex items-center gap-2.5 text-sm"
+                    style={{ color: plan.highlight ? '#94A3B8' : C.textSec }}>
+                    <CheckCircle size={13} style={{ color: C.trust, flexShrink: 0 }} />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              <Link to={plan.ctaTo}
+                className="text-sm font-bold py-3 rounded-xl text-center block transition-all duration-150"
+                style={
+                  plan.highlight
+                    ? { background: '#FFFFFF', color: C.dark }
+                    : i === 0
+                      ? { background: C.trust, color: '#FFFFFF' }
+                      : { border: `1px solid ${C.border}`, color: C.text }
+                }>
+                {plan.cta}
+              </Link>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── Blog ──────────────────────────────── id="blog" */}
+      <section id="blog" style={{ background: C.surface, borderTop: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}` }}>
+        <div className="max-w-5xl mx-auto px-6 py-24">
+          <div className="mb-12">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold mb-5"
+              style={{ background: C.trustBg, border: `1px solid ${C.trustBd}`, color: C.trustT }}>
+              <BookOpen size={13} />
+              Blog
+            </div>
+            <h2 className="font-bold"
+              style={{ fontSize: 'clamp(1.75rem, 3.5vw, 2.5rem)', letterSpacing: '-0.03em', color: C.text }}>
+              From the Genuinux team.
+            </h2>
+            <p className="text-base mt-2" style={{ color: C.textSec }}>
+              Insights on fraud prevention, risk engineering, and building trustworthy platforms.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-6">
+            {BLOG_POSTS.map((post, i) => (
+              <div key={i} className="p-6 rounded-2xl flex flex-col"
+                style={{ background: C.bg, border: `1px solid ${C.border}`, boxShadow: C.shadow }}>
+                <div className="flex items-center justify-between mb-5">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-full"
+                    style={{ background: C.trustBg, color: C.trustT, border: `1px solid ${C.trustBd}` }}>
+                    {post.category}
+                  </span>
+                  <span className="text-[10px] font-semibold px-2.5 py-1 rounded-full"
+                    style={{ background: C.borderL, color: C.textMut }}>
+                    Coming soon
+                  </span>
                 </div>
+                <h3 className="text-sm font-bold mb-3 leading-snug flex-1" style={{ color: C.text }}>
+                  {post.title}
+                </h3>
+                <p className="text-xs leading-relaxed" style={{ color: C.textSec }}>{post.desc}</p>
               </div>
             ))}
           </div>
@@ -666,24 +848,24 @@ export default function Landing() {
           </div>
           <h2 className="font-bold mb-5"
             style={{ fontSize: 'clamp(2.25rem, 5vw, 3.5rem)', letterSpacing: '-0.04em', color: '#FFFFFF' }}>
-            Ready to protect
+            Ready to trust
             <br />
-            <span style={{ color: C.trust }}>your platform?</span>
+            <span style={{ color: C.trust }}>every interaction?</span>
           </h2>
           <p className="text-lg mb-10 max-w-md mx-auto" style={{ color: '#94A3B8' }}>
-            Join 500+ teams using Genuinux to protect millions of users in real time.
+            Start protecting your platform today. No contracts, no setup fees.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link to="/register" className="btn-trust px-8 py-4 text-base gap-2 rounded-xl inline-flex">
               Start for free <ArrowRight size={18} />
             </Link>
-            <a href="#"
+            <Link to="/demo"
               className="px-8 py-4 text-base flex items-center gap-2 rounded-xl transition-all duration-150"
               style={{ color: '#94A3B8', border: '1px solid #334155' }}
               onMouseEnter={e => { e.currentTarget.style.color = '#FFFFFF'; e.currentTarget.style.borderColor = '#475569' }}
               onMouseLeave={e => { e.currentTarget.style.color = '#94A3B8'; e.currentTarget.style.borderColor = '#334155' }}>
               Schedule a demo <ChevronRight size={16} />
-            </a>
+            </Link>
           </div>
           <p className="text-xs mt-6" style={{ color: '#475569' }}>
             No credit card required · Free tier available · 5-minute setup
@@ -709,8 +891,8 @@ export default function Landing() {
             </div>
 
             {[
-              { title: 'Product', links: ['RiskScore', 'DeviceID', 'BehaviorAI', 'DocVerify', 'SessionGuard'] },
-              { title: 'Company', links: ['About', 'Blog', 'Careers', 'Press'] },
+              { title: 'Product',    links: ['RiskScore', 'DeviceID', 'BehaviorAI', 'DocVerify', 'SessionGuard'] },
+              { title: 'Company',    links: ['About', 'Blog', 'Careers', 'Press'] },
               { title: 'Developers', links: ['Documentation', 'API Reference', 'Status', 'Changelog'] },
             ].map((col, i) => (
               <div key={i}>
@@ -735,7 +917,7 @@ export default function Landing() {
 
           <div className="flex flex-col md:flex-row items-center justify-between gap-4 pt-8"
             style={{ borderTop: '1px solid #1E293B' }}>
-            <p className="text-xs" style={{ color: '#475569' }}>© 2025 Genuinux. AI Trust Infrastructure.</p>
+            <p className="text-xs" style={{ color: '#475569' }}>© 2026 Genuinux. AI Trust Infrastructure.</p>
             <div className="flex items-center gap-6">
               {['Privacy', 'Terms', 'Security', 'Cookie Policy'].map(l => (
                 <a key={l} href="#" className="text-xs transition-colors duration-150"

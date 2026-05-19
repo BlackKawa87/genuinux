@@ -4,10 +4,10 @@ import { Shield, Loader2 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 
 export default function Login() {
-  const [email, setEmail]       = useState('')
+  const [email,    setEmail]    = useState('')
   const [password, setPassword] = useState('')
-  const [loading, setLoading]   = useState(false)
-  const [error, setError]       = useState('')
+  const [loading,  setLoading]  = useState(false)
+  const [error,    setError]    = useState('')
   const { signIn }              = useAuth()
   const navigate                = useNavigate()
 
@@ -25,52 +25,32 @@ export default function Login() {
   }
 
   return (
-    <div
-      className="min-h-screen flex items-center justify-center px-4"
-      style={{ background: '#050B14' }}
-    >
-      {/* Grid bg */}
-      <div
-        className="fixed inset-0 pointer-events-none"
-        style={{
-          backgroundImage: `
-            linear-gradient(rgba(30, 45, 61, 0.3) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(30, 45, 61, 0.3) 1px, transparent 1px)
-          `,
-          backgroundSize: '60px 60px',
-        }}
-      />
-      {/* Glow */}
-      <div
-        className="fixed inset-0 pointer-events-none"
-        style={{
-          background: 'radial-gradient(ellipse 50% 40% at 50% 0%, rgba(22, 199, 132, 0.06) 0%, transparent 70%)',
-        }}
-      />
+    <div className="min-h-screen flex items-center justify-center px-4"
+      style={{ background: '#F8FAFC' }}>
 
-      <div className="relative w-full max-w-[400px]">
+      <div className="w-full max-w-[400px]">
         {/* Logo */}
-        <div className="flex items-center justify-center gap-3 mb-8">
-          <div
-            className="w-10 h-10 rounded-xl flex items-center justify-center"
-            style={{
-              background: 'rgba(22, 199, 132, 0.08)',
-              border: '1px solid rgba(22, 199, 132, 0.2)',
-            }}
-          >
-            <Shield size={20} style={{ color: '#16C784' }} />
+        <Link to="/" className="flex items-center justify-center gap-2.5 mb-8">
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center"
+            style={{ background: 'rgba(22,199,132,0.08)', border: '1px solid rgba(22,199,132,0.2)' }}>
+            <Shield size={17} style={{ color: '#16C784' }} />
           </div>
-          <span className="text-xl font-bold" style={{ color: '#FFFFFF' }}>Genuinux</span>
-        </div>
+          <span className="text-lg font-bold" style={{ color: '#0F172A' }}>Genuinux</span>
+        </Link>
 
         {/* Card */}
-        <div className="g-card p-8">
-          <h1 className="text-2xl font-bold mb-1" style={{ color: '#FFFFFF' }}>Welcome back</h1>
-          <p className="text-sm mb-7" style={{ color: '#94A3B8' }}>Sign in to your account</p>
+        <div className="p-8 rounded-2xl"
+          style={{
+            background: '#FFFFFF',
+            border: '1px solid #E2E8F0',
+            boxShadow: '0 4px 24px rgba(15,23,42,0.06), 0 1px 4px rgba(15,23,42,0.04)',
+          }}>
+          <h1 className="text-2xl font-bold mb-1" style={{ color: '#0F172A' }}>Welcome back</h1>
+          <p className="text-sm mb-7" style={{ color: '#64748B' }}>Sign in to your Genuinux workspace.</p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: '#94A3B8' }}>
+              <label className="block text-xs font-semibold mb-1.5" style={{ color: '#64748B' }}>
                 Email address
               </label>
               <input
@@ -79,14 +59,21 @@ export default function Login() {
                 onChange={e => setEmail(e.target.value)}
                 placeholder="you@company.com"
                 required
-                className="g-input"
+                className="w-full px-3.5 py-2.5 rounded-lg text-sm outline-none transition-all duration-150"
+                style={{
+                  background: '#F8FAFC',
+                  border: '1px solid #E2E8F0',
+                  color: '#0F172A',
+                }}
+                onFocus={e => (e.currentTarget.style.borderColor = '#16C784')}
+                onBlur={e => (e.currentTarget.style.borderColor = '#E2E8F0')}
               />
             </div>
 
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="text-xs font-medium" style={{ color: '#94A3B8' }}>Password</label>
-                <a href="#" className="text-xs" style={{ color: '#16C784' }}>Forgot?</a>
+                <label className="text-xs font-semibold" style={{ color: '#64748B' }}>Password</label>
+                <a href="#" className="text-xs font-medium" style={{ color: '#16C784' }}>Forgot?</a>
               </div>
               <input
                 type="password"
@@ -94,19 +81,20 @@ export default function Login() {
                 onChange={e => setPassword(e.target.value)}
                 placeholder="••••••••"
                 required
-                className="g-input"
+                className="w-full px-3.5 py-2.5 rounded-lg text-sm outline-none transition-all duration-150"
+                style={{
+                  background: '#F8FAFC',
+                  border: '1px solid #E2E8F0',
+                  color: '#0F172A',
+                }}
+                onFocus={e => (e.currentTarget.style.borderColor = '#16C784')}
+                onBlur={e => (e.currentTarget.style.borderColor = '#E2E8F0')}
               />
             </div>
 
             {error && (
-              <p
-                className="text-xs py-2.5 px-3 rounded-lg"
-                style={{
-                  background: 'rgba(239, 68, 68, 0.08)',
-                  color: '#EF4444',
-                  border: '1px solid rgba(239, 68, 68, 0.15)',
-                }}
-              >
+              <p className="text-xs py-2.5 px-3 rounded-lg"
+                style={{ background: 'rgba(239,68,68,0.06)', color: '#DC2626', border: '1px solid rgba(239,68,68,0.15)' }}>
                 {error}
               </p>
             )}
@@ -114,18 +102,17 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="btn-trust w-full py-2.5 rounded-lg text-sm justify-center gap-2"
-            >
+              className="btn-trust w-full py-2.5 rounded-lg text-sm justify-center gap-2 mt-1">
               {loading && <Loader2 size={15} className="animate-spin" />}
               Sign in
             </button>
           </form>
         </div>
 
-        <p className="text-center text-sm mt-5" style={{ color: '#475569' }}>
+        <p className="text-center text-sm mt-5" style={{ color: '#64748B' }}>
           New to Genuinux?{' '}
-          <Link to="/register" className="font-medium" style={{ color: '#16C784' }}>
-            Create an account
+          <Link to="/register" className="font-semibold" style={{ color: '#16C784' }}>
+            Create a workspace
           </Link>
         </p>
       </div>
