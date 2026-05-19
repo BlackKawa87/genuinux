@@ -9,6 +9,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { buildRiskReasons, calcConfidence } from '../../lib/riskEngine'
 import type { RiskEvent, RiskLevel, Decision, EventType } from '../../types'
+import FeedbackSection from '../../components/FeedbackSection'
 import type { RiskReason, ConfidenceLevel } from '../../lib/riskEngine'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -446,6 +447,9 @@ function EventDetailPanel({
 
           {/* Explainability — Why this decision? */}
           <RiskReasonsSection event={event} signals={signals} />
+
+          {/* Outcome Feedback */}
+          <FeedbackSection event={event} />
 
           {/* User & Session */}
           <CollapsibleSection

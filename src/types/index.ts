@@ -23,6 +23,14 @@ export type EventType =
   | 'custom'
 
 export type Plan = 'free' | 'starter' | 'pro' | 'enterprise'
+export type FeedbackType =
+  | 'confirmed_fraud'
+  | 'false_positive'
+  | 'genuine_user'
+  | 'chargeback_received'
+  | 'account_abuse_confirmed'
+  | 'manual_review_correct'
+  | 'manual_review_wrong'
 export type ApiKeyStatus = 'active' | 'revoked'
 export type RuleStatus = 'active' | 'paused'
 export type ReviewStatus = 'pending' | 'approved' | 'rejected' | 'escalated'
@@ -92,6 +100,17 @@ export interface RiskEvent {
   ai_summary: string | null
   applied_rule_id: string | null
   applied_rule_name: string | null
+  feedback_status: FeedbackType | null
+  created_at: string
+}
+
+export interface EventFeedback {
+  id: string
+  organization_id: string
+  risk_event_id: string
+  feedback_type: FeedbackType
+  notes: string | null
+  submitted_by: string | null
   created_at: string
 }
 

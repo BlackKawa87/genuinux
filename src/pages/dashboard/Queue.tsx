@@ -9,6 +9,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { buildRiskReasons, calcConfidence } from '../../lib/riskEngine'
 import type { RiskEvent, ReviewStatus } from '../../types'
+import FeedbackSection from '../../components/FeedbackSection'
 import type { RiskReason, ConfidenceLevel } from '../../lib/riskEngine'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -470,6 +471,9 @@ function CaseDetailPanel({
 
           {/* Explainability — Why flagged? */}
           {ev && <QueueRiskReasons ev={ev} />}
+
+          {/* Outcome Feedback */}
+          {ev && <FeedbackSection event={ev} />}
 
           {/* User & Session */}
           <CollapsibleSection
