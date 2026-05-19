@@ -3,20 +3,21 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Key, Activity, ListChecks,
   Users, Settings, LogOut, Globe, GitBranch, BookOpen,
-  ChevronRight,
+  ChevronRight, BarChart2,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { can, ROLE_META } from '../../lib/permissions'
 
 const NAV_ALL = [
-  { to: '/dashboard',          icon: LayoutDashboard, label: 'Overview',      permission: null               },
-  { to: '/dashboard/events',   icon: Activity,        label: 'Risk Events',   permission: null               },
-  { to: '/dashboard/users',    icon: Users,           label: 'Users',         permission: 'act_queue'        },
-  { to: '/dashboard/queue',    icon: ListChecks,      label: 'Review Queue',  permission: 'act_queue'        },
-  { to: '/dashboard/rules',    icon: GitBranch,       label: 'Rules',         permission: 'manage_rules'     },
-  { to: '/dashboard/api-keys', icon: Key,             label: 'API Keys',      permission: 'manage_api_keys'  },
-  { to: '/dashboard/webhooks', icon: Globe,           label: 'Webhooks',      permission: 'manage_webhooks'  },
+  { to: '/dashboard',            icon: LayoutDashboard, label: 'Overview',      permission: null               },
+  { to: '/dashboard/events',     icon: Activity,        label: 'Risk Events',   permission: null               },
+  { to: '/dashboard/users',      icon: Users,           label: 'Users',         permission: 'act_queue'        },
+  { to: '/dashboard/queue',      icon: ListChecks,      label: 'Review Queue',  permission: 'act_queue'        },
+  { to: '/dashboard/analytics',  icon: BarChart2,       label: 'Analytics',     permission: null               },
+  { to: '/dashboard/rules',      icon: GitBranch,       label: 'Rules',         permission: 'manage_rules'     },
+  { to: '/dashboard/api-keys',   icon: Key,             label: 'API Keys',      permission: 'manage_api_keys'  },
+  { to: '/dashboard/webhooks',   icon: Globe,           label: 'Webhooks',      permission: 'manage_webhooks'  },
 ] as const
 
 export default function AppLayout() {

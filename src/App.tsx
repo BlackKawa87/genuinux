@@ -22,7 +22,8 @@ const Rules      = lazy(() => import('./pages/dashboard/Rules'))
 const ApiKeys    = lazy(() => import('./pages/dashboard/ApiKeys'))
 const Webhooks   = lazy(() => import('./pages/dashboard/Webhooks'))
 const UsersPage  = lazy(() => import('./pages/dashboard/Users'))
-const SettingsPage = lazy(() => import('./pages/dashboard/Settings'))
+const SettingsPage  = lazy(() => import('./pages/dashboard/Settings'))
+const Analytics     = lazy(() => import('./pages/dashboard/Analytics'))
 
 function PageSpinner() {
   return (
@@ -67,6 +68,7 @@ export default function App() {
             <Route path="api-keys" element={<ApiKeys />} />
             <Route path="webhooks" element={<Webhooks />} />
             <Route path="users" element={<UsersPage />} />
+            <Route path="analytics" element={<Analytics />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
         </Routes>
