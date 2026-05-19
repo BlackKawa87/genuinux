@@ -387,9 +387,9 @@ export default function ApiKeys() {
           <button
             onClick={() => setRevealedKey(null)}
             className="mt-3 text-xs transition-colors"
-            style={{ color: '#475569' }}
-            onMouseEnter={e => (e.currentTarget.style.color = '#94A3B8')}
-            onMouseLeave={e => (e.currentTarget.style.color = '#475569')}
+            style={{ color: T.textDim }}
+            onMouseEnter={e => (e.currentTarget.style.color = T.textSec)}
+            onMouseLeave={e => (e.currentTarget.style.color = T.textDim)}
           >
             I've saved my key — dismiss
           </button>
@@ -399,7 +399,7 @@ export default function ApiKeys() {
       {/* ── Create form ─────────────────────────────────────────────────────── */}
       {showCreate && (
         <div className="g-card p-5 mb-5">
-          <p className="text-xs font-semibold uppercase tracking-wide mb-4" style={{ color: '#475569' }}>
+          <p className="text-xs font-semibold uppercase tracking-wide mb-4" style={{ color: T.textDim }}>
             New API key
           </p>
           <div className="flex gap-3">
@@ -449,11 +449,11 @@ export default function ApiKeys() {
       {/* ── No org ──────────────────────────────────────────────────────────── */}
       {!orgId && (
         <div className="g-card p-12 text-center">
-          <Shield size={28} className="mx-auto mb-3" style={{ color: '#1E2D3D' }} />
-          <p className="text-sm font-semibold mb-1" style={{ color: '#94A3B8' }}>
+          <Shield size={28} className="mx-auto mb-3" style={{ color: T.border }} />
+          <p className="text-sm font-semibold mb-1" style={{ color: T.textSec }}>
             Organization not configured
           </p>
-          <p className="text-xs" style={{ color: '#475569' }}>
+          <p className="text-xs" style={{ color: T.textDim }}>
             Your account is not linked to an organization yet.
             Contact your admin or set up your workspace in Settings.
           </p>
@@ -467,7 +467,7 @@ export default function ApiKeys() {
           {keys.length > 0 && (
             <div
               className="hidden md:flex items-center px-5 mb-2 text-xs font-medium uppercase tracking-wide"
-              style={{ color: '#2D4057' }}
+              style={{ color: T.textDim }}
             >
               <div style={{ flex: '1 1 0', minWidth: 0 }}>Name</div>
               <div style={{ width: 72 }}>Status</div>
@@ -508,7 +508,7 @@ export default function ApiKeys() {
 
                   {/* Name + prefix */}
                   <div style={{ flex: '1 1 0', minWidth: 0 }}>
-                    <p className="text-sm font-semibold truncate" style={{ color: '#FFFFFF' }}>
+                    <p className="text-sm font-semibold truncate" style={{ color: T.text }}>
                       {key.name}
                     </p>
                     <p className="text-xs mono truncate mt-0.5" style={{ color: '#2D4057' }}>
@@ -532,21 +532,21 @@ export default function ApiKeys() {
 
                   {/* Created */}
                   <div className="hidden md:block" style={{ width: 120 }}>
-                    <p className="text-xs" style={{ color: '#94A3B8' }}>
+                    <p className="text-xs" style={{ color: T.textSec }}>
                       {formatDate(key.created_at)}
                     </p>
                   </div>
 
                   {/* Last used */}
                   <div className="hidden md:block" style={{ width: 100 }}>
-                    <p className="text-xs" style={{ color: key.last_used_at ? '#94A3B8' : '#2D4057' }}>
+                    <p className="text-xs" style={{ color: key.last_used_at ? T.textSec : '#2D4057' }}>
                       {key.last_used_at ? relativeTime(key.last_used_at) : '—'}
                     </p>
                   </div>
 
                   {/* Requests */}
                   <div className="hidden md:block mono text-right" style={{ width: 80 }}>
-                    <p className="text-xs" style={{ color: '#94A3B8' }}>
+                    <p className="text-xs" style={{ color: T.textSec }}>
                       {(key.requests_count ?? 0).toLocaleString()}
                     </p>
                   </div>
@@ -564,8 +564,8 @@ export default function ApiKeys() {
                         style={{
                           background: isPending ? 'rgba(239,68,68,0.08)' : 'transparent',
                           border: '1px solid',
-                          borderColor: isPending ? 'rgba(239,68,68,0.25)' : '#1E2D3D',
-                          color: isPending ? '#EF4444' : '#475569',
+                          borderColor: isPending ? 'rgba(239,68,68,0.25)' : T.border,
+                          color: isPending ? '#EF4444' : T.textDim,
                           minWidth: isPending ? 88 : 'auto',
                         }}
                         onMouseEnter={e => {
@@ -576,8 +576,8 @@ export default function ApiKeys() {
                         }}
                         onMouseLeave={e => {
                           if (!isPending) {
-                            e.currentTarget.style.borderColor = '#1E2D3D'
-                            e.currentTarget.style.color = '#475569'
+                            e.currentTarget.style.borderColor = T.border
+                            e.currentTarget.style.color = T.textDim
                           }
                         }}
                         title={isPending ? 'Click to confirm revoke' : 'Revoke key'}
@@ -601,11 +601,11 @@ export default function ApiKeys() {
               className="g-card p-14 text-center"
               style={{ borderStyle: 'dashed' }}
             >
-              <Key size={26} className="mx-auto mb-3" style={{ color: '#1E2D3D' }} />
-              <p className="text-sm font-semibold mb-1" style={{ color: '#94A3B8' }}>
+              <Key size={26} className="mx-auto mb-3" style={{ color: T.border }} />
+              <p className="text-sm font-semibold mb-1" style={{ color: T.textSec }}>
                 No API keys yet
               </p>
-              <p className="text-xs mb-5" style={{ color: '#475569' }}>
+              <p className="text-xs mb-5" style={{ color: T.textDim }}>
                 Create your first key to start sending events to Genuinux
               </p>
               <button
@@ -633,7 +633,7 @@ export default function ApiKeys() {
           <p className="text-xs font-semibold mb-0.5" style={{ color: '#16C784' }}>
             Security guidelines
           </p>
-          <p className="text-xs leading-relaxed" style={{ color: '#475569' }}>
+          <p className="text-xs leading-relaxed" style={{ color: T.textDim }}>
             Never expose API keys in client-side code, browser bundles, or version control.
             Use server-side environment variables only.
             Rotate immediately if compromised — revoke the old key and create a new one.
@@ -660,11 +660,11 @@ export default function ApiKeys() {
           <div>
             <h2
               className="text-base font-semibold"
-              style={{ fontFamily: 'Inter, sans-serif', color: '#FFFFFF' }}
+              style={{ fontFamily: 'Inter, sans-serif', color: T.text }}
             >
               Integration
             </h2>
-            <p className="text-xs" style={{ color: '#475569' }}>
+            <p className="text-xs" style={{ color: T.textDim }}>
               One API call returns allow / review / block
             </p>
           </div>
@@ -673,7 +673,7 @@ export default function ApiKeys() {
         {/* Endpoint */}
         <div
           className="flex items-center gap-3 px-4 py-3 rounded-xl mb-5"
-          style={{ background: '#0B1220', border: '1px solid #1E2D3D' }}
+          style={{ background: T.card, border: `1px solid ${T.border}` }}
         >
           <span
             className="text-[11px] font-bold px-2 py-0.5 rounded"
@@ -681,10 +681,10 @@ export default function ApiKeys() {
           >
             POST
           </span>
-          <code className="text-sm mono flex-1" style={{ color: '#E2E8F0' }}>
+          <code className="text-sm mono flex-1" style={{ color: T.text }}>
             https://genuinux.vercel.app/api/risk/check
           </code>
-          <ChevronRight size={13} style={{ color: '#1E2D3D', flexShrink: 0 }} />
+          <ChevronRight size={13} style={{ color: T.border, flexShrink: 0 }} />
         </div>
 
         {/* Auth header callout */}
@@ -696,8 +696,8 @@ export default function ApiKeys() {
           }}
         >
           <Key size={12} style={{ color: '#16C784', flexShrink: 0 }} />
-          <code className="text-xs mono" style={{ color: '#94A3B8' }}>
-            <span style={{ color: '#475569' }}>Authorization:</span>{' '}
+          <code className="text-xs mono" style={{ color: T.textSec }}>
+            <span style={{ color: T.textDim }}>Authorization:</span>{' '}
             Bearer <span style={{ color: '#16C784' }}>YOUR_API_KEY</span>
           </code>
         </div>
@@ -705,12 +705,12 @@ export default function ApiKeys() {
         {/* Code tabs */}
         <div
           className="rounded-xl overflow-hidden"
-          style={{ border: '1px solid #1E2D3D' }}
+          style={{ border: `1px solid ${T.border}` }}
         >
           {/* Tab bar + copy */}
           <div
             className="flex items-center justify-between px-4 py-3"
-            style={{ background: '#07111F', borderBottom: '1px solid #1E2D3D' }}
+            style={{ background: T.deep, borderBottom: `1px solid ${T.border}` }}
           >
             <div className="flex items-center gap-1">
               {(['curl', 'node', 'python'] as Tab[]).map(t => (
@@ -719,12 +719,12 @@ export default function ApiKeys() {
                   onClick={() => setTab(t)}
                   className="px-3 py-1.5 rounded-lg text-xs mono font-medium transition-all duration-150"
                   style={tab === t ? {
-                    background: '#0B1220',
-                    color: '#E2E8F0',
-                    border: '1px solid #1E2D3D',
+                    background: T.card,
+                    color: T.text,
+                    border: `1px solid ${T.border}`,
                   } : {
                     background: 'transparent',
-                    color: '#475569',
+                    color: T.textDim,
                     border: '1px solid transparent',
                   }}
                 >
@@ -750,7 +750,7 @@ export default function ApiKeys() {
           {/* Code */}
           <pre
             className="p-5 overflow-x-auto text-xs mono leading-relaxed m-0"
-            style={{ background: '#050B14', color: '#94A3B8' }}
+            style={{ background: T.codeBg, color: T.textSec }}
           >
             <code>{EXAMPLES[tab]}</code>
           </pre>
@@ -761,14 +761,14 @@ export default function ApiKeys() {
           <div
             className="flex items-center justify-between px-4 py-3 rounded-t-xl"
             style={{
-              background: '#07111F',
-              border: '1px solid #1E2D3D',
+              background: T.deep,
+              border: `1px solid ${T.border}`,
               borderBottom: 'none',
             }}
           >
             <div className="flex items-center gap-2">
-              <Code2 size={12} style={{ color: '#475569' }} />
-              <span className="text-xs font-medium uppercase tracking-wide" style={{ color: '#475569' }}>
+              <Code2 size={12} style={{ color: T.textDim }} />
+              <span className="text-xs font-medium uppercase tracking-wide" style={{ color: T.textDim }}>
                 Response
               </span>
               <span
@@ -794,7 +794,7 @@ export default function ApiKeys() {
           </div>
           <pre
             className="p-5 overflow-x-auto text-xs mono leading-relaxed m-0 rounded-b-xl"
-            style={{ background: '#050B14', color: '#94A3B8', border: '1px solid #1E2D3D', borderTop: 'none' }}
+            style={{ background: T.codeBg, color: T.textSec, border: `1px solid ${T.border}`, borderTop: 'none' }}
           >
             <code>{RESPONSE_EXAMPLE}</code>
           </pre>
@@ -831,7 +831,7 @@ export default function ApiKeys() {
               style={{ background: bg, border: `1px solid ${border}` }}
             >
               <code className="text-xs font-bold mono" style={{ color }}>{d}</code>
-              <p className="text-xs leading-relaxed mt-2" style={{ color: '#475569' }}>
+              <p className="text-xs leading-relaxed mt-2" style={{ color: T.textDim }}>
                 {desc}
               </p>
             </div>
@@ -841,23 +841,23 @@ export default function ApiKeys() {
         {/* Payload fields reference */}
         <div className="mt-8">
           <div className="flex items-center gap-2 mb-4">
-            <Code2 size={13} style={{ color: '#475569' }} />
-            <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#475569' }}>
+            <Code2 size={13} style={{ color: T.textDim }} />
+            <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: T.textDim }}>
               Request payload
             </p>
           </div>
           <div
             className="rounded-xl overflow-hidden"
-            style={{ border: '1px solid #1E2D3D' }}
+            style={{ border: `1px solid ${T.border}` }}
           >
             {/* Header row */}
             <div
               className="grid gap-4 px-5 py-2.5 text-[10px] font-semibold uppercase tracking-wide"
               style={{
-                background: '#07111F',
+                background: T.deep,
                 color: '#2D4057',
                 gridTemplateColumns: '1fr 70px 48px 1fr',
-                borderBottom: '1px solid #1E2D3D',
+                borderBottom: `1px solid ${T.border}`,
               }}
             >
               <div>Field</div>
@@ -871,16 +871,16 @@ export default function ApiKeys() {
                 className="grid gap-4 px-5 py-3 items-start text-xs"
                 style={{
                   gridTemplateColumns: '1fr 70px 48px 1fr',
-                  background: i % 2 === 0 ? '#050B14' : '#07111F',
-                  borderBottom: i < PAYLOAD_FIELDS.length - 1 ? '1px solid rgba(30,45,61,0.5)' : 'none',
+                  background: i % 2 === 0 ? T.bg : T.deep,
+                  borderBottom: i < PAYLOAD_FIELDS.length - 1 ? `1px solid ${T.dark ? 'rgba(30,45,61,0.5)' : T.border}` : 'none',
                 }}
               >
-                <code className="mono font-medium" style={{ color: '#E2E8F0' }}>{f.field}</code>
-                <span className="mono" style={{ color: '#475569' }}>{f.type}</span>
+                <code className="mono font-medium" style={{ color: T.text }}>{f.field}</code>
+                <span className="mono" style={{ color: T.textDim }}>{f.type}</span>
                 <span style={{ color: f.req ? '#16C784' : '#2D4057' }}>
                   {f.req ? 'Yes' : 'No'}
                 </span>
-                <span style={{ color: '#475569', lineHeight: '1.5' }}>{f.desc}</span>
+                <span style={{ color: T.textDim, lineHeight: '1.5' }}>{f.desc}</span>
               </div>
             ))}
           </div>

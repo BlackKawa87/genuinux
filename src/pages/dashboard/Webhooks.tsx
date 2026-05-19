@@ -361,11 +361,12 @@ function WebhookModal({ webhook, orgId, onSave, onClose }: ModalProps) {
 // ─── DeliveryItem (per-card expandable section) ───────────────────────────────
 
 function DeliveryItem({ d }: { d: DeliveryCardRow }) {
+  const T = useT()
   const meta = EVENT_META[d.event_type] ?? { label: d.event_type, color: '#94A3B8', bg: 'rgba(148,163,184,0.10)' }
   return (
     <div
       className="flex items-center gap-3 px-4 py-2.5"
-      style={{ borderTop: '1px solid #0A1828' }}
+      style={{ borderTop: `1px solid ${T.borderLight}` }}
     >
       {d.success
         ? <CheckCircle2 size={11} style={{ color: '#16C784', flexShrink: 0 }} />
@@ -389,11 +390,11 @@ function DeliveryItem({ d }: { d: DeliveryCardRow }) {
         {d.response_status ?? '—'}
       </span>
       {d.duration_ms !== null && (
-        <span className="mono text-[10px]" style={{ color: '#2D4057' }}>
+        <span className="mono text-[10px]" style={{ color: T.textDim }}>
           {d.duration_ms}ms
         </span>
       )}
-      <span className="mono text-[10px] whitespace-nowrap ml-auto" style={{ color: '#2D4057' }}>
+      <span className="mono text-[10px] whitespace-nowrap ml-auto" style={{ color: T.textDim }}>
         {ago(d.created_at)}
       </span>
     </div>
@@ -805,8 +806,8 @@ function DeliveryLogs({ orgId, webhooks }: { orgId: string; webhooks: Webhook[] 
 
       {filtered.length === 0 ? (
         <div className="g-card py-12 text-center">
-          <Clock size={20} className="mx-auto mb-2" style={{ color: '#1E2D3D' }} />
-          <p className="text-sm" style={{ color: '#2D4057' }}>
+          <Clock size={20} className="mx-auto mb-2" style={{ color: T.border }} />
+          <p className="text-sm" style={{ color: T.textDim }}>
             {logs?.length === 0 ? 'No deliveries yet.' : 'No deliveries match the current filter.'}
           </p>
         </div>
@@ -817,8 +818,8 @@ function DeliveryLogs({ orgId, webhooks }: { orgId: string; webhooks: Webhook[] 
             className="grid text-[10px] font-semibold uppercase tracking-wider px-5 py-2.5"
             style={{
               gridTemplateColumns: '140px 1fr 90px 55px 65px 75px',
-              color: '#2D4057',
-              borderBottom: '1px solid #0D1B2A',
+              color: T.textDim,
+              borderBottom: `1px solid ${T.borderLight}`,
             }}
           >
             <span>Event</span>
@@ -841,7 +842,7 @@ function DeliveryLogs({ orgId, webhooks }: { orgId: string; webhooks: Webhook[] 
                 className="grid items-center px-5 py-2.5"
                 style={{
                   gridTemplateColumns: '140px 1fr 90px 55px 65px 75px',
-                  borderTop: '1px solid #0A1828',
+                  borderTop: `1px solid ${T.borderLight}`,
                 }}
               >
                 {/* Event badge */}
@@ -853,7 +854,7 @@ function DeliveryLogs({ orgId, webhooks }: { orgId: string; webhooks: Webhook[] 
                 </span>
 
                 {/* Endpoint */}
-                <span className="text-xs mono truncate pr-3" style={{ color: '#475569' }}>
+                <span className="text-xs mono truncate pr-3" style={{ color: T.textDim }}>
                   {endpoint}
                 </span>
 
@@ -886,12 +887,12 @@ function DeliveryLogs({ orgId, webhooks }: { orgId: string; webhooks: Webhook[] 
                 </span>
 
                 {/* Duration */}
-                <span className="mono text-[10px]" style={{ color: '#2D4057' }}>
+                <span className="mono text-[10px]" style={{ color: T.textDim }}>
                   {d.duration_ms != null ? `${d.duration_ms}ms` : '—'}
                 </span>
 
                 {/* Time */}
-                <span className="mono text-[10px] text-right" style={{ color: '#2D4057' }}>
+                <span className="mono text-[10px] text-right" style={{ color: T.textDim }}>
                   {ago(d.created_at)}
                 </span>
               </div>
@@ -906,6 +907,7 @@ function DeliveryLogs({ orgId, webhooks }: { orgId: string; webhooks: Webhook[] 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function Webhooks() {
+  const T = useT()
   const { user, profile } = useAuth()
   const orgId = profile?.organization_id ?? null
 
@@ -1024,7 +1026,7 @@ export default function Webhooks() {
   // ── Render ─────────────────────────────────────────────────
 
   if (loading) return (
-    <div className="flex items-center justify-center min-h-[60vh] gap-3" style={{ color: '#475569' }}>
+    <div className="flex items-center justify-center min-h-[60vh] gap-3" style={{ color: T.textDim }}>
       <RefreshCw size={15} className="animate-spin" />
       <span className="text-sm">Loading webhooks…</span>
     </div>
@@ -1047,7 +1049,7 @@ export default function Webhooks() {
           {/* Tab switcher */}
           <div
             className="flex items-center gap-0.5 p-0.5 rounded-xl"
-            style={{ background: '#07111F', border: '1px solid #1E2D3D' }}
+            style={{ background: T.deep, border: `1px solid ${T.border}` }}
           >
             {([
               { id: 'endpoints', label: 'Endpoints',     icon: Globe },
@@ -1058,8 +1060,8 @@ export default function Webhooks() {
                 onClick={() => setTab(t.id)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
                 style={{
-                  background: tab === t.id ? '#0F1929' : 'transparent',
-                  color:      tab === t.id ? '#E2E8F0' : '#475569',
+                  background: tab === t.id ? T.elevated : 'transparent',
+                  color:      tab === t.id ? T.text : T.textDim,
                 }}
               >
                 <t.icon size={11} />
@@ -1069,12 +1071,12 @@ export default function Webhooks() {
           </div>
 
           {tab === 'endpoints' && (
-            <p className="text-sm" style={{ color: '#475569' }}>
+            <p className="text-sm" style={{ color: T.textDim }}>
               {activeCount > 0
                 ? <><span style={{ color: '#16C784', fontWeight: 600 }}>{activeCount} active</span></>
                 : <span>No active webhooks</span>
               }
-              <span style={{ color: '#2D4057' }}> · {webhooks.length} total</span>
+              <span style={{ color: T.textDim }}> · {webhooks.length} total</span>
             </p>
           )}
         </div>
@@ -1100,11 +1102,11 @@ export default function Webhooks() {
           style={{ background: 'rgba(22,199,132,0.05)', border: '1px solid rgba(22,199,132,0.12)' }}
         >
           <Info size={13} style={{ color: '#16C784', flexShrink: 0, marginTop: 1 }} />
-          <p className="text-xs leading-relaxed" style={{ color: '#475569' }}>
+          <p className="text-xs leading-relaxed" style={{ color: T.textDim }}>
             Each delivery is signed with{' '}
-            <code className="mono" style={{ color: '#94A3B8' }}>X-Genuinux-Signature</code>,{' '}
-            <code className="mono" style={{ color: '#94A3B8' }}>X-Genuinux-Event</code>, and{' '}
-            <code className="mono" style={{ color: '#94A3B8' }}>X-Genuinux-Timestamp</code>.{' '}
+            <code className="mono" style={{ color: T.textSec }}>X-Genuinux-Signature</code>,{' '}
+            <code className="mono" style={{ color: T.textSec }}>X-Genuinux-Event</code>, and{' '}
+            <code className="mono" style={{ color: T.textSec }}>X-Genuinux-Timestamp</code>.{' '}
             Subscribe only to the events your system needs.
           </p>
         </div>
@@ -1115,9 +1117,9 @@ export default function Webhooks() {
         <>
           {webhooks.length === 0 ? (
             <div className="g-card py-16 text-center">
-              <Globe size={24} className="mx-auto mb-3" style={{ color: '#1E2D3D' }} />
-              <p className="text-sm font-semibold mb-1.5" style={{ color: '#475569' }}>No webhooks yet</p>
-              <p className="text-xs mb-5" style={{ color: '#2D4057' }}>
+              <Globe size={24} className="mx-auto mb-3" style={{ color: T.border }} />
+              <p className="text-sm font-semibold mb-1.5" style={{ color: T.textDim }}>No webhooks yet</p>
+              <p className="text-xs mb-5" style={{ color: T.textDim }}>
                 Register an endpoint to receive real-time risk events.
               </p>
               <button
@@ -1151,12 +1153,12 @@ export default function Webhooks() {
           {/* Signature snippet */}
           {webhooks.length > 0 && (
             <div className="mt-6">
-              <p className="text-[10px] font-semibold uppercase tracking-wider mb-3" style={{ color: '#2D4057' }}>
+              <p className="text-[10px] font-semibold uppercase tracking-wider mb-3" style={{ color: T.textDim }}>
                 Signature Verification — Node.js
               </p>
               <pre
                 className="mono text-[11px] p-4 rounded-xl overflow-x-auto"
-                style={{ background: '#07111F', border: '1px solid #1E2D3D', color: '#475569', lineHeight: 1.75 }}
+                style={{ background: T.codeBg, border: `1px solid ${T.border}`, color: T.codeText, lineHeight: 1.75 }}
               >{`const crypto = require('crypto')
 
 function verifyWebhook(rawBody, signature, secret) {

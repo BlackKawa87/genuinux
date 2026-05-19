@@ -143,7 +143,8 @@ function ScoreBar({ label, score, color }: { label: string; score: number; color
 }
 
 function SignalChip({ label, severity }: { label: string; severity: string }) {
-  const c = SEV_COLORS[severity] ?? '#475569'
+  const T = useT()
+  const c = SEV_COLORS[severity] ?? T.textDim
   return (
     <span className="text-[9px] px-1.5 py-0.5 rounded mono whitespace-nowrap"
       style={{ background: `${c}15`, color: c, border: `1px solid ${c}28` }}>
@@ -1073,11 +1074,11 @@ export default function Queue() {
             <div className="grid gap-4 px-5 py-3"
               style={{
                 gridTemplateColumns: '1fr 80px 90px 70px 70px 1fr 110px 80px',
-                borderBottom: '1px solid #1E2D3D',
-                background: '#07111F',
+                borderBottom: `1px solid ${T.border}`,
+                background: T.deep,
               }}>
               {['User', 'Type', 'Risk', 'Fraud', 'Trust', 'Signals', 'Status', 'Age'].map(h => (
-                <p key={h} className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#2D4057' }}>
+                <p key={h} className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.textDim }}>
                   {h}
                 </p>
               ))}
@@ -1098,23 +1099,23 @@ export default function Queue() {
                   className="grid gap-4 px-5 py-3.5 cursor-pointer items-center transition-colors"
                   style={{
                     gridTemplateColumns: '1fr 80px 90px 70px 70px 1fr 110px 80px',
-                    borderBottom: i < filtered.length - 1 ? '1px solid #0D1B2A' : 'none',
-                    background:   isSelected ? '#0B1220' : 'transparent',
-                    borderLeft:   `3px solid ${ev ? (RISK_ACCENT[ev.risk_level] ?? '#2D4057') : '#2D4057'}`,
+                    borderBottom: i < filtered.length - 1 ? `1px solid ${T.border}` : 'none',
+                    background:   isSelected ? T.elevated : 'transparent',
+                    borderLeft:   `3px solid ${ev ? (RISK_ACCENT[ev.risk_level] ?? T.textDim) : T.textDim}`,
                   }}
-                  onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = '#0A1828' }}
+                  onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = T.elevated }}
                   onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent' }}
                 >
                   {/* User */}
                   <div className="min-w-0">
-                    <p className="text-xs mono truncate font-medium" style={{ color: '#E2E8F0' }}>
+                    <p className="text-xs mono truncate font-medium" style={{ color: T.text }}>
                       {ev?.external_user_id ?? '—'}
                     </p>
                     {ev?.email && (
-                      <p className="text-[10px] truncate mt-0.5" style={{ color: '#475569' }}>{ev.email}</p>
+                      <p className="text-[10px] truncate mt-0.5" style={{ color: T.textDim }}>{ev.email}</p>
                     )}
                     {ev?.ip_address && (
-                      <p className="text-[10px] mono mt-0.5" style={{ color: '#2D4057' }}>{ev.ip_address}</p>
+                      <p className="text-[10px] mono mt-0.5" style={{ color: T.textDim }}>{ev.ip_address}</p>
                     )}
                   </div>
 
@@ -1122,10 +1123,10 @@ export default function Queue() {
                   <div>
                     {ev
                       ? <span className="text-[10px] px-2 py-0.5 rounded-md mono"
-                          style={{ background: '#07111F', color: '#94A3B8', border: '1px solid #1E2D3D' }}>
+                          style={{ background: T.deep, color: T.textSec, border: `1px solid ${T.border}` }}>
                           {ev.event_type}
                         </span>
-                      : <span style={{ color: '#2D4057' }}>—</span>}
+                      : <span style={{ color: T.textDim }}>—</span>}
                   </div>
 
                   {/* Risk level */}
@@ -1134,7 +1135,7 @@ export default function Queue() {
                       ? <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-medium badge-${ev.risk_level}`}>
                           {ev.risk_level}
                         </span>
-                      : <span style={{ color: '#2D4057' }}>—</span>}
+                      : <span style={{ color: T.textDim }}>—</span>}
                   </div>
 
                   {/* Fraud score */}
@@ -1143,7 +1144,7 @@ export default function Queue() {
                       ? <span className="text-sm mono font-bold" style={{ color: fraudColor(ev.fraud_score) }}>
                           {ev.fraud_score}
                         </span>
-                      : <span style={{ color: '#2D4057' }}>—</span>}
+                      : <span style={{ color: T.textDim }}>—</span>}
                   </div>
 
                   {/* Trust score */}
@@ -1152,14 +1153,14 @@ export default function Queue() {
                       ? <span className="text-sm mono font-bold" style={{ color: trustColor(ev.trust_score) }}>
                           {ev.trust_score}
                         </span>
-                      : <span style={{ color: '#2D4057' }}>—</span>}
+                      : <span style={{ color: T.textDim }}>—</span>}
                   </div>
 
                   {/* Signals */}
                   <div className="flex items-center gap-1 flex-wrap">
                     {signals.length > 0
                       ? signals.map((s, si) => <SignalChip key={si} label={s.label} severity={s.severity} />)
-                      : <span className="text-[10px]" style={{ color: '#2D4057' }}>—</span>}
+                      : <span className="text-[10px]" style={{ color: T.textDim }}>—</span>}
                   </div>
 
                   {/* Status + assigned */}
@@ -1169,13 +1170,13 @@ export default function Queue() {
                       {meta.label}
                     </span>
                     {assignee && (
-                      <p className="text-[9px] mt-1 truncate" style={{ color: '#2D4057' }}>{assignee}</p>
+                      <p className="text-[9px] mt-1 truncate" style={{ color: T.textDim }}>{assignee}</p>
                     )}
                   </div>
 
                   {/* Age */}
                   <div>
-                    <p className="text-[10px] mono" style={{ color: '#475569' }}>
+                    <p className="text-[10px] mono" style={{ color: T.textDim }}>
                       {relativeTime(item.created_at)}
                     </p>
                   </div>

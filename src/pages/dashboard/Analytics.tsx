@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
+import { useT } from '../../lib/themeTokens'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -117,7 +118,7 @@ const SEV_COLOR: Record<string, string> = {
 
 // ─── Chart: Stacked bars ──────────────────────────────────────────────────────
 
-function StackedBarsChart({ buckets }: { buckets: DayBucket[] }) {
+function StackedBarsChart({ buckets, textDim }: { buckets: DayBucket[]; textDim: string }) {
   const W = 600, H = 110, PB = 20, PT = 6
   const cH = H - PB - PT
   const n  = buckets.length
@@ -149,7 +150,7 @@ function StackedBarsChart({ buckets }: { buckets: DayBucket[] }) {
               </>
             )}
             {i % every === 0 && (
-              <text x={x + barW / 2} y={H - 5} textAnchor="middle" fontSize="7" fill="#2D4057">
+              <text x={x + barW / 2} y={H - 5} textAnchor="middle" fontSize="7" fill={textDim}>
                 {b.label}
               </text>
             )}
@@ -195,24 +196,24 @@ function TrendLine({ points, color = '#F59E0B' }: { points: number[]; color?: st
 
 // ─── Primitives ───────────────────────────────────────────────────────────────
 
-function EmptyChart({ label }: { label: string }) {
+function EmptyChart({ label, textDim }: { label: string; textDim: string }) {
   return (
-    <div className="flex items-center justify-center h-14" style={{ color: '#2D4057' }}>
+    <div className="flex items-center justify-center h-14" style={{ color: textDim }}>
       <span className="text-xs">{label}</span>
     </div>
   )
 }
 
-function HBar({ label, count, max, color }: {
-  label: string; count: number; max: number; color: string
+function HBar({ label, count, max, color, textSec, card }: {
+  label: string; count: number; max: number; color: string; textSec: string; card: string
 }) {
   const w = max === 0 ? 0 : (count / max) * 100
   return (
     <div className="flex items-center gap-3">
-      <span className="text-[11px] truncate flex-shrink-0" style={{ color: '#94A3B8', width: '130px' }}>
+      <span className="text-[11px] truncate flex-shrink-0" style={{ color: textSec, width: '130px' }}>
         {label}
       </span>
-      <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: '#0B1220' }}>
+      <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: card }}>
         <div className="h-full rounded-full" style={{ width: `${w}%`, background: color }} />
       </div>
       <span className="text-[11px] mono flex-shrink-0 w-8 text-right" style={{ color }}>
@@ -222,23 +223,24 @@ function HBar({ label, count, max, color }: {
   )
 }
 
-function KpiCard({ title, value, sub, icon, color, d }: {
+function KpiCard({ title, value, sub, icon, color, d, text, textDim }: {
   title: string; value: string; sub: string; icon: ReactNode; color: string
   d?: { sign: '+' | '-' | ''; value: number } | null
+  text: string; textDim: string
 }) {
   const dc = d?.sign === '+' ? '#16C784' : '#EF4444'
   return (
     <div className="g-card p-5">
       <div className="flex items-center justify-between mb-3">
-        <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#475569' }}>{title}</p>
+        <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: textDim }}>{title}</p>
         <div className="w-7 h-7 rounded-lg flex items-center justify-center"
           style={{ background: `${color}18`, border: `1px solid ${color}28` }}>
           <span style={{ color }}>{icon}</span>
         </div>
       </div>
-      <p className="text-2xl font-bold mono mb-1" style={{ color: '#E2E8F0' }}>{value}</p>
+      <p className="text-2xl font-bold mono mb-1" style={{ color: text }}>{value}</p>
       <div className="flex items-center gap-2 flex-wrap">
-        <p className="text-xs" style={{ color: '#475569' }}>{sub}</p>
+        <p className="text-xs" style={{ color: textDim }}>{sub}</p>
         {d && d.value > 0 && (
           <span className="text-[10px] mono" style={{ color: dc }}>
             {d.sign}{d.value}% vs prev
@@ -249,14 +251,14 @@ function KpiCard({ title, value, sub, icon, color, d }: {
   )
 }
 
-function ChartCard({ title, subtitle, children }: {
-  title: string; subtitle?: string; children: ReactNode
+function ChartCard({ title, subtitle, children, text, textDim }: {
+  title: string; subtitle?: string; children: ReactNode; text: string; textDim: string
 }) {
   return (
     <div className="g-card p-5">
       <div className="mb-4">
-        <h3 className="text-sm font-semibold" style={{ color: '#E2E8F0' }}>{title}</h3>
-        {subtitle && <p className="text-xs mt-0.5" style={{ color: '#475569' }}>{subtitle}</p>}
+        <h3 className="text-sm font-semibold" style={{ color: text }}>{title}</h3>
+        {subtitle && <p className="text-xs mt-0.5" style={{ color: textDim }}>{subtitle}</p>}
       </div>
       {children}
     </div>
@@ -267,6 +269,7 @@ function ChartCard({ title, subtitle, children }: {
 
 export default function Analytics() {
   const { profile } = useAuth()
+  const T = useT()
 
   const [range,    setRange]    = useState<Range>('30d')
   const [events,   setEvents]   = useState<EventLite[]>([])
@@ -386,7 +389,7 @@ export default function Analytics() {
   const bucketLabel = days === 90 ? 'week' : 'day'
 
   if (loading) return (
-    <div className="flex items-center justify-center min-h-[60vh] gap-3" style={{ color: '#475569' }}>
+    <div className="flex items-center justify-center min-h-[60vh] gap-3" style={{ color: T.textDim }}>
       <RefreshCw size={15} className="animate-spin" />
       <span className="text-sm">Loading analytics…</span>
     </div>
@@ -398,26 +401,26 @@ export default function Analytics() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-lg font-bold flex items-center gap-2.5" style={{ color: '#E2E8F0' }}>
+          <h1 className="text-lg font-bold flex items-center gap-2.5" style={{ color: T.text }}>
             <BarChart2 size={18} style={{ color: '#16C784' }} />
             Analytics
           </h1>
-          <p className="text-sm mt-0.5" style={{ color: '#475569' }}>
+          <p className="text-sm mt-0.5" style={{ color: T.textDim }}>
             Trends, feedback quality, and rule performance
           </p>
         </div>
 
         {/* Range picker */}
         <div className="flex items-center gap-0.5 p-1 rounded-lg"
-          style={{ background: '#0B1220', border: '1px solid #1E2D3D' }}>
+          style={{ background: T.card, border: `1px solid ${T.border}` }}>
           {(['7d', '30d', '90d'] as Range[]).map(r => (
             <button
               key={r}
               onClick={() => setRange(r)}
               className="px-3 py-1.5 rounded text-xs font-semibold transition-all"
               style={{
-                background: range === r ? '#1E2D3D' : 'transparent',
-                color:      range === r ? '#E2E8F0' : '#475569',
+                background: range === r ? T.border : 'transparent',
+                color:      range === r ? T.text : T.textDim,
               }}
             >
               {r.toUpperCase()}
@@ -435,6 +438,7 @@ export default function Analytics() {
           icon={<Activity size={13} />}
           color="#16C784"
           d={periodDelta(kpi.total, kpi.ptotal)}
+          text={T.text} textDim={T.textDim}
         />
         <KpiCard
           title="Avg Fraud Score"
@@ -443,6 +447,7 @@ export default function Analytics() {
           icon={<Shield size={13} />}
           color={fraudColor}
           d={periodDelta(kpi.fraudAvg, kpi.pfraudAvg)}
+          text={T.text} textDim={T.textDim}
         />
         <KpiCard
           title="Block Rate"
@@ -451,6 +456,7 @@ export default function Analytics() {
           icon={<Target size={13} />}
           color="#EF4444"
           d={periodDelta(kpi.blockRate, kpi.pblockRate)}
+          text={T.text} textDim={T.textDim}
         />
         <KpiCard
           title="Feedback Coverage"
@@ -459,6 +465,7 @@ export default function Analytics() {
           icon={<MessageSquare size={13} />}
           color="#818CF8"
           d={periodDelta(kpi.fbCov, kpi.pfbCov)}
+          text={T.text} textDim={T.textDim}
         />
       </div>
 
@@ -466,9 +473,10 @@ export default function Analytics() {
       <ChartCard
         title="Decisions Over Time"
         subtitle={`Allow · Review · Block — stacked per ${bucketLabel}`}
+        text={T.text} textDim={T.textDim}
       >
         {kpi.total === 0 ? (
-          <EmptyChart label="No events in this period" />
+          <EmptyChart label="No events in this period" textDim={T.textDim} />
         ) : (
           <>
             <StackedBarsChart buckets={buckets} />
@@ -480,11 +488,11 @@ export default function Analytics() {
               ].map(({ label, count, color }) => (
                 <div key={label} className="flex items-center gap-1.5">
                   <div className="w-2 h-2 rounded-sm flex-shrink-0" style={{ background: color }} />
-                  <span className="text-[10px]" style={{ color: '#475569' }}>{label}</span>
+                  <span className="text-[10px]" style={{ color: T.textDim }}>{label}</span>
                   <span className="text-[10px] mono font-semibold" style={{ color }}>{fmt(count)}</span>
                 </div>
               ))}
-              <span className="text-[10px] ml-auto" style={{ color: '#2D4057' }}>
+              <span className="text-[10px] ml-auto" style={{ color: T.textDim }}>
                 {fmt(kpi.total)} total
               </span>
             </div>
@@ -497,20 +505,21 @@ export default function Analytics() {
         <ChartCard
           title="Avg Fraud Score Trend"
           subtitle={`Mean score per ${bucketLabel} — higher is worse`}
+          text={T.text} textDim={T.textDim}
         >
           {fraudLine.every(v => v === 0) ? (
-            <EmptyChart label="No data" />
+            <EmptyChart label="No data" textDim={T.textDim} />
           ) : (
             <>
               <TrendLine points={fraudLine} color={fraudColor} />
               <div className="flex items-center justify-between mt-1">
-                <span className="text-[10px]" style={{ color: '#2D4057' }}>
+                <span className="text-[10px]" style={{ color: T.textDim }}>
                   Min {Math.min(...fraudLine)}
                 </span>
                 <span className="text-[10px] font-semibold" style={{ color: fraudColor }}>
                   Avg {kpi.fraudAvg}
                 </span>
-                <span className="text-[10px]" style={{ color: '#2D4057' }}>
+                <span className="text-[10px]" style={{ color: T.textDim }}>
                   Max {Math.max(...fraudLine)}
                 </span>
               </div>
@@ -521,13 +530,14 @@ export default function Analytics() {
         <ChartCard
           title="Feedback Breakdown"
           subtitle={`${currFb.length} labeled event${currFb.length !== 1 ? 's' : ''} this period`}
+          text={T.text} textDim={T.textDim}
         >
           {feedbackBreakdown.length === 0 ? (
-            <EmptyChart label="No feedback submitted yet" />
+            <EmptyChart label="No feedback submitted yet" textDim={T.textDim} />
           ) : (
             <div className="space-y-2.5 pt-1">
               {feedbackBreakdown.map(f => (
-                <HBar key={f.type} label={f.label} count={f.count} max={maxFb} color={f.color} />
+                <HBar key={f.type} label={f.label} count={f.count} max={maxFb} color={f.color} textSec={T.textSec} card={T.card} />
               ))}
             </div>
           )}
@@ -539,13 +549,14 @@ export default function Analytics() {
         <ChartCard
           title="Rule Performance"
           subtitle="Rules that influenced decisions this period"
+          text={T.text} textDim={T.textDim}
         >
           {ruleHits.length === 0 ? (
-            <EmptyChart label="No rule matches in this period" />
+            <EmptyChart label="No rule matches in this period" textDim={T.textDim} />
           ) : (
             <div className="space-y-2.5 pt-1">
               {ruleHits.map(r => (
-                <HBar key={r.name} label={r.name} count={r.count} max={maxRule} color="#818CF8" />
+                <HBar key={r.name} label={r.name} count={r.count} max={maxRule} color="#818CF8" textSec={T.textSec} card={T.card} />
               ))}
             </div>
           )}
@@ -554,9 +565,10 @@ export default function Analytics() {
         <ChartCard
           title="Top Risk Signals"
           subtitle="Most frequent fraud signals detected"
+          text={T.text} textDim={T.textDim}
         >
           {topSignals.length === 0 ? (
-            <EmptyChart label="No signals detected this period" />
+            <EmptyChart label="No signals detected this period" textDim={T.textDim} />
           ) : (
             <div className="space-y-2.5 pt-1">
               {topSignals.map(s => (
@@ -565,7 +577,9 @@ export default function Analytics() {
                   label={s.label.replace(/_/g, ' ')}
                   count={s.count}
                   max={maxSig}
-                  color={SEV_COLOR[s.severity] ?? '#94A3B8'}
+                  color={SEV_COLOR[s.severity] ?? T.textSec}
+                  textSec={T.textSec}
+                  card={T.card}
                 />
               ))}
             </div>

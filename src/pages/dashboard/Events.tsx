@@ -1066,7 +1066,7 @@ export default function Events() {
           style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)' }}>
           <div className="flex items-center gap-2.5">
             <AlertTriangle size={13} style={{ color: '#F59E0B', flexShrink: 0 }} />
-            <p className="text-xs" style={{ color: '#94A3B8' }}>
+            <p className="text-xs" style={{ color: T.textSec }}>
               <strong style={{ color: '#F59E0B' }}>Free plan:</strong> event history limited to the last 2 days.
               Upgrade to Growth for 90-day history.
             </p>
@@ -1081,7 +1081,7 @@ export default function Events() {
 
       {/* Sub-header */}
       <div className="flex items-center justify-between mb-5">
-        <p className="text-sm" style={{ color: '#475569' }}>
+        <p className="text-sm" style={{ color: T.textDim }}>
           {filtered.length.toLocaleString()} events
           {filtered.length !== events.length && ` (of ${events.length.toLocaleString()})`}
           {' · '}{DATE_RANGES[rangeIdx].label}
@@ -1100,9 +1100,9 @@ export default function Events() {
           <button
             onClick={() => void fetchEvents()}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors"
-            style={{ border: '1px solid #1E2D3D', color: '#475569' }}
-            onMouseEnter={e => (e.currentTarget.style.color = '#94A3B8')}
-            onMouseLeave={e => (e.currentTarget.style.color = '#475569')}
+            style={{ border: `1px solid ${T.border}`, color: T.textDim }}
+            onMouseEnter={e => (e.currentTarget.style.color = T.textSec)}
+            onMouseLeave={e => (e.currentTarget.style.color = T.textDim)}
           >
             <RefreshCw size={11} />
             Refresh
@@ -1116,7 +1116,7 @@ export default function Events() {
           <Search
             size={12}
             className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
-            style={{ color: '#475569' }}
+            style={{ color: T.textDim }}
           />
           <input
             value={search}
@@ -1184,8 +1184,8 @@ export default function Events() {
       <div className="g-card overflow-hidden">
         {filtered.length === 0 ? (
           <div className="py-16 text-center">
-            <Shield size={24} className="mx-auto mb-3" style={{ color: '#1E2D3D' }} />
-            <p className="text-sm font-semibold mb-1.5" style={{ color: '#475569' }}>
+            <Shield size={24} className="mx-auto mb-3" style={{ color: T.border }} />
+            <p className="text-sm font-semibold mb-1.5" style={{ color: T.textDim }}>
               {events.length === 0 ? 'No events yet' : 'No events match your filters'}
             </p>
             {activeFilters > 0 && (
@@ -1198,12 +1198,12 @@ export default function Events() {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr style={{ borderBottom: '1px solid #1E2D3D' }}>
+                <tr style={{ borderBottom: `1px solid ${T.border}` }}>
                   {['Event ID','User','Type','IP','Device','Trust','Fraud','Risk Level','Decision','Created at'].map(h => (
                     <th
                       key={h}
                       className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap"
-                      style={{ color: '#2D4057', background: '#07111F' }}
+                      style={{ color: T.textDim, background: T.deep }}
                     >
                       {h}
                     </th>
@@ -1217,12 +1217,12 @@ export default function Events() {
                     onClick={() => setSelected(ev)}
                     className="cursor-pointer"
                     style={{
-                      borderBottom: i < filtered.length - 1 ? '1px solid #0D1B2A' : 'none',
-                      background: selected?.id === ev.id ? '#0B1220' : 'transparent',
+                      borderBottom: i < filtered.length - 1 ? `1px solid ${T.deep}` : 'none',
+                      background: selected?.id === ev.id ? T.card : 'transparent',
                       transition: 'background 0.1s',
                     }}
                     onMouseEnter={e => {
-                      if (selected?.id !== ev.id) e.currentTarget.style.background = '#0A1828'
+                      if (selected?.id !== ev.id) e.currentTarget.style.background = T.dark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)'
                     }}
                     onMouseLeave={e => {
                       if (selected?.id !== ev.id) e.currentTarget.style.background = 'transparent'
@@ -1230,18 +1230,18 @@ export default function Events() {
                   >
                     {/* Event ID */}
                     <td className="px-4 py-3">
-                      <span className="text-[10px] mono" style={{ color: '#2D4057' }}>
+                      <span className="text-[10px] mono" style={{ color: T.textDim }}>
                         {ev.id.slice(0, 8)}…
                       </span>
                     </td>
 
                     {/* User */}
                     <td className="px-4 py-3">
-                      <p className="text-xs mono truncate" style={{ maxWidth: 130, color: '#94A3B8' }}>
+                      <p className="text-xs mono truncate" style={{ maxWidth: 130, color: T.textSec }}>
                         {ev.external_user_id}
                       </p>
                       {ev.email && (
-                        <p className="text-[10px] truncate mt-0.5" style={{ maxWidth: 130, color: '#475569' }}>
+                        <p className="text-[10px] truncate mt-0.5" style={{ maxWidth: 130, color: T.textDim }}>
                           {ev.email}
                         </p>
                       )}
@@ -1251,7 +1251,7 @@ export default function Events() {
                     <td className="px-4 py-3">
                       <span
                         className="text-[10px] px-2 py-0.5 rounded-md mono whitespace-nowrap"
-                        style={{ background: '#07111F', color: '#94A3B8', border: '1px solid #1E2D3D' }}
+                        style={{ background: T.deep, color: T.textSec, border: `1px solid ${T.border}` }}
                       >
                         {ev.event_type}
                       </span>
@@ -1259,14 +1259,14 @@ export default function Events() {
 
                     {/* IP */}
                     <td className="px-4 py-3">
-                      <span className="text-[11px] mono" style={{ color: '#475569' }}>
+                      <span className="text-[11px] mono" style={{ color: T.textDim }}>
                         {ev.ip_address ?? '—'}
                       </span>
                     </td>
 
                     {/* Device */}
                     <td className="px-4 py-3">
-                      <span className="text-[10px] mono" style={{ color: '#475569' }}>
+                      <span className="text-[10px] mono" style={{ color: T.textDim }}>
                         {ev.device_id ? `${ev.device_id.slice(0, 8)}…` : '—'}
                       </span>
                     </td>
@@ -1276,7 +1276,7 @@ export default function Events() {
                       <div className="flex items-center gap-1.5">
                         <div
                           className="rounded-full overflow-hidden flex-shrink-0"
-                          style={{ width: 30, height: 2, background: '#1E2D3D' }}
+                          style={{ width: 30, height: 2, background: T.border }}
                         >
                           <div
                             className="h-full rounded-full"
@@ -1319,10 +1319,10 @@ export default function Events() {
 
                     {/* Created at */}
                     <td className="px-4 py-3 whitespace-nowrap">
-                      <p className="text-[10px] mono" style={{ color: '#94A3B8' }}>
+                      <p className="text-[10px] mono" style={{ color: T.textSec }}>
                         {formatTs(ev.created_at)}
                       </p>
-                      <p className="text-[10px] mono mt-0.5" style={{ color: '#2D4057' }}>
+                      <p className="text-[10px] mono mt-0.5" style={{ color: T.textDim }}>
                         {relativeTime(ev.created_at)}
                       </p>
                     </td>
