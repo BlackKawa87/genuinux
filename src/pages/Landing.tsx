@@ -510,8 +510,8 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ── Platform Overview ─────────────────── id="product" */}
-      <section id="product" style={{ background: C.surface, borderTop: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}` }}>
+      {/* ── Platform Overview ──────────────────────────────── */}
+      <section style={{ background: C.surface, borderTop: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}` }}>
         <div className="max-w-6xl mx-auto px-6 py-24">
           <div className="flex flex-col lg:flex-row items-center gap-12">
             <div className="flex-1 w-full" style={{
@@ -596,8 +596,8 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ── Product Modules ──────────────────────────────────── */}
-      <section>
+      {/* ── Product Modules ──────────────────── id="product" */}
+      <section id="product">
         <div className="max-w-6xl mx-auto px-6 py-24">
           <div className="text-center mb-14">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold mb-5"
