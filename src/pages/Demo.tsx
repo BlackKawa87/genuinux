@@ -432,7 +432,7 @@ export default function Demo() {
         }}
       >
         <Link to="/" className="flex items-center no-underline">
-          <img src="/logo-full.png" alt="Genuinux" style={{ height: '30px', display: 'block', filter: 'brightness(0) invert(1)' }} />
+          <img src="/logo-full.png" alt="Genuinux" style={{ height: '52px', display: 'block', filter: 'brightness(0) invert(1)' }} />
           <span
             className="text-[10px] px-2 py-0.5 rounded-full mono"
             style={{ background: 'rgba(22,199,132,0.1)', color: '#16C784', border: '1px solid rgba(22,199,132,0.2)' }}

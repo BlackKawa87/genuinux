@@ -78,7 +78,7 @@ export default function AppLayout() {
           <img
             src="/logo-full.png"
             alt="Genuinux"
-            style={{ height: '32px', display: 'block', filter: 'brightness(0) invert(1)' }}
+            style={{ height: '56px', display: 'block', filter: 'brightness(0) invert(1)' }}
           />
           <p className="text-[10px] mono flex items-center gap-1" style={{ color: '#16C784' }}>
             <span className="pulse-dot inline-block w-1.5 h-1.5 rounded-full bg-current" />

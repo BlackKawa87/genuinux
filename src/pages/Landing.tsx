@@ -250,7 +250,7 @@ export default function Landing() {
         }}>
         <div className="flex items-center justify-between px-6 py-4 max-w-7xl mx-auto">
           <Link to="/">
-            <img src="/logo-full.png" alt="Genuinux" style={{ height: '36px', display: 'block' }} />
+            <img src="/logo-full.png" alt="Genuinux" style={{ height: '60px', display: 'block' }} />
           </Link>
 
           <div className="hidden md:flex items-center gap-8">
@@ -875,7 +875,7 @@ export default function Landing() {
           <div className="grid md:grid-cols-4 gap-10 mb-10">
             <div>
               <div className="mb-4">
-                <img src="/logo-full.png" alt="Genuinux" style={{ height: '40px', display: 'block', filter: 'brightness(0) invert(1)' }} />
+                <img src="/logo-full.png" alt="Genuinux" style={{ height: '64px', display: 'block', filter: 'brightness(0) invert(1)' }} />
               </div>
               <p className="text-xs leading-relaxed" style={{ color: '#475569' }}>
                 AI Trust Infrastructure. Block fraud without blocking customers.

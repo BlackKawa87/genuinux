@@ -77,7 +77,7 @@ export default function Register() {
       <div className="w-full max-w-[420px]">
         {/* Logo */}
         <Link to="/" className="flex justify-center mb-8">
-          <img src="/logo-full.png" alt="Genuinux" style={{ height: '72px', display: 'block' }} />
+          <img src="/logo-full.png" alt="Genuinux" style={{ height: '100px', display: 'block' }} />
         </Link>
 
         {/* Card */}
