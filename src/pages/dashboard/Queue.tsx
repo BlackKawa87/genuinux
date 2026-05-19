@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import {
   RefreshCw, X, ChevronDown, CheckCircle, XCircle,
   AlertTriangle, MessageSquare, ArrowUpCircle, RotateCcw,
-  Shield, Zap, User, Mail, Globe, Monitor, Activity, CheckCircle2,
+  Shield, Zap, User, Mail, Globe, Monitor, Activity, CheckCircle2, ShieldCheck,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
@@ -427,6 +427,20 @@ function CaseDetailPanel({
               {formatTs(item.created_at)}
             </p>
           </div>
+
+          {/* Rule influence banner */}
+          {ev?.applied_rule_name && (
+            <div
+              className="px-6 py-3 flex items-center gap-2.5"
+              style={{ borderBottom: '1px solid #0D1B2A', background: 'rgba(129,140,248,0.05)' }}
+            >
+              <ShieldCheck size={12} style={{ color: '#818CF8', flexShrink: 0 }} />
+              <p className="text-xs" style={{ color: '#818CF8' }}>
+                Decision influenced by rule:{' '}
+                <span className="font-semibold" style={{ color: '#A5B4FC' }}>{ev.applied_rule_name}</span>
+              </p>
+            </div>
+          )}
 
           {/* Scores */}
           {ev && (

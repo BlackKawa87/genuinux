@@ -57,6 +57,7 @@ interface CheckResponse {
     reason: string
   }>
   recommended_action: string
+  applied_rule: { id: string; name: string } | null
   summary: string
   processing_time_ms: number
 }
@@ -341,27 +342,30 @@ async function insertRiskEvent(
   orgId: string,
   payload: CheckPayload,
   result: ReturnType<typeof analyze>,
+  ruleMatch: RuleMatchResult,
 ): Promise<string | null> {
   const { data, error } = await supabase
     .from('risk_events')
     .insert({
-      organization_id:  orgId,
-      external_user_id: payload.external_user_id,
-      event_type:       payload.event_type,
-      email:            payload.email      ?? null,
-      ip_address:       payload.ip_address ?? null,
-      device_id:        payload.device_id  ?? null,
-      user_agent:       payload.user_agent ?? null,
-      country:          payload.country    ?? null,
+      organization_id:    orgId,
+      external_user_id:   payload.external_user_id,
+      event_type:         payload.event_type,
+      email:              payload.email      ?? null,
+      ip_address:         payload.ip_address ?? null,
+      device_id:          payload.device_id  ?? null,
+      user_agent:         payload.user_agent ?? null,
+      country:            payload.country    ?? null,
       trust_score:         result.trust_score,
       fraud_score:         result.fraud_score,
       risk_level:          result.risk_level,
-      decision:            result.decision,
+      decision:            ruleMatch.decision,
       signals_json:        result.signals,
       risk_reasons_json:   result.risk_reasons,
       confidence_level:    result.confidence_level,
       recommended_action:  result.recommended_action,
       ai_summary:          result.ai_summary,
+      applied_rule_id:     ruleMatch.applied_rule_id,
+      applied_rule_name:   ruleMatch.applied_rule_name,
     })
     .select('id')
     .single()
@@ -478,10 +482,25 @@ async function dispatchWebhooks(
 // 4.5. Custom rule evaluation
 // ─────────────────────────────────────────────────────────────────────────────
 
+interface RuleCondition {
+  field:    string
+  operator: string
+  value:    string
+}
+
+interface ConditionGroup {
+  match:      'all' | 'any'
+  conditions: RuleCondition[]
+}
+
 interface RuleRow {
+  id:              string
+  name:            string
   condition_type:  string
   condition_value: string
-  action:          'allow' | 'review' | 'block'
+  condition_group: ConditionGroup | null
+  action:          'allow' | 'review' | 'block' | 'require_verification'
+  priority:        number
 }
 
 interface RuleData {
@@ -490,9 +509,17 @@ interface RuleData {
   risk_level:         string
   event_type:         string
   country:            string | undefined
+  email:              string | undefined
+  metadata:           Record<string, unknown> | undefined
   ip_user_count:      number
   ip_signup_count_1h: number
   device_user_count:  number
+}
+
+interface RuleMatchResult {
+  decision:          'allow' | 'review' | 'block'
+  applied_rule_id:   string | null
+  applied_rule_name: string | null
 }
 
 function parseRuleCondition(cv: string): { operator: string; value: string } {
@@ -520,25 +547,58 @@ function evalString(a: string | undefined, op: string, b: string): boolean {
   const al = a.toLowerCase()
   const bl = b.toLowerCase()
   switch (op) {
-    case 'eq':  return al === bl
-    case 'neq': return al !== bl
-    default:    return false
+    case 'eq':       return al === bl
+    case 'neq':      return al !== bl
+    case 'contains': return al.includes(bl)
+    default:         return false
   }
 }
 
-function matchRule(rule: RuleRow, data: RuleData): boolean {
-  const { operator, value } = parseRuleCondition(rule.condition_value)
-  switch (rule.condition_type) {
-    case 'fraud_score':        return evalNumeric(data.fraud_score,        operator, value)
-    case 'trust_score':        return evalNumeric(data.trust_score,        operator, value)
-    case 'risk_level':         return evalString(data.risk_level,          operator, value)
-    case 'event_type':         return evalString(data.event_type,          operator, value)
-    case 'country':            return evalString(data.country,             operator, value)
-    case 'ip_user_count_1h':   return evalNumeric(data.ip_user_count,      operator, value)
-    case 'ip_signup_count_1h': return evalNumeric(data.ip_signup_count_1h, operator, value)
-    case 'device_user_count':  return evalNumeric(data.device_user_count,  operator, value)
-    default:                   return false
+function evalCondition(cond: RuleCondition, data: RuleData): boolean {
+  const { field, operator, value } = cond
+  switch (field) {
+    case 'fraud_score':          return evalNumeric(data.fraud_score,        operator, value)
+    case 'trust_score':          return evalNumeric(data.trust_score,        operator, value)
+    case 'risk_level':           return evalString(data.risk_level,          operator, value)
+    case 'event_type':           return evalString(data.event_type,          operator, value)
+    case 'country':              return evalString(data.country,             operator, value)
+    case 'email_domain': {
+      const domain = data.email?.split('@')[1]
+      return evalString(domain, operator, value)
+    }
+    case 'ip_user_count_1h':     return evalNumeric(data.ip_user_count,      operator, value)
+    case 'ip_signup_count_1h':   return evalNumeric(data.ip_signup_count_1h, operator, value)
+    case 'device_account_count': return evalNumeric(data.device_user_count,  operator, value)
+    // Legacy field names (backward compat)
+    case 'ip_user_count':        return evalNumeric(data.ip_user_count,      operator, value)
+    case 'device_user_count':    return evalNumeric(data.device_user_count,  operator, value)
+    default:
+      if (field.startsWith('metadata.')) {
+        const key = field.slice('metadata.'.length)
+        const metaVal = data.metadata?.[key]
+        if (metaVal === undefined) return false
+        return evalString(String(metaVal), operator, value)
+      }
+      return false
   }
+}
+
+function evalConditionGroup(group: ConditionGroup, data: RuleData): boolean {
+  if (!group.conditions || group.conditions.length === 0) return false
+  return group.match === 'all'
+    ? group.conditions.every(c => evalCondition(c, data))
+    : group.conditions.some(c => evalCondition(c, data))
+}
+
+function matchRule(rule: RuleRow, data: RuleData): boolean {
+  // New format: condition_group takes priority
+  if (rule.condition_group && rule.condition_group.conditions?.length > 0) {
+    return evalConditionGroup(rule.condition_group, data)
+  }
+  // Legacy single-condition format
+  if (!rule.condition_type) return false
+  const { operator, value } = parseRuleCondition(rule.condition_value)
+  return evalCondition({ field: rule.condition_type, operator, value }, data)
 }
 
 async function applyCustomRules(
@@ -546,21 +606,32 @@ async function applyCustomRules(
   orgId: string,
   data: RuleData,
   baseDecision: 'allow' | 'review' | 'block',
-): Promise<'allow' | 'review' | 'block'> {
+): Promise<RuleMatchResult> {
   const { data: rules } = await supabase
     .from('rules')
-    .select('condition_type, condition_value, action')
+    .select('id, name, condition_type, condition_value, condition_group, action, priority')
     .eq('organization_id', orgId)
     .eq('status', 'active')
-    .order('created_at', { ascending: true })
+    .order('priority',    { ascending: false })  // higher priority first
+    .order('created_at',  { ascending: true })   // then oldest first as tiebreaker
 
-  if (!rules || rules.length === 0) return baseDecision
-
-  for (const rule of rules as RuleRow[]) {
-    if (matchRule(rule, data)) return rule.action
+  if (!rules || rules.length === 0) {
+    return { decision: baseDecision, applied_rule_id: null, applied_rule_name: null }
   }
 
-  return baseDecision
+  for (const rule of rules as RuleRow[]) {
+    if (matchRule(rule, data)) {
+      // require_verification maps to review in the DB/response
+      const decision = rule.action === 'require_verification' ? 'review' : rule.action
+      return {
+        decision,
+        applied_rule_id:   rule.id,
+        applied_rule_name: rule.name,
+      }
+    }
+  }
+
+  return { decision: baseDecision, applied_rule_id: null, applied_rule_name: null }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -655,16 +726,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const result = analyze(input)
 
   // ── 4.5. Custom rules ───────────────────────────────────────
-  const finalDecision = await applyCustomRules(supabase, orgId, {
+  const ruleMatch = await applyCustomRules(supabase, orgId, {
     fraud_score:        result.fraud_score,
     trust_score:        result.trust_score,
     risk_level:         result.risk_level,
     event_type:         payload.event_type,
     country:            payload.country,
+    email:              payload.email,
+    metadata:           payload.metadata,
     ip_user_count:      context.ip_distinct_users_last_24h ?? 0,
     ip_signup_count_1h: context.ip_signup_count_last_1h    ?? 0,
     device_user_count:  context.device_distinct_users       ?? 0,
   }, result.decision)
+  const finalDecision = ruleMatch.decision
 
   // ── 4.6. AI Summary ────────────────────────────────────────
   // Generates a human-readable summary using the template engine (default)
@@ -684,7 +758,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // ── 5 & 6. Persistência (paralela onde possível) ────────────
   await upsertUserChecked(supabase, orgId, payload)
 
-  const eventId = await insertRiskEvent(supabase, orgId, payload, effectiveResult)
+  const eventId = await insertRiskEvent(supabase, orgId, payload, effectiveResult, ruleMatch)
 
   // ── 7. Review queue ─────────────────────────────────────────
   if (effectiveResult.decision === 'review' && eventId) {
@@ -712,6 +786,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     })),
     risk_reasons:        effectiveResult.risk_reasons,
     recommended_action:  effectiveResult.recommended_action,
+    applied_rule:        ruleMatch.applied_rule_id
+                           ? { id: ruleMatch.applied_rule_id, name: ruleMatch.applied_rule_name! }
+                           : null,
     summary:             effectiveResult.ai_summary,
     processing_time_ms:  effectiveResult.processing_time_ms,
   }

@@ -1,5 +1,18 @@
 export type RiskLevel = 'low' | 'medium' | 'high' | 'critical'
 export type Decision = 'allow' | 'review' | 'block'
+export type RuleAction = 'allow' | 'review' | 'block' | 'require_verification'
+export type ConditionOperator = 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'contains'
+
+export interface RuleCondition {
+  field: string
+  operator: ConditionOperator
+  value: string
+}
+
+export interface ConditionGroup {
+  match: 'all' | 'any'
+  conditions: RuleCondition[]
+}
 export type EventType =
   | 'signup'
   | 'login'
@@ -77,6 +90,8 @@ export interface RiskEvent {
   confidence_level: 'low' | 'medium' | 'high' | null
   recommended_action: string | null
   ai_summary: string | null
+  applied_rule_id: string | null
+  applied_rule_name: string | null
   created_at: string
 }
 
@@ -84,9 +99,12 @@ export interface Rule {
   id: string
   organization_id: string
   name: string
+  description: string | null
   condition_type: string
   condition_value: string
-  action: Decision
+  condition_group: ConditionGroup | null
+  action: RuleAction
+  priority: number
   status: RuleStatus
   created_at: string
 }
