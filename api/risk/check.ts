@@ -402,6 +402,23 @@ interface WebhookRecord {
   id: string
   endpoint_url: string
   secret: string
+  events_subscribed: string[]
+}
+
+/** Events generated for a given check result */
+function resolveWebhookEvents(decision: 'allow' | 'review' | 'block', hasRule: boolean): string[] {
+  const events = ['risk.check.completed']
+  if (decision === 'block')  events.push('risk.event.blocked')
+  if (decision === 'review') events.push('risk.review.required')
+  if (decision === 'allow')  events.push('risk.event.approved')
+  if (hasRule)               events.push('rule.triggered')
+  return events
+}
+
+/** Empty events_subscribed means "all events" (backward compat) */
+function webhookSubscribesTo(wh: WebhookRecord, event: string): boolean {
+  if (!wh.events_subscribed || wh.events_subscribed.length === 0) return true
+  return wh.events_subscribed.includes(event)
 }
 
 async function dispatchWebhooks(
@@ -410,70 +427,96 @@ async function dispatchWebhooks(
   eventId: string,
   payload: CheckPayload,
   result: ReturnType<typeof analyze>,
+  ruleMatch: RuleMatchResult,
 ): Promise<void> {
   const { data: webhooks } = await supabase
     .from('webhooks')
-    .select('id, endpoint_url, secret')
+    .select('id, endpoint_url, secret, events_subscribed')
     .eq('organization_id', orgId)
     .eq('status', 'active')
 
   if (!webhooks || webhooks.length === 0) return
 
-  const createdAt = new Date().toISOString()
-  const body = JSON.stringify({
-    event:            'risk.check.completed',
+  const eventsToFire = resolveWebhookEvents(ruleMatch.decision, Boolean(ruleMatch.applied_rule_id))
+  const createdAt    = new Date().toISOString()
+  const timestamp    = Math.floor(Date.now() / 1000).toString()
+
+  const basePayload = {
     event_id:         eventId,
     external_user_id: payload.external_user_id,
     event_type:       payload.event_type,
     trust_score:      result.trust_score,
     fraud_score:      result.fraud_score,
     risk_level:       result.risk_level,
-    decision:         result.decision === 'allow' ? 'approve' : result.decision,
+    decision:         ruleMatch.decision === 'allow' ? 'approve' : ruleMatch.decision,
     signals:          result.signals.map(s => ({ code: s.code, label: s.label, severity: s.severity })),
+    applied_rule:     ruleMatch.applied_rule_id
+                        ? { id: ruleMatch.applied_rule_id, name: ruleMatch.applied_rule_name! }
+                        : null,
     summary:          result.ai_summary,
     created_at:       createdAt,
-  })
+  }
 
   await Promise.allSettled(
-    (webhooks as WebhookRecord[]).map(wh => {
-      const signature = signPayload(wh.secret, body)
-      const start = Date.now()
+    (webhooks as WebhookRecord[]).flatMap(wh => {
+      const matchingEvents = eventsToFire.filter(e => webhookSubscribesTo(wh, e))
 
-      return fetch(wh.endpoint_url, {
-        method: 'POST',
-        headers: {
-          'Content-Type':         'application/json',
-          'X-Genuinux-Signature': `sha256=${signature}`,
-          'X-Genuinux-Event':     'risk.check.completed',
-          'User-Agent':           'Genuinux-Webhook/1.0',
-        },
-        body,
-        signal: AbortSignal.timeout(WEBHOOK_TIMEOUT_MS),
+      return matchingEvents.map(eventType => {
+        const payloadObj = { event: eventType, ...basePayload }
+        const body       = JSON.stringify(payloadObj)
+        const signature  = signPayload(wh.secret, body)
+        const start      = Date.now()
+
+        return fetch(wh.endpoint_url, {
+          method: 'POST',
+          headers: {
+            'Content-Type':          'application/json',
+            'X-Genuinux-Signature':  `sha256=${signature}`,
+            'X-Genuinux-Event':      eventType,
+            'X-Genuinux-Timestamp':  timestamp,
+            'User-Agent':            'Genuinux-Webhook/1.0',
+          },
+          body,
+          signal: AbortSignal.timeout(WEBHOOK_TIMEOUT_MS),
+        })
+          .then(r => {
+            const duration = Date.now() - start
+            const status   = r.ok ? 'success' : 'failed'
+            if (!r.ok) console.warn(`[webhook] ${wh.endpoint_url} responded ${r.status}`)
+            void supabase.from('webhook_deliveries').insert({
+              webhook_id:      wh.id,
+              organization_id: orgId,
+              event_type:      eventType,
+              payload_json:    payloadObj,
+              response_status: r.status,
+              duration_ms:     duration,
+              delivery_status: status,
+              success:         r.ok,
+            })
+            void supabase.from('webhooks').update({
+              last_delivery_status: status,
+              last_delivery_at:     new Date().toISOString(),
+            }).eq('id', wh.id)
+          })
+          .catch((err: Error) => {
+            const duration = Date.now() - start
+            console.error(`[webhook] ${wh.endpoint_url} failed:`, err.message)
+            void supabase.from('webhook_deliveries').insert({
+              webhook_id:      wh.id,
+              organization_id: orgId,
+              event_type:      eventType,
+              payload_json:    payloadObj,
+              response_body:   err.message,
+              duration_ms:     duration,
+              delivery_status: 'failed',
+              success:         false,
+            })
+            void supabase.from('webhooks').update({
+              last_delivery_status: 'failed',
+              last_delivery_at:     new Date().toISOString(),
+            }).eq('id', wh.id)
+          })
       })
-        .then(r => {
-          const duration = Date.now() - start
-          if (!r.ok) console.warn(`[webhook] ${wh.endpoint_url} responded ${r.status}`)
-          void supabase.from('webhook_deliveries').insert({
-            webhook_id:      wh.id,
-            organization_id: orgId,
-            event_type:      'risk.check.completed',
-            response_status: r.status,
-            duration_ms:     duration,
-            success:         r.ok,
-          })
-        })
-        .catch((err: Error) => {
-          const duration = Date.now() - start
-          console.error(`[webhook] ${wh.endpoint_url} failed:`, err.message)
-          void supabase.from('webhook_deliveries').insert({
-            webhook_id:      wh.id,
-            organization_id: orgId,
-            event_type:      'risk.check.completed',
-            response_body:   err.message,
-            duration_ms:     duration,
-            success:         false,
-          })
-        })
     }),
   )
 }
@@ -768,7 +811,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // ── 8. Webhooks (fire-and-forget) ───────────────────────────
   if (eventId) {
-    dispatchWebhooks(supabase, orgId, eventId, payload, effectiveResult).catch(() => {})
+    dispatchWebhooks(supabase, orgId, eventId, payload, effectiveResult, ruleMatch).catch(() => {})
   }
 
   // ── 9. Resposta ─────────────────────────────────────────────

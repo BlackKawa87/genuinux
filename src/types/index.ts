@@ -145,6 +145,9 @@ export interface Webhook {
   endpoint_url: string
   secret: string
   status: 'active' | 'disabled'
+  events_subscribed: string[]
+  last_delivery_status: string | null
+  last_delivery_at: string | null
   created_at: string
 }
 
@@ -153,8 +156,10 @@ export interface WebhookDelivery {
   webhook_id: string
   organization_id: string
   event_type: string
+  payload_json: Record<string, unknown> | null
   response_status: number | null
   response_body: string | null
+  delivery_status: string | null
   duration_ms: number | null
   success: boolean
   created_at: string

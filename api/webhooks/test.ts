@@ -74,7 +74,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!webhook) return res.status(404).json({ error: 'Webhook not found' })
 
   // ── Build test payload ─────────────────────────────────────
-  const payload = JSON.stringify({
+  const timestamp  = Math.floor(Date.now() / 1000).toString()
+  const payloadObj = {
     event:            'risk.check.completed',
     test:             true,
     event_id:         `evt_test_${Date.now()}`,
@@ -84,41 +85,49 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     fraud_score:      18,
     risk_level:       'low',
     decision:         'approve',
+    applied_rule:     null,
     signals:          [],
     summary:          'Test delivery from Genuinux dashboard.',
     created_at:       new Date().toISOString(),
-  })
-
+  }
+  const payload   = JSON.stringify(payloadObj)
   const signature = signPayload(webhook.secret as string, payload)
-  const start = Date.now()
+  const start     = Date.now()
 
   try {
     const response = await fetch(webhook.endpoint_url as string, {
       method: 'POST',
       headers: {
-        'Content-Type':         'application/json',
-        'X-Genuinux-Signature': `sha256=${signature}`,
-        'X-Genuinux-Event':     'risk.check.completed',
-        'User-Agent':           'Genuinux-Webhook/1.0',
-        'X-Genuinux-Test':      'true',
+        'Content-Type':          'application/json',
+        'X-Genuinux-Signature':  `sha256=${signature}`,
+        'X-Genuinux-Event':      'risk.check.completed',
+        'X-Genuinux-Timestamp':  timestamp,
+        'User-Agent':            'Genuinux-Webhook/1.0',
+        'X-Genuinux-Test':       'true',
       },
       body: payload,
       signal: AbortSignal.timeout(TIMEOUT_MS),
     })
 
-    const duration = Date.now() - start
+    const duration     = Date.now() - start
     const responseBody = await response.text().catch(() => '')
+    const status       = response.ok ? 'success' : 'failed'
 
-    // Log delivery (fire-and-forget — table may not exist yet)
     void supabase.from('webhook_deliveries').insert({
       webhook_id:      webhook.id,
       organization_id: orgId,
       event_type:      'risk.check.completed',
+      payload_json:    payloadObj,
       response_status: response.status,
       response_body:   responseBody.slice(0, 500),
       duration_ms:     duration,
+      delivery_status: status,
       success:         response.ok,
     })
+    void supabase.from('webhooks').update({
+      last_delivery_status: status,
+      last_delivery_at:     new Date().toISOString(),
+    }).eq('id', webhook.id)
 
     return res.status(200).json({
       success:     response.ok,
@@ -127,16 +136,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     })
   } catch (err) {
     const duration = Date.now() - start
-    const message = err instanceof Error ? err.message : 'Unknown error'
+    const message  = err instanceof Error ? err.message : 'Unknown error'
 
     void supabase.from('webhook_deliveries').insert({
       webhook_id:      webhook.id,
       organization_id: orgId,
       event_type:      'risk.check.completed',
+      payload_json:    payloadObj,
       response_body:   message,
       duration_ms:     duration,
+      delivery_status: 'failed',
       success:         false,
     })
+    void supabase.from('webhooks').update({
+      last_delivery_status: 'failed',
+      last_delivery_at:     new Date().toISOString(),
+    }).eq('id', webhook.id)
 
     return res.status(200).json({
       success:     false,

@@ -2,20 +2,46 @@ import { useEffect, useState, useCallback } from 'react'
 import {
   Plus, Globe, Copy, Eye, EyeOff, Trash2, Pencil, X, RefreshCw,
   ChevronDown, ChevronUp, CheckCircle2, XCircle, Send, RotateCcw,
-  Info, AlertTriangle,
+  Info, AlertTriangle, Clock, List,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import type { Webhook } from '../../types'
 
+// ─── Event catalogue ──────────────────────────────────────────────────────────
+
+const ALL_EVENTS = [
+  { id: 'risk.check.completed',  label: 'Check Completed',    color: '#38BDF8', bg: 'rgba(56,189,248,0.10)',  desc: 'Every risk check result'           },
+  { id: 'risk.review.required',  label: 'Review Required',    color: '#F59E0B', bg: 'rgba(245,158,11,0.10)',  desc: 'Decision is manual review'          },
+  { id: 'risk.event.blocked',    label: 'Event Blocked',      color: '#EF4444', bg: 'rgba(239,68,68,0.10)',   desc: 'Decision is block'                  },
+  { id: 'risk.event.approved',   label: 'Event Approved',     color: '#16C784', bg: 'rgba(22,199,132,0.10)',  desc: 'Decision is approve'                },
+  { id: 'feedback.submitted',    label: 'Feedback Submitted', color: '#A78BFA', bg: 'rgba(167,139,250,0.10)', desc: 'Analyst feedback recorded on event'  },
+  { id: 'rule.triggered',        label: 'Rule Triggered',     color: '#F97316', bg: 'rgba(249,115,22,0.10)',  desc: 'Custom rule matched'                },
+] as const
+
+const EVENT_META = Object.fromEntries(
+  ALL_EVENTS.map(e => [e.id, { label: e.label, color: e.color, bg: e.bg }])
+) as Record<string, { label: string; color: string; bg: string }>
+
 // ─── Local types ──────────────────────────────────────────────────────────────
 
-interface DeliveryRow {
+interface DeliveryCardRow {
   id: string
   event_type: string
   response_status: number | null
   duration_ms: number | null
   success: boolean
+  created_at: string
+}
+
+interface DeliveryLogRow {
+  id: string
+  webhook_id: string
+  event_type: string
+  delivery_status: string | null
+  success: boolean
+  response_status: number | null
+  duration_ms: number | null
   created_at: string
 }
 
@@ -68,8 +94,19 @@ function WebhookModal({ webhook, orgId, onSave, onClose }: ModalProps) {
   const [err,     setErr]     = useState<string | null>(null)
   const [copied,  setCopied]  = useState(false)
 
+  const allEventIds = ALL_EVENTS.map(e => e.id)
+  const [selectedEvents, setSelectedEvents] = useState<string[]>(
+    webhook?.events_subscribed?.length ? webhook.events_subscribed : allEventIds
+  )
+
   const isEdit  = Boolean(webhook)
-  const isValid = url.trim().startsWith('http') && secret.length > 0
+  const isValid = url.trim().startsWith('http') && secret.length > 0 && selectedEvents.length > 0
+
+  const toggleEvent = (id: string) => {
+    setSelectedEvents(prev =>
+      prev.includes(id) ? prev.filter(e => e !== id) : [...prev, id]
+    )
+  }
 
   const handleRotate = () => {
     setSecret(genSecret())
@@ -92,15 +129,16 @@ function WebhookModal({ webhook, orgId, onSave, onClose }: ModalProps) {
     let error: { message: string } | null
 
     if (isEdit) {
-      const patch: Record<string, string> = { endpoint_url: url.trim() }
+      const patch: Record<string, unknown> = { endpoint_url: url.trim(), events_subscribed: selectedEvents }
       if (rotated) patch['secret'] = secret
       ;({ data, error } = await supabase.from('webhooks').update(patch).eq('id', webhook!.id).select().single())
     } else {
       ;({ data, error } = await supabase.from('webhooks').insert({
-        organization_id: orgId,
-        endpoint_url:    url.trim(),
+        organization_id:   orgId,
+        endpoint_url:      url.trim(),
         secret,
-        status:          'active',
+        status:            'active',
+        events_subscribed: selectedEvents,
       }).select().single())
     }
 
@@ -117,7 +155,7 @@ function WebhookModal({ webhook, orgId, onSave, onClose }: ModalProps) {
     >
       <div
         className="w-full flex flex-col"
-        style={{ maxWidth: 500, background: '#07111F', border: '1px solid #1E2D3D', borderRadius: 20, maxHeight: '92vh' }}
+        style={{ maxWidth: 520, background: '#07111F', border: '1px solid #1E2D3D', borderRadius: 20, maxHeight: '92vh' }}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -155,6 +193,72 @@ function WebhookModal({ webhook, orgId, onSave, onClose }: ModalProps) {
               placeholder="https://api.yourapp.com/hooks/genuinux"
               className="g-input text-sm"
             />
+          </div>
+
+          {/* Events subscription */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-semibold" style={{ color: '#94A3B8' }}>
+                Subscribe to events
+              </label>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setSelectedEvents(allEventIds)}
+                  className="text-[10px] px-2 py-0.5 rounded"
+                  style={{ color: '#16C784', background: 'rgba(22,199,132,0.08)', border: '1px solid rgba(22,199,132,0.15)' }}
+                >
+                  All
+                </button>
+                <button
+                  onClick={() => setSelectedEvents([])}
+                  className="text-[10px] px-2 py-0.5 rounded"
+                  style={{ color: '#475569', background: '#0B1220', border: '1px solid #1E2D3D' }}
+                >
+                  None
+                </button>
+              </div>
+            </div>
+            <div className="rounded-xl overflow-hidden" style={{ border: '1px solid #1E2D3D' }}>
+              {ALL_EVENTS.map((ev, i) => {
+                const checked = selectedEvents.includes(ev.id)
+                return (
+                  <button
+                    key={ev.id}
+                    onClick={() => toggleEvent(ev.id)}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors"
+                    style={{
+                      background: checked ? `${ev.color}08` : '#050B14',
+                      borderTop: i > 0 ? '1px solid #0D1B2A' : 'none',
+                    }}
+                    onMouseEnter={e => { if (!checked) e.currentTarget.style.background = '#0B1220' }}
+                    onMouseLeave={e => { if (!checked) e.currentTarget.style.background = '#050B14' }}
+                  >
+                    <div
+                      className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0"
+                      style={{
+                        background: checked ? ev.color : 'transparent',
+                        border: `1.5px solid ${checked ? ev.color : '#1E2D3D'}`,
+                      }}
+                    >
+                      {checked && <CheckCircle2 size={10} style={{ color: '#000' }} />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold mono" style={{ color: checked ? ev.color : '#94A3B8' }}>
+                        {ev.id}
+                      </p>
+                      <p className="text-[10px] mt-0.5" style={{ color: '#475569' }}>
+                        {ev.desc}
+                      </p>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+            {selectedEvents.length === 0 && (
+              <p className="text-[11px] mt-1.5" style={{ color: '#EF4444' }}>
+                Select at least one event.
+              </p>
+            )}
           </div>
 
           {/* Secret */}
@@ -219,26 +323,6 @@ function WebhookModal({ webhook, orgId, onSave, onClose }: ModalProps) {
             )}
           </div>
 
-          {/* Sample payload */}
-          <div>
-            <label className="block text-xs font-semibold mb-2" style={{ color: '#94A3B8' }}>
-              Sample Payload
-            </label>
-            <pre
-              className="text-[11px] mono p-3 rounded-xl overflow-x-auto"
-              style={{ background: '#050B14', border: '1px solid #1E2D3D', color: '#475569', lineHeight: 1.65 }}
-            >{`{
-  "event": "risk.check.completed",
-  "event_id": "evt_...",
-  "external_user_id": "user_123",
-  "trust_score": 82,
-  "fraud_score": 18,
-  "risk_level": "low",
-  "decision": "approve",
-  "created_at": "2026-01-15T12:00:00Z"
-}`}</pre>
-          </div>
-
           {err && (
             <p className="text-xs px-3 py-2 rounded-lg" style={{ background: 'rgba(239,68,68,0.08)', color: '#EF4444', border: '1px solid rgba(239,68,68,0.2)' }}>
               {err}
@@ -272,12 +356,13 @@ function WebhookModal({ webhook, orgId, onSave, onClose }: ModalProps) {
   )
 }
 
-// ─── DeliveryRow component ────────────────────────────────────────────────────
+// ─── DeliveryItem (per-card expandable section) ───────────────────────────────
 
-function DeliveryItem({ d }: { d: DeliveryRow }) {
+function DeliveryItem({ d }: { d: DeliveryCardRow }) {
+  const meta = EVENT_META[d.event_type] ?? { label: d.event_type, color: '#94A3B8', bg: 'rgba(148,163,184,0.10)' }
   return (
     <div
-      className="flex items-center gap-3 px-5 py-2.5"
+      className="flex items-center gap-3 px-4 py-2.5"
       style={{ borderTop: '1px solid #0A1828' }}
     >
       {d.success
@@ -285,25 +370,28 @@ function DeliveryItem({ d }: { d: DeliveryRow }) {
         : <XCircle size={11} style={{ color: '#EF4444', flexShrink: 0 }} />
       }
       <span
+        className="mono text-[10px] px-1.5 py-0.5 rounded font-semibold flex-shrink-0"
+        style={{ color: meta.color, background: meta.bg }}
+      >
+        {meta.label}
+      </span>
+      <span
         className="mono text-[11px] px-1.5 py-0.5 rounded font-semibold"
         style={{
           background: d.success ? 'rgba(22,199,132,0.08)' : 'rgba(239,68,68,0.08)',
-          color: d.success ? '#16C784' : '#EF4444',
+          color:      d.success ? '#16C784' : '#EF4444',
           minWidth: 34,
           textAlign: 'center',
         }}
       >
         {d.response_status ?? '—'}
       </span>
-      <span className="text-xs flex-1 truncate" style={{ color: '#475569' }}>
-        {d.event_type}
-      </span>
       {d.duration_ms !== null && (
         <span className="mono text-[10px]" style={{ color: '#2D4057' }}>
           {d.duration_ms}ms
         </span>
       )}
-      <span className="mono text-[10px] whitespace-nowrap" style={{ color: '#2D4057', minWidth: 50, textAlign: 'right' }}>
+      <span className="mono text-[10px] whitespace-nowrap ml-auto" style={{ color: '#2D4057' }}>
         {ago(d.created_at)}
       </span>
     </div>
@@ -313,29 +401,33 @@ function DeliveryItem({ d }: { d: DeliveryRow }) {
 // ─── WebhookCard ──────────────────────────────────────────────────────────────
 
 interface CardProps {
-  webhook:         Webhook
-  onEdit:          () => void
-  onDelete:        () => void
-  onTest:          () => void
-  testResult:      TestResult | 'loading' | null
-  secretVisible:   boolean
-  onToggleSecret:  () => void
-  toggling:        boolean
-  onToggleStatus:  () => void
+  webhook:        Webhook
+  onEdit:         () => void
+  onDelete:       () => void
+  onTest:         () => void
+  testResult:     TestResult | 'loading' | null
+  secretVisible:  boolean
+  onToggleSecret: () => void
+  toggling:       boolean
+  onToggleStatus: () => void
 }
 
 function WebhookCard({
   webhook, onEdit, onDelete, onTest, testResult,
   secretVisible, onToggleSecret, toggling, onToggleStatus,
 }: CardProps) {
-  const [expanded,         setExpanded]         = useState(false)
-  const [deliveries,       setDeliveries]       = useState<DeliveryRow[] | null>(null)
-  const [deliveriesErr,    setDeliveriesErr]    = useState<string | null>(null)
-  const [deliveriesLoad,   setDeliveriesLoad]   = useState(false)
-  const [delConfirm,       setDelConfirm]       = useState(false)
-  const [copied,           setCopied]           = useState(false)
+  const [expanded,       setExpanded]       = useState(false)
+  const [deliveries,     setDeliveries]     = useState<DeliveryCardRow[] | null>(null)
+  const [deliveriesErr,  setDeliveriesErr]  = useState<string | null>(null)
+  const [deliveriesLoad, setDeliveriesLoad] = useState(false)
+  const [delConfirm,     setDelConfirm]     = useState(false)
+  const [copied,         setCopied]         = useState(false)
 
   const isActive = webhook.status === 'active'
+  const subscribedEvents: string[] = webhook.events_subscribed?.length
+    ? webhook.events_subscribed
+    : ALL_EVENTS.map(e => e.id)
+  const allSubscribed = subscribedEvents.length === ALL_EVENTS.length
 
   const handleExpand = async () => {
     const next = !expanded
@@ -350,12 +442,10 @@ function WebhookCard({
         .limit(20)
       if (error) {
         setDeliveriesErr(
-          (error as { code?: string }).code === '42P01'
-            ? '__migration__'
-            : error.message
+          (error as { code?: string }).code === '42P01' ? '__migration__' : error.message
         )
       } else {
-        setDeliveries((data ?? []) as DeliveryRow[])
+        setDeliveries((data ?? []) as DeliveryCardRow[])
       }
       setDeliveriesLoad(false)
     }
@@ -370,12 +460,12 @@ function WebhookCard({
   return (
     <div className="g-card overflow-hidden">
 
-      {/* ── Main row ──────────────────────────────────── */}
+      {/* ── Main row ────────────────────────────────── */}
       <div className="px-5 py-4">
         <div className="flex items-start justify-between gap-4">
 
-          {/* Status pill + URL */}
-          <div className="flex items-start gap-3 min-w-0">
+          {/* Status + URL */}
+          <div className="flex items-start gap-3 min-w-0 flex-1">
             <button
               onClick={onToggleStatus}
               disabled={toggling}
@@ -387,25 +477,65 @@ function WebhookCard({
                 className="inline-flex items-center gap-1.5 text-[10px] font-semibold mono px-2 py-0.5 rounded-full"
                 style={{
                   background: isActive ? 'rgba(22,199,132,0.08)' : 'rgba(71,85,105,0.12)',
-                  color: isActive ? '#16C784' : '#475569',
+                  color:      isActive ? '#16C784' : '#475569',
                   border: `1px solid ${isActive ? 'rgba(22,199,132,0.2)' : '#1E2D3D'}`,
                 }}
               >
-                <span
-                  className="w-1.5 h-1.5 rounded-full"
-                  style={{ background: isActive ? '#16C784' : '#475569' }}
-                />
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: isActive ? '#16C784' : '#475569' }} />
                 {isActive ? 'Active' : 'Disabled'}
               </span>
             </button>
 
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold mono truncate" style={{ color: '#E2E8F0' }}>
                 {webhook.endpoint_url}
               </p>
-              <p className="text-[11px] mt-0.5 mono" style={{ color: '#2D4057' }}>
-                Created {new Date(webhook.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-              </p>
+
+              {/* Meta line */}
+              <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                <p className="text-[11px] mono" style={{ color: '#2D4057' }}>
+                  Created {new Date(webhook.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </p>
+                {webhook.last_delivery_status && (
+                  <span
+                    className="inline-flex items-center gap-1 text-[10px] mono"
+                    style={{ color: webhook.last_delivery_status === 'success' ? '#16C784' : '#EF4444' }}
+                  >
+                    {webhook.last_delivery_status === 'success'
+                      ? <CheckCircle2 size={9} />
+                      : <XCircle size={9} />
+                    }
+                    Last: {webhook.last_delivery_status}
+                    {webhook.last_delivery_at && ` · ${ago(webhook.last_delivery_at)}`}
+                  </span>
+                )}
+              </div>
+
+              {/* Subscribed events chips */}
+              <div className="flex flex-wrap gap-1 mt-2">
+                {allSubscribed ? (
+                  <span
+                    className="text-[9px] mono px-1.5 py-0.5 rounded"
+                    style={{ color: '#475569', background: '#0B1220', border: '1px solid #1E2D3D' }}
+                  >
+                    All events
+                  </span>
+                ) : (
+                  subscribedEvents.map(evId => {
+                    const meta = EVENT_META[evId]
+                    if (!meta) return null
+                    return (
+                      <span
+                        key={evId}
+                        className="text-[9px] mono px-1.5 py-0.5 rounded font-semibold"
+                        style={{ color: meta.color, background: meta.bg, border: `1px solid ${meta.color}28` }}
+                      >
+                        {evId}
+                      </span>
+                    )
+                  })
+                )}
+              </div>
             </div>
           </div>
 
@@ -519,7 +649,7 @@ function WebhookCard({
         </div>
       </div>
 
-      {/* ── Deliveries section ─────────────────────────── */}
+      {/* ── Recent Deliveries (expandable) ──────────── */}
       <div style={{ borderTop: '1px solid #0D1B2A' }}>
         <button
           onClick={() => void handleExpand()}
@@ -528,9 +658,7 @@ function WebhookCard({
           onMouseEnter={e => (e.currentTarget.style.color = '#475569')}
           onMouseLeave={e => (e.currentTarget.style.color = '#2D4057')}
         >
-          <span className="text-[10px] font-semibold uppercase tracking-wider">
-            Recent Deliveries
-          </span>
+          <span className="text-[10px] font-semibold uppercase tracking-wider">Recent Deliveries</span>
           {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
         </button>
 
@@ -542,35 +670,23 @@ function WebhookCard({
                 <span className="text-xs">Loading…</span>
               </div>
             )}
-
             {deliveriesErr === '__migration__' && (
               <div className="flex items-start gap-2 px-5 py-3">
                 <AlertTriangle size={12} style={{ color: '#F59E0B', flexShrink: 0, marginTop: 1 }} />
-                <div>
-                  <p className="text-xs font-semibold mb-0.5" style={{ color: '#F59E0B' }}>
-                    Migration required
-                  </p>
-                  <p className="text-[11px]" style={{ color: '#475569' }}>
-                    Run the <code className="mono" style={{ color: '#94A3B8' }}>webhook_deliveries</code> migration in{' '}
-                    <code className="mono" style={{ color: '#94A3B8' }}>supabase/schema.sql</code> to enable delivery tracking.
-                  </p>
-                </div>
+                <p className="text-[11px]" style={{ color: '#475569' }}>
+                  Run the SQL migration to enable delivery tracking.
+                </p>
               </div>
             )}
-
             {deliveriesErr && deliveriesErr !== '__migration__' && (
               <p className="px-5 py-3 text-xs" style={{ color: '#EF4444' }}>{deliveriesErr}</p>
             )}
-
             {deliveries !== null && deliveries.length === 0 && !deliveriesErr && (
               <p className="px-5 py-3 text-xs" style={{ color: '#2D4057' }}>
                 No deliveries yet. Send a test to verify your endpoint.
               </p>
             )}
-
-            {deliveries && deliveries.map(d => (
-              <DeliveryItem key={d.id} d={d} />
-            ))}
+            {deliveries && deliveries.map(d => <DeliveryItem key={d.id} d={d} />)}
           </div>
         )}
       </div>
@@ -578,38 +694,227 @@ function WebhookCard({
   )
 }
 
+// ─── Delivery Logs tab ────────────────────────────────────────────────────────
+
+function DeliveryLogs({ orgId, webhooks }: { orgId: string; webhooks: Webhook[] }) {
+  const [logs,     setLogs]     = useState<DeliveryLogRow[] | null>(null)
+  const [loading,  setLoading]  = useState(false)
+  const [err,      setErr]      = useState<string | null>(null)
+  const [filterEv, setFilterEv] = useState<string>('all')
+  const [filterSt, setFilterSt] = useState<'all' | 'success' | 'failed'>('all')
+
+  const endpointMap = Object.fromEntries(webhooks.map(w => [w.id, w.endpoint_url]))
+
+  useEffect(() => {
+    void (async () => {
+      setLoading(true)
+      const { data, error } = await supabase
+        .from('webhook_deliveries')
+        .select('id, webhook_id, event_type, delivery_status, success, response_status, duration_ms, created_at')
+        .eq('organization_id', orgId)
+        .order('created_at', { ascending: false })
+        .limit(200)
+      if (error) {
+        setErr((error as { code?: string }).code === '42P01' ? '__migration__' : error.message)
+      } else {
+        setLogs((data ?? []) as DeliveryLogRow[])
+      }
+      setLoading(false)
+    })()
+  }, [orgId])
+
+  const filtered = (logs ?? []).filter(d => {
+    if (filterEv !== 'all' && d.event_type !== filterEv) return false
+    if (filterSt !== 'all') {
+      const ok = d.delivery_status === 'success' || d.success
+      if (filterSt === 'success' && !ok) return false
+      if (filterSt === 'failed'  && ok)  return false
+    }
+    return true
+  })
+
+  if (loading) return (
+    <div className="flex items-center gap-2 py-12 justify-center" style={{ color: '#475569' }}>
+      <RefreshCw size={14} className="animate-spin" />
+      <span className="text-sm">Loading delivery logs…</span>
+    </div>
+  )
+
+  if (err === '__migration__') return (
+    <div className="g-card p-5 flex items-start gap-3">
+      <AlertTriangle size={14} style={{ color: '#F59E0B', flexShrink: 0, marginTop: 1 }} />
+      <div>
+        <p className="text-sm font-semibold mb-1" style={{ color: '#F59E0B' }}>Migration required</p>
+        <p className="text-xs" style={{ color: '#475569' }}>
+          Run the <code className="mono" style={{ color: '#94A3B8' }}>webhook_deliveries</code> SQL migration to enable delivery logs.
+        </p>
+      </div>
+    </div>
+  )
+
+  if (err) return <p className="text-sm g-card p-5" style={{ color: '#EF4444' }}>{err}</p>
+
+  return (
+    <div>
+      {/* Filters */}
+      <div className="flex items-center gap-4 mb-4 flex-wrap">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#2D4057' }}>
+            Event
+          </span>
+          <select
+            value={filterEv}
+            onChange={e => setFilterEv(e.target.value)}
+            className="text-xs mono px-2 py-1 rounded-lg"
+            style={{ background: '#07111F', border: '1px solid #1E2D3D', color: '#94A3B8' }}
+          >
+            <option value="all">All events</option>
+            {ALL_EVENTS.map(e => (
+              <option key={e.id} value={e.id}>{e.id}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex items-center gap-1">
+          {(['all', 'success', 'failed'] as const).map(s => (
+            <button
+              key={s}
+              onClick={() => setFilterSt(s)}
+              className="text-[10px] px-2.5 py-1 rounded-lg capitalize font-semibold"
+              style={{
+                background: filterSt === s ? '#0F1929' : 'transparent',
+                color: filterSt === s
+                  ? (s === 'success' ? '#16C784' : s === 'failed' ? '#EF4444' : '#94A3B8')
+                  : '#475569',
+                border: `1px solid ${filterSt === s ? '#1E2D3D' : 'transparent'}`,
+              }}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+
+        <span className="ml-auto text-[10px] mono" style={{ color: '#2D4057' }}>
+          {filtered.length} {filtered.length === 1 ? 'delivery' : 'deliveries'}
+        </span>
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="g-card py-12 text-center">
+          <Clock size={20} className="mx-auto mb-2" style={{ color: '#1E2D3D' }} />
+          <p className="text-sm" style={{ color: '#2D4057' }}>
+            {logs?.length === 0 ? 'No deliveries yet.' : 'No deliveries match the current filter.'}
+          </p>
+        </div>
+      ) : (
+        <div className="g-card overflow-hidden">
+          {/* Table header */}
+          <div
+            className="grid text-[10px] font-semibold uppercase tracking-wider px-5 py-2.5"
+            style={{
+              gridTemplateColumns: '140px 1fr 90px 55px 65px 75px',
+              color: '#2D4057',
+              borderBottom: '1px solid #0D1B2A',
+            }}
+          >
+            <span>Event</span>
+            <span>Endpoint</span>
+            <span>Status</span>
+            <span>Code</span>
+            <span>Duration</span>
+            <span className="text-right">Time</span>
+          </div>
+
+          {filtered.map(d => {
+            const meta     = EVENT_META[d.event_type] ?? { label: d.event_type, color: '#94A3B8', bg: 'rgba(148,163,184,0.10)' }
+            const isOk     = d.delivery_status === 'success' || d.success
+            const endpoint = endpointMap[d.webhook_id] ?? d.webhook_id
+            const hasCode  = d.response_status !== null
+
+            return (
+              <div
+                key={d.id}
+                className="grid items-center px-5 py-2.5"
+                style={{
+                  gridTemplateColumns: '140px 1fr 90px 55px 65px 75px',
+                  borderTop: '1px solid #0A1828',
+                }}
+              >
+                {/* Event badge */}
+                <span
+                  className="mono text-[10px] px-1.5 py-0.5 rounded font-semibold w-fit"
+                  style={{ color: meta.color, background: meta.bg }}
+                >
+                  {meta.label}
+                </span>
+
+                {/* Endpoint */}
+                <span className="text-xs mono truncate pr-3" style={{ color: '#475569' }}>
+                  {endpoint}
+                </span>
+
+                {/* Status */}
+                <span
+                  className="inline-flex items-center gap-1 text-[10px] font-semibold"
+                  style={{ color: isOk ? '#16C784' : '#EF4444' }}
+                >
+                  {isOk ? <CheckCircle2 size={10} /> : <XCircle size={10} />}
+                  {isOk ? 'Success' : 'Failed'}
+                </span>
+
+                {/* HTTP code */}
+                <span
+                  className="mono text-[11px] font-semibold px-1.5 py-0.5 rounded text-center w-fit"
+                  style={{
+                    background: !hasCode
+                      ? 'rgba(71,85,105,0.1)'
+                      : d.response_status! < 300
+                        ? 'rgba(22,199,132,0.08)'
+                        : 'rgba(239,68,68,0.08)',
+                    color: !hasCode
+                      ? '#475569'
+                      : d.response_status! < 300
+                        ? '#16C784'
+                        : '#EF4444',
+                  }}
+                >
+                  {d.response_status ?? '—'}
+                </span>
+
+                {/* Duration */}
+                <span className="mono text-[10px]" style={{ color: '#2D4057' }}>
+                  {d.duration_ms != null ? `${d.duration_ms}ms` : '—'}
+                </span>
+
+                {/* Time */}
+                <span className="mono text-[10px] text-right" style={{ color: '#2D4057' }}>
+                  {ago(d.created_at)}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function Webhooks() {
-  const { user } = useAuth()
-  const [orgId,    setOrgId]    = useState<string | null>(null)
+  const { user, profile } = useAuth()
+  const orgId = profile?.organization_id ?? null
+
   const [webhooks, setWebhooks] = useState<Webhook[]>([])
   const [loading,  setLoading]  = useState(true)
   const [error,    setError]    = useState<string | null>(null)
+  const [tab,      setTab]      = useState<'endpoints' | 'logs'>('endpoints')
 
   const [showModal,      setShowModal]      = useState(false)
   const [editingWebhook, setEditingWebhook] = useState<Webhook | undefined>(undefined)
   const [toggling,       setToggling]       = useState<Set<string>>(new Set())
   const [secretVisible,  setSecretVisible]  = useState<Set<string>>(new Set())
   const [testResults,    setTestResults]    = useState<Map<string, TestResult | 'loading'>>(new Map())
-
-  // ── Resolve org ───────────────────────────────────────────
-  useEffect(() => {
-    if (!user) return
-    void (async () => {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('organization_id')
-        .eq('user_id', user.id)
-        .single()
-      if (profile?.organization_id) {
-        setOrgId(profile.organization_id as string)
-      } else {
-        setError('No organization linked to this account.')
-        setLoading(false)
-      }
-    })()
-  }, [user])
 
   const fetchWebhooks = useCallback(async () => {
     if (!orgId) return
@@ -625,7 +930,16 @@ export default function Webhooks() {
 
   useEffect(() => { void fetchWebhooks() }, [fetchWebhooks])
 
-  // ── Toggle active/disabled ────────────────────────────────
+  // Handle profile-loaded-but-no-org edge case
+  useEffect(() => {
+    if (profile !== null && !orgId) {
+      setError('No organization linked to this account.')
+      setLoading(false)
+    }
+  }, [profile, orgId])
+
+  // ── Actions ────────────────────────────────────────────────
+
   const handleToggleStatus = async (webhook: Webhook) => {
     setToggling(prev => new Set(prev).add(webhook.id))
     const next = webhook.status === 'active' ? 'disabled' : 'active'
@@ -635,32 +949,30 @@ export default function Webhooks() {
     setToggling(prev => { const s = new Set(prev); s.delete(webhook.id); return s })
   }
 
-  // ── Delete ────────────────────────────────────────────────
   const handleDelete = async (id: string) => {
     const deleted = webhooks.find(w => w.id === id)
     await supabase.from('webhooks').delete().eq('id', id)
     if (orgId && deleted) {
       void supabase.from('audit_logs').insert({
         organization_id: orgId,
-        user_id: user?.id ?? null,
-        action: 'webhook.deleted',
-        metadata_json: { webhook_id: id, endpoint_url: deleted.endpoint_url },
+        user_id:         user?.id ?? null,
+        action:          'webhook.deleted',
+        metadata_json:   { webhook_id: id, endpoint_url: deleted.endpoint_url },
       })
     }
     setWebhooks(prev => prev.filter(w => w.id !== id))
   }
 
-  // ── Save (create / edit) ──────────────────────────────────
   const handleSaved = (saved: Webhook) => {
     setWebhooks(prev => {
-      const idx = prev.findIndex(w => w.id === saved.id)
+      const idx    = prev.findIndex(w => w.id === saved.id)
       const action = idx >= 0 ? 'webhook.updated' : 'webhook.created'
       if (orgId) {
         void supabase.from('audit_logs').insert({
           organization_id: orgId,
-          user_id: user?.id ?? null,
+          user_id:         user?.id ?? null,
           action,
-          metadata_json: { webhook_id: saved.id, endpoint_url: saved.endpoint_url },
+          metadata_json:   { webhook_id: saved.id, endpoint_url: saved.endpoint_url },
         })
       }
       return idx >= 0
@@ -669,28 +981,22 @@ export default function Webhooks() {
     })
   }
 
-  // ── Test delivery ─────────────────────────────────────────
   const handleTest = async (webhook: Webhook) => {
     setTestResults(prev => new Map(prev).set(webhook.id, 'loading'))
-
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) {
-      setTestResults(prev => new Map(prev).set(webhook.id, {
-        success: false, status: null, duration_ms: 0, error: 'Not authenticated',
-      }))
+      setTestResults(prev => new Map(prev).set(webhook.id, { success: false, status: null, duration_ms: 0, error: 'Not authenticated' }))
       return
     }
-
     try {
-      const res  = await fetch('/api/webhooks/test', {
-        method: 'POST',
-        headers: {
-          'Content-Type':  'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ webhook_id: webhook.id }),
+      const res    = await fetch('/api/webhooks/test', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body:    JSON.stringify({ webhook_id: webhook.id }),
       })
       const result = await res.json() as TestResult
+      // Refresh webhook to pick up last_delivery_status
+      void fetchWebhooks()
       setTestResults(prev => new Map(prev).set(webhook.id, result))
     } catch (err) {
       setTestResults(prev => new Map(prev).set(webhook.id, {
@@ -698,14 +1004,11 @@ export default function Webhooks() {
         error: err instanceof Error ? err.message : 'Request failed',
       }))
     }
-
-    // Auto-clear after 10s
     setTimeout(() => {
       setTestResults(prev => { const m = new Map(prev); m.delete(webhook.id); return m })
     }, 10_000)
   }
 
-  // ── Secret visibility ─────────────────────────────────────
   const toggleSecret = (id: string) => {
     setSecretVisible(prev => {
       const next = new Set(prev)
@@ -714,7 +1017,8 @@ export default function Webhooks() {
     })
   }
 
-  // ── Loading / error states ────────────────────────────────
+  // ── Render ─────────────────────────────────────────────────
+
   if (loading) return (
     <div className="flex items-center justify-center min-h-[60vh] gap-3" style={{ color: '#475569' }}>
       <RefreshCw size={15} className="animate-spin" />
@@ -733,87 +1037,123 @@ export default function Webhooks() {
   return (
     <div className="p-7" style={{ maxWidth: 960 }}>
 
-      {/* Sub-header */}
+      {/* ── Top bar ──────────────────────────────────── */}
       <div className="flex items-center justify-between mb-5">
-        <p className="text-sm" style={{ color: '#475569' }}>
-          {activeCount > 0
-            ? <><span style={{ color: '#16C784', fontWeight: 600 }}>{activeCount} active</span></>
-            : <span>No active webhooks</span>
-          }
-          <span style={{ color: '#2D4057' }}> · {webhooks.length} total</span>
-        </p>
-        <button
-          onClick={() => { setEditingWebhook(undefined); setShowModal(true) }}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold"
-          style={{ background: '#16C784', color: '#000000' }}
-          onMouseEnter={e => (e.currentTarget.style.opacity = '0.88')}
-          onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
-        >
-          <Plus size={14} />
-          New Webhook
-        </button>
-      </div>
+        <div className="flex items-center gap-4">
+          {/* Tab switcher */}
+          <div
+            className="flex items-center gap-0.5 p-0.5 rounded-xl"
+            style={{ background: '#07111F', border: '1px solid #1E2D3D' }}
+          >
+            {([
+              { id: 'endpoints', label: 'Endpoints',     icon: Globe },
+              { id: 'logs',      label: 'Delivery Logs', icon: List  },
+            ] as const).map(t => (
+              <button
+                key={t.id}
+                onClick={() => setTab(t.id)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+                style={{
+                  background: tab === t.id ? '#0F1929' : 'transparent',
+                  color:      tab === t.id ? '#E2E8F0' : '#475569',
+                }}
+              >
+                <t.icon size={11} />
+                {t.label}
+              </button>
+            ))}
+          </div>
 
-      {/* Info banner */}
-      <div
-        className="flex items-start gap-3 px-4 py-3 rounded-xl mb-6"
-        style={{ background: 'rgba(22,199,132,0.05)', border: '1px solid rgba(22,199,132,0.12)' }}
-      >
-        <Info size={13} style={{ color: '#16C784', flexShrink: 0, marginTop: 1 }} />
-        <p className="text-xs leading-relaxed" style={{ color: '#475569' }}>
-          Webhooks fire after every <code className="mono" style={{ color: '#94A3B8' }}>risk.check.completed</code> event.
-          Validate requests by checking the{' '}
-          <code className="mono" style={{ color: '#94A3B8' }}>X-Genuinux-Signature</code>{' '}
-          header — an HMAC-SHA256 of the raw JSON body signed with your webhook secret.
-        </p>
-      </div>
+          {tab === 'endpoints' && (
+            <p className="text-sm" style={{ color: '#475569' }}>
+              {activeCount > 0
+                ? <><span style={{ color: '#16C784', fontWeight: 600 }}>{activeCount} active</span></>
+                : <span>No active webhooks</span>
+              }
+              <span style={{ color: '#2D4057' }}> · {webhooks.length} total</span>
+            </p>
+          )}
+        </div>
 
-      {/* Empty state */}
-      {webhooks.length === 0 ? (
-        <div className="g-card py-16 text-center">
-          <Globe size={24} className="mx-auto mb-3" style={{ color: '#1E2D3D' }} />
-          <p className="text-sm font-semibold mb-1.5" style={{ color: '#475569' }}>No webhooks yet</p>
-          <p className="text-xs mb-5" style={{ color: '#2D4057' }}>
-            Register an endpoint to receive real-time risk analysis results.
-          </p>
+        {tab === 'endpoints' && (
           <button
             onClick={() => { setEditingWebhook(undefined); setShowModal(true) }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold"
             style={{ background: '#16C784', color: '#000000' }}
+            onMouseEnter={e => (e.currentTarget.style.opacity = '0.88')}
+            onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
           >
-            <Plus size={13} />
+            <Plus size={14} />
             New Webhook
           </button>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {webhooks.map(webhook => (
-            <WebhookCard
-              key={webhook.id}
-              webhook={webhook}
-              onEdit={() => { setEditingWebhook(webhook); setShowModal(true) }}
-              onDelete={() => void handleDelete(webhook.id)}
-              onTest={() => void handleTest(webhook)}
-              testResult={testResults.get(webhook.id) ?? null}
-              secretVisible={secretVisible.has(webhook.id)}
-              onToggleSecret={() => toggleSecret(webhook.id)}
-              toggling={toggling.has(webhook.id)}
-              onToggleStatus={() => void handleToggleStatus(webhook)}
-            />
-          ))}
+        )}
+      </div>
+
+      {/* ── Info banner (endpoints only) ─────────────── */}
+      {tab === 'endpoints' && (
+        <div
+          className="flex items-start gap-3 px-4 py-3 rounded-xl mb-6"
+          style={{ background: 'rgba(22,199,132,0.05)', border: '1px solid rgba(22,199,132,0.12)' }}
+        >
+          <Info size={13} style={{ color: '#16C784', flexShrink: 0, marginTop: 1 }} />
+          <p className="text-xs leading-relaxed" style={{ color: '#475569' }}>
+            Each delivery is signed with{' '}
+            <code className="mono" style={{ color: '#94A3B8' }}>X-Genuinux-Signature</code>,{' '}
+            <code className="mono" style={{ color: '#94A3B8' }}>X-Genuinux-Event</code>, and{' '}
+            <code className="mono" style={{ color: '#94A3B8' }}>X-Genuinux-Timestamp</code>.{' '}
+            Subscribe only to the events your system needs.
+          </p>
         </div>
       )}
 
-      {/* Signature verification snippet */}
-      {webhooks.length > 0 && (
-        <div className="mt-6">
-          <p className="text-[10px] font-semibold uppercase tracking-wider mb-3" style={{ color: '#2D4057' }}>
-            Signature Verification — Node.js
-          </p>
-          <pre
-            className="mono text-[11px] p-4 rounded-xl overflow-x-auto"
-            style={{ background: '#07111F', border: '1px solid #1E2D3D', color: '#475569', lineHeight: 1.75 }}
-          >{`const crypto = require('crypto')
+      {/* ── Endpoints tab ───────────────────────────── */}
+      {tab === 'endpoints' && (
+        <>
+          {webhooks.length === 0 ? (
+            <div className="g-card py-16 text-center">
+              <Globe size={24} className="mx-auto mb-3" style={{ color: '#1E2D3D' }} />
+              <p className="text-sm font-semibold mb-1.5" style={{ color: '#475569' }}>No webhooks yet</p>
+              <p className="text-xs mb-5" style={{ color: '#2D4057' }}>
+                Register an endpoint to receive real-time risk events.
+              </p>
+              <button
+                onClick={() => { setEditingWebhook(undefined); setShowModal(true) }}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold"
+                style={{ background: '#16C784', color: '#000000' }}
+              >
+                <Plus size={13} />
+                New Webhook
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {webhooks.map(webhook => (
+                <WebhookCard
+                  key={webhook.id}
+                  webhook={webhook}
+                  onEdit={() => { setEditingWebhook(webhook); setShowModal(true) }}
+                  onDelete={() => void handleDelete(webhook.id)}
+                  onTest={() => void handleTest(webhook)}
+                  testResult={testResults.get(webhook.id) ?? null}
+                  secretVisible={secretVisible.has(webhook.id)}
+                  onToggleSecret={() => toggleSecret(webhook.id)}
+                  toggling={toggling.has(webhook.id)}
+                  onToggleStatus={() => void handleToggleStatus(webhook)}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Signature snippet */}
+          {webhooks.length > 0 && (
+            <div className="mt-6">
+              <p className="text-[10px] font-semibold uppercase tracking-wider mb-3" style={{ color: '#2D4057' }}>
+                Signature Verification — Node.js
+              </p>
+              <pre
+                className="mono text-[11px] p-4 rounded-xl overflow-x-auto"
+                style={{ background: '#07111F', border: '1px solid #1E2D3D', color: '#475569', lineHeight: 1.75 }}
+              >{`const crypto = require('crypto')
 
 function verifyWebhook(rawBody, signature, secret) {
   const expected = 'sha256=' +
@@ -828,19 +1168,28 @@ function verifyWebhook(rawBody, signature, secret) {
 
 // Express example:
 app.post('/hooks/genuinux', express.raw({ type: 'application/json' }), (req, res) => {
-  const sig = req.headers['x-genuinux-signature']
+  const sig   = req.headers['x-genuinux-signature']
+  const event = req.headers['x-genuinux-event']       // e.g. "risk.event.blocked"
+  const ts    = req.headers['x-genuinux-timestamp']   // Unix seconds
   if (!verifyWebhook(req.body, sig, process.env.WEBHOOK_SECRET)) {
     return res.status(401).send('Invalid signature')
   }
-  const event = JSON.parse(req.body)
-  // handle event.decision, event.risk_level, etc.
+  const payload = JSON.parse(req.body)
+  console.log('Received:', event, payload.decision)
   res.sendStatus(200)
 })`}</pre>
-        </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── Delivery Logs tab ───────────────────────── */}
+      {tab === 'logs' && orgId !== null && (
+        <DeliveryLogs orgId={orgId} webhooks={webhooks} />
       )}
 
       {/* Modal */}
-      {showModal && orgId && (
+      {showModal && orgId !== null && (
         <WebhookModal
           webhook={editingWebhook}
           orgId={orgId}
