@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
+import { useT } from '../../lib/themeTokens'
 import type { RiskEvent } from '../../types'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -180,6 +181,7 @@ function HorizBar({ label, count, max, color, pct: pctOverride }: {
 
 export default function Overview() {
   const { user } = useAuth()
+  const T = useT()
   const [orgId,      setOrgId]      = useState<string | null>(null)
   const [shadowMode, setShadowMode] = useState(false)
   const [events,     setEvents]     = useState<RiskEvent[]>([])
@@ -397,7 +399,7 @@ export default function Overview() {
   // ── Loading / error states ────────────────────────────────────
 
   if (loading) return (
-    <div className="flex items-center justify-center min-h-[60vh] gap-3" style={{ color: '#475569' }}>
+    <div className="flex items-center justify-center min-h-[60vh] gap-3" style={{ color: T.textDim }}>
       <RefreshCw size={15} className="animate-spin" />
       <span className="text-sm">Loading dashboard…</span>
     </div>
@@ -437,14 +439,14 @@ export default function Overview() {
           <Eye size={15} className="flex-shrink-0 mt-0.5" style={{ color: '#38BDF8' }} />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold" style={{ color: '#38BDF8' }}>Shadow Mode is active</p>
-            <p className="text-xs mt-0.5" style={{ color: '#94A3B8' }}>
+            <p className="text-xs mt-0.5" style={{ color: T.textSec }}>
               No users are being blocked. Decisions reflect what <em>would have happened</em> in Live Mode.
             </p>
           </div>
           {(shadowWouldBlock > 0 || shadowWouldReview > 0) && (
             <div className="flex items-center gap-4 flex-shrink-0 text-xs mono">
-              {shadowWouldBlock  > 0 && <span><span style={{ color: '#EF4444' }}>{shadowWouldBlock}</span><span style={{ color: '#475569' }}> would block</span></span>}
-              {shadowWouldReview > 0 && <span><span style={{ color: '#F59E0B' }}>{shadowWouldReview}</span><span style={{ color: '#475569' }}> would review</span></span>}
+              {shadowWouldBlock  > 0 && <span><span style={{ color: '#EF4444' }}>{shadowWouldBlock}</span><span style={{ color: T.textDim }}> would block</span></span>}
+              {shadowWouldReview > 0 && <span><span style={{ color: '#F59E0B' }}>{shadowWouldReview}</span><span style={{ color: T.textDim }}> would review</span></span>}
             </div>
           )}
         </div>
@@ -453,8 +455,8 @@ export default function Overview() {
       {/* ── Header ───────────────────────────────────────────── */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-base font-bold" style={{ color: '#E2E8F0' }}>Risk Intelligence</h1>
-          <p className="text-xs mt-0.5" style={{ color: '#475569' }}>Live monitoring — last 24 hours</p>
+          <h1 className="text-base font-bold" style={{ color: T.text }}>Risk Intelligence</h1>
+          <p className="text-xs mt-0.5" style={{ color: T.textDim }}>Live monitoring — last 24 hours</p>
         </div>
         <div className="flex items-center gap-4">
           <span className="flex items-center gap-1.5 text-xs mono" style={{ color: '#16C784' }}>
@@ -463,9 +465,9 @@ export default function Overview() {
           </span>
           <button onClick={() => void fetchEvents()}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors duration-150"
-            style={{ border: '1px solid #1E2D3D', color: '#475569' }}
-            onMouseEnter={e => (e.currentTarget.style.color = '#94A3B8')}
-            onMouseLeave={e => (e.currentTarget.style.color = '#475569')}>
+            style={{ border: `1px solid ${T.border}`, color: T.textDim }}
+            onMouseEnter={e => (e.currentTarget.style.color = T.textSec)}
+            onMouseLeave={e => (e.currentTarget.style.color = T.textDim)}>
             <RefreshCw size={11} />
             Refresh
           </button>
@@ -478,16 +480,16 @@ export default function Overview() {
           <div key={i} className="g-card p-4"
             style={c.hi ? { background: 'rgba(22,199,132,0.04)', borderColor: 'rgba(22,199,132,0.15)' } : undefined}>
             <div className="flex items-center justify-between mb-3">
-              <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#2D4057' }}>
+              <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.textDim }}>
                 {c.label}
               </p>
               <c.icon size={13} style={{ color: c.color, flexShrink: 0 }} />
             </div>
             <p className="text-2xl font-bold mono leading-none mb-1.5"
-              style={{ color: c.hi ? c.color : '#FFFFFF' }}>
+              style={{ color: c.hi ? c.color : T.text }}>
               {c.value}
             </p>
-            <p className="text-[11px]" style={{ color: '#2D4057' }}>{c.sub}</p>
+            <p className="text-[11px]" style={{ color: T.textDim }}>{c.sub}</p>
           </div>
         ))}
       </div>
@@ -501,7 +503,7 @@ export default function Overview() {
           {/* Risk Spike Alerts */}
           <div>
             <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#475569' }}>
+              <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: T.textDim }}>
                 Risk Spike Alerts
               </p>
               {spikeAlerts.length === 0 && (
@@ -519,7 +521,7 @@ export default function Overview() {
                 </div>
                 <div>
                   <p className="text-xs font-semibold" style={{ color: '#16C784' }}>No anomalies detected</p>
-                  <p className="text-[11px] mt-0.5" style={{ color: '#475569' }}>
+                  <p className="text-[11px] mt-0.5" style={{ color: T.textDim }}>
                     All patterns within normal parameters for the last 24 hours.
                   </p>
                 </div>
@@ -538,14 +540,14 @@ export default function Overview() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-2 mb-0.5">
-                          <p className="text-xs font-semibold" style={{ color: '#E2E8F0' }}>{alert.title}</p>
+                          <p className="text-xs font-semibold" style={{ color: T.text }}>{alert.title}</p>
                           <span className="text-[9px] mono px-1.5 py-0.5 rounded flex-shrink-0"
                             style={{ color: col.text, border: `1px solid ${col.border}` }}>
                             {alert.severity.toUpperCase()}
                           </span>
                         </div>
                         <p className="text-sm font-bold mono" style={{ color: col.text }}>{alert.value}</p>
-                        <p className="text-[10px] mono mt-0.5 truncate" style={{ color: '#475569' }}>{alert.sub}</p>
+                        <p className="text-[10px] mono mt-0.5 truncate" style={{ color: T.textDim }}>{alert.sub}</p>
                       </div>
                     </div>
                   )
@@ -558,10 +560,10 @@ export default function Overview() {
           <div className="g-card p-5">
             <div className="flex items-start justify-between mb-4">
               <div>
-                <p className="text-sm font-semibold" style={{ color: '#FFFFFF' }}>Events Over Time</p>
-                <p className="text-xs mt-0.5" style={{ color: '#475569' }}>Hourly — last 24 hours</p>
+                <p className="text-sm font-semibold" style={{ color: T.text }}>Events Over Time</p>
+                <p className="text-xs mt-0.5" style={{ color: T.textDim }}>Hourly — last 24 hours</p>
               </div>
-              <span className="text-xs mono" style={{ color: '#475569' }}>
+              <span className="text-xs mono" style={{ color: T.textDim }}>
                 {total.toLocaleString()} events
               </span>
             </div>

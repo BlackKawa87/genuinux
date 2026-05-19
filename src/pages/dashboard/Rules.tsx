@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
+import { useT } from '../../lib/themeTokens'
 import type { Rule, RuleAction, RuleStatus, ConditionGroup, ConditionOperator } from '../../types'
 
 // ─── Condition field definitions ──────────────────────────────────────────────
@@ -128,6 +129,7 @@ function actionMeta(action: RuleAction | string) {
 // ─── Toggle ───────────────────────────────────────────────────────────────────
 
 function Toggle({ checked, loading, onChange }: { checked: boolean; loading?: boolean; onChange: () => void }) {
+  const T = useT()
   return (
     <button
       onClick={onChange}
@@ -135,7 +137,7 @@ function Toggle({ checked, loading, onChange }: { checked: boolean; loading?: bo
       style={{
         flexShrink: 0, position: 'relative',
         width: 36, height: 20, borderRadius: 10,
-        background: checked ? '#16C784' : '#1E2D3D',
+        background: checked ? '#16C784' : T.border,
         border: `1px solid ${checked ? '#16C784' : '#2D4057'}`,
         opacity: loading ? 0.5 : 1,
         cursor: loading ? 'not-allowed' : 'pointer',

@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
+import { useT } from '../../lib/themeTokens'
 import { buildRiskReasons, calcConfidence } from '../../lib/riskEngine'
 import type { RiskEvent, RiskLevel, Decision, EventType } from '../../types'
 import FeedbackSection from '../../components/FeedbackSection'
@@ -81,13 +82,14 @@ function fraudColor(score: number): string {
 // ─── ScoreBar ─────────────────────────────────────────────────────────────────
 
 function ScoreBar({ label, score, color }: { label: string; score: number; color: string }) {
+  const T = useT()
   return (
     <div>
       <div className="flex items-baseline justify-between mb-2">
-        <span className="text-xs" style={{ color: '#94A3B8' }}>{label}</span>
+        <span className="text-xs" style={{ color: T.textSec }}>{label}</span>
         <span className="text-2xl font-bold mono" style={{ color }}>{score}</span>
       </div>
-      <div className="rounded-full overflow-hidden" style={{ height: 4, background: '#1E2D3D' }}>
+      <div className="rounded-full overflow-hidden" style={{ height: 4, background: T.border }}>
         <div
           className="h-full rounded-full"
           style={{ width: `${score}%`, background: color, transition: 'width 0.6s ease' }}
@@ -109,22 +111,23 @@ function CollapsibleSection({
   badge?: number
   children: ReactNode
 }) {
+  const T = useT()
   return (
-    <div style={{ borderBottom: '1px solid #0D1B2A' }}>
+    <div style={{ borderBottom: `1px solid ${T.deep}` }}>
       <button
         onClick={onToggle}
         className="w-full flex items-center justify-between px-6 py-3.5 transition-colors duration-100"
         style={{ background: 'transparent' }}
-        onMouseEnter={e => (e.currentTarget.style.background = '#0B1220')}
+        onMouseEnter={e => (e.currentTarget.style.background = T.card)}
         onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
       >
         <div className="flex items-center gap-2.5">
-          <span style={{ color: '#475569' }}>{icon}</span>
-          <span className="text-xs font-semibold" style={{ color: '#94A3B8' }}>{title}</span>
+          <span style={{ color: T.textDim }}>{icon}</span>
+          <span className="text-xs font-semibold" style={{ color: T.textSec }}>{title}</span>
           {badge !== undefined && badge > 0 && (
             <span
               className="text-[10px] mono px-1.5 py-0.5 rounded"
-              style={{ background: '#0B1220', color: '#475569', border: '1px solid #1E2D3D' }}
+              style={{ background: T.card, color: T.textDim, border: `1px solid ${T.border}` }}
             >
               {badge}
             </span>
@@ -133,7 +136,7 @@ function CollapsibleSection({
         <ChevronDown
           size={12}
           style={{
-            color: '#475569',
+            color: T.textDim,
             transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
             transition: 'transform 0.15s ease',
             flexShrink: 0,
@@ -152,19 +155,20 @@ function CollapsibleSection({
 // ─── RelatedRow ───────────────────────────────────────────────────────────────
 
 function RelatedRow({ ev, onSelect }: { ev: Partial<RiskEvent>; onSelect: () => void }) {
+  const T = useT()
   return (
     <button
       onClick={onSelect}
       className="w-full flex items-center justify-between px-2 py-2.5 rounded-lg text-left transition-colors duration-100"
       style={{ background: 'transparent' }}
-      onMouseEnter={e => (e.currentTarget.style.background = '#0F1929')}
+      onMouseEnter={e => (e.currentTarget.style.background = T.elevated)}
       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
     >
       <div className="min-w-0">
-        <p className="text-xs mono truncate" style={{ color: '#94A3B8', maxWidth: 170 }}>
+        <p className="text-xs mono truncate" style={{ color: T.textSec, maxWidth: 170 }}>
           {ev.external_user_id ?? ev.id}
         </p>
-        <p className="text-[10px] mt-0.5" style={{ color: '#2D4057' }}>
+        <p className="text-[10px] mt-0.5" style={{ color: T.textDim }}>
           {ev.event_type ?? '—'}
           {ev.created_at ? ` · ${relativeTime(ev.created_at)}` : ''}
         </p>

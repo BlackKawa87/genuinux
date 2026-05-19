@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
+import { useT } from '../../lib/themeTokens'
 import type { Webhook } from '../../types'
 
 // ─── Event catalogue ──────────────────────────────────────────────────────────
@@ -86,6 +87,7 @@ interface ModalProps {
 }
 
 function WebhookModal({ webhook, orgId, onSave, onClose }: ModalProps) {
+  const T = useT()
   const [url,     setUrl]     = useState(webhook?.endpoint_url ?? '')
   const [secret,  setSecret]  = useState(webhook?.secret ?? genSecret())
   const [rotated, setRotated] = useState(false)

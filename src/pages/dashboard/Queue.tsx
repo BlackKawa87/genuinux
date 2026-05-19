@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
+import { useT } from '../../lib/themeTokens'
 import { buildRiskReasons, calcConfidence } from '../../lib/riskEngine'
 import { can } from '../../lib/permissions'
 import type { RiskEvent, ReviewStatus, Profile } from '../../types'
@@ -127,13 +128,14 @@ function parseRiskReasons(raw: unknown, signals: Signal[]): RiskReason[] {
 // ─── Primitives ───────────────────────────────────────────────────────────────
 
 function ScoreBar({ label, score, color }: { label: string; score: number; color: string }) {
+  const T = useT()
   return (
     <div>
       <div className="flex items-baseline justify-between mb-2">
-        <span className="text-xs" style={{ color: '#94A3B8' }}>{label}</span>
+        <span className="text-xs" style={{ color: T.textSec }}>{label}</span>
         <span className="text-2xl font-bold mono" style={{ color }}>{score}</span>
       </div>
-      <div className="rounded-full overflow-hidden" style={{ height: 4, background: '#1E2D3D' }}>
+      <div className="rounded-full overflow-hidden" style={{ height: 4, background: T.border }}>
         <div className="h-full rounded-full" style={{ width: `${score}%`, background: color, transition: 'width 0.5s ease' }} />
       </div>
     </div>
@@ -156,26 +158,27 @@ function CollapsibleSection({
   title: string; icon: ReactNode; expanded: boolean
   onToggle: () => void; badge?: number; children: ReactNode
 }) {
+  const T = useT()
   return (
-    <div style={{ borderBottom: '1px solid #0D1B2A' }}>
+    <div style={{ borderBottom: `1px solid ${T.border}` }}>
       <button
         onClick={onToggle}
         className="w-full flex items-center justify-between px-6 py-3.5 transition-colors"
-        onMouseEnter={e => (e.currentTarget.style.background = '#0B1220')}
+        onMouseEnter={e => (e.currentTarget.style.background = T.card)}
         onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
       >
         <div className="flex items-center gap-2.5">
-          <span style={{ color: '#475569' }}>{icon}</span>
-          <span className="text-xs font-semibold" style={{ color: '#94A3B8' }}>{title}</span>
+          <span style={{ color: T.textDim }}>{icon}</span>
+          <span className="text-xs font-semibold" style={{ color: T.textSec }}>{title}</span>
           {badge !== undefined && badge > 0 && (
             <span className="text-[10px] mono px-1.5 py-0.5 rounded"
-              style={{ background: '#0B1220', color: '#475569', border: '1px solid #1E2D3D' }}>
+              style={{ background: T.card, color: T.textDim, border: `1px solid ${T.border}` }}>
               {badge}
             </span>
           )}
         </div>
         <ChevronDown size={12} style={{
-          color: '#475569', flexShrink: 0,
+          color: T.textDim, flexShrink: 0,
           transform: expanded ? 'rotate(180deg)' : 'none',
           transition: 'transform 0.15s',
         }} />
@@ -188,6 +191,7 @@ function CollapsibleSection({
 // ─── Risk Reasons section ─────────────────────────────────────────────────────
 
 function QueueRiskReasons({ ev }: { ev: RiskEvent }) {
+  const T          = useT()
   const signals    = parseSignals(ev.signals_json)
   const reasons    = parseRiskReasons(ev.risk_reasons_json, signals)
   const confidence = ev.confidence_level ?? calcConfidence(
@@ -196,11 +200,11 @@ function QueueRiskReasons({ ev }: { ev: RiskEvent }) {
   if (reasons.length === 0) return null
   const conf = CONFIDENCE_META[confidence]
   return (
-    <div className="px-6 py-4" style={{ borderBottom: '1px solid #0D1B2A' }}>
+    <div className="px-6 py-4" style={{ borderBottom: `1px solid ${T.border}` }}>
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <CheckCircle2 size={12} style={{ color: '#818CF8' }} />
-          <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#475569' }}>
+          <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.textDim }}>
             Why flagged?
           </p>
         </div>
@@ -210,23 +214,23 @@ function QueueRiskReasons({ ev }: { ev: RiskEvent }) {
         </span>
       </div>
       {ev.recommended_action && (
-        <p className="text-xs leading-relaxed mb-3" style={{ color: '#94A3B8' }}>
+        <p className="text-xs leading-relaxed mb-3" style={{ color: T.textSec }}>
           {ev.recommended_action}
         </p>
       )}
       <div className="space-y-2">
         {reasons.map((r, i) => (
           <div key={i} className="flex items-start gap-3 px-3 py-2.5 rounded-lg"
-            style={{ background: '#050B14', border: '1px solid #1E2D3D' }}>
-            <span className="flex-shrink-0 mt-0.5" style={{ color: SEV_COLORS[r.severity] ?? '#475569' }}>
+            style={{ background: T.bg, border: `1px solid ${T.border}` }}>
+            <span className="flex-shrink-0 mt-0.5" style={{ color: SEV_COLORS[r.severity] ?? T.textDim }}>
               {CATEGORY_ICON[r.category] ?? <AlertTriangle size={11} />}
             </span>
-            <p className="text-xs leading-relaxed flex-1" style={{ color: '#E2E8F0' }}>{r.reason}</p>
+            <p className="text-xs leading-relaxed flex-1" style={{ color: T.text }}>{r.reason}</p>
             <span className="text-[10px] px-2 py-0.5 rounded-full font-medium flex-shrink-0 mono"
               style={{
-                background: `${SEV_COLORS[r.severity] ?? '#475569'}18`,
-                color: SEV_COLORS[r.severity] ?? '#475569',
-                border: `1px solid ${SEV_COLORS[r.severity] ?? '#475569'}30`,
+                background: `${SEV_COLORS[r.severity] ?? T.textDim}18`,
+                color: SEV_COLORS[r.severity] ?? T.textDim,
+                border: `1px solid ${SEV_COLORS[r.severity] ?? T.textDim}30`,
               }}>
               {r.severity}
             </span>

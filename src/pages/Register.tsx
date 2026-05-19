@@ -86,7 +86,7 @@ export default function Register() {
 
         {/* Logo */}
         <Link to="/" className="flex justify-center mb-8">
-          <img src="/logo-horizontal.png" alt="Genuinux" style={{ height: '48px', display: 'block' }} />
+          <img src="/logo-horizontal.png" alt="Genuinux" style={{ height: '72px', display: 'block' }} />
         </Link>
 
         {/* Card */}
