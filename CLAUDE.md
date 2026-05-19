@@ -200,31 +200,33 @@ Valid `event_type` values: `signup`, `login`, `transaction`, `withdrawal`, `refe
 - `/docs` — `Docs.tsx` — Full API reference with 12 sections, code blocks, copy buttons. No auth required.
 
 ### Logo Assets (`public/`)
-Two logo files served statically from `/public/`:
-- `logo-full.png` — circular icon + "GENUINUX" text (vertical/stacked layout). Used everywhere the logo+name appears.
+Three logo files served statically from `/public/`:
+- `logo-horizontal.png` — icon + "GENUINUX" text (horizontal layout, transparent bg). **Primary logo** used in navbar, sidebar, auth pages.
+- `logo-full.png` — circular icon + "GENUINUX" text (vertical/stacked layout). Legacy; still used in footer.
 - `logo-icon.png` — circular icon only. Reserved for icon-only contexts.
 
 Usage pattern:
-- **Light backgrounds** (Landing navbar, Login, Register): `<img src="/logo-full.png" style={{ height: 'Xpx' }} />`
-- **Dark backgrounds** (AppLayout sidebar, Demo, Docs, Landing footer): `<img src="/logo-full.png" style={{ height: 'Xpx', filter: 'brightness(0) invert(1)' }} />`
+- **Light backgrounds**: `<img src="/logo-horizontal.png" style={{ height: 'Xpx' }} />` — no filter needed
+- **Dark backgrounds**: `<img src="/logo-horizontal.png" style={{ height: 'Xpx', filter: 'brightness(0) invert(1)' }} />`
+- **AppLayout sidebar**: filter is applied conditionally via `S.logoFilter` (theme-aware)
 
-Current heights: navbar 88px, footer 96px, Login/Register 140px, Demo 80px, Docs sidebar 88px, AppLayout sidebar 88px.
+Current heights: Landing navbar 88px (logo-horizontal), Login/Register 72px (logo-horizontal), AppLayout sidebar 44px (logo-horizontal), Demo 80px (logo-full), Docs sidebar 88px (logo-full).
 
 ### Landing Page (`src/pages/Landing.tsx`)
-Full redesign — light mode (`#F8FAFC` bg). Key sections with anchor IDs:
-- `id="product"` — Platform Overview (mock dashboard + module list)
+Full redesign — always light mode (`#F8FAFC` bg). Key sections with anchor IDs:
+- `id="product"` — Product Modules (5 API module cards)
 - `id="developers"` — How It Works (3-step integration with dark code cards)
-- `id="pricing"` — 3 plans: Free / Growth / Enterprise (no prices, "Contact us" CTAs)
-- `id="blog"` — 3 placeholder cards with "Coming soon" badges
+- `id="pricing"` — 4 plans: Trial / Starter / Growth (featured) / Enterprise
+- `id="blog"` — 3 real articles with dates and read times
 
-Nav links use smooth scroll via `document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })`. Mobile hamburger menu included.
+Nav links use smooth scroll via `document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })`. Mobile hamburger menu included. Theme toggle (Sun/Moon) in desktop navbar via `useTheme()`.
+
+Hero headline: `clamp(2.25rem, 5vw, 4rem)`, `font-bold`.
 
 No fake metrics — "Built for scale" strip uses only real product claims: `< 50ms` latency, `300+` signals, `7` event types, `1 API call`.
 
-Removed: fake testimonials (Sarah Chen / Marcus Reyes / Anya Patel), fake client counts (500+, $2B+, 99.7%, 99.9% uptime). Replaced with "Built for the teams who own trust" role cards.
-
 ### Login (`src/pages/Login.tsx`) & Register (`src/pages/Register.tsx`)
-Both in **light mode** (`#F8FAFC` bg, `#FFFFFF` card with soft shadow). No dark grid.
+Both in **light mode** (`#F8FAFC` bg, `#FFFFFF` card with soft shadow). Include "← Back to home" link above the card. Logo: `logo-horizontal.png` at 72px height.
 
 Register adds **company name** and **website** fields. On successful sign-up, calls `supabase.auth.getUser()` to get the new user ID, then updates the org `name` (and `website` if provided) that was auto-created by the DB trigger.
 
@@ -256,38 +258,45 @@ Register adds **company name** and **website** fields. On successful sign-up, ca
 
 Strict mode + `noUnusedLocals` + `noUnusedParameters` — unused imports cause build failures.
 
-## Design System
+## Theme System
 
-### Dashboard (dark)
-Colors as **inline `style` props**:
+### ThemeContext (`src/contexts/ThemeContext.tsx`)
+Wraps the entire app in `main.tsx` (inside `<ThemeProvider>`). Exposes `useTheme()` returning `{ theme: 'light'|'dark', toggle: () => void }`. Persists to `localStorage` under key `gnx-theme`. Sets `data-theme` attribute on `<html>`.
 
-| Token | Value | Usage |
-|---|---|---|
-| `--c-bg` | `#050B14` | Page background |
-| `--c-card` | `#0B1220` | Cards |
-| `--c-deep` | `#07111F` | Sidebar |
-| `--c-elevated` | `#0F1929` | Card hover state |
-| `--c-border` | `#1E2D3D` | All borders |
-| `--c-trust` | `#16C784` | Primary accent (green) |
-| `--c-muted` | `#94A3B8` | Secondary text |
-| `--c-dimmed` | `#475569` | Disabled/tertiary |
+**Default: light mode.** Dark mode is user-toggled. Toggle appears in the Landing navbar and the AppLayout header.
+
+### Theme Tokens Hook (`src/lib/themeTokens.ts`)
+`useT()` — call inside any component that needs theme-aware colors. Returns:
+
+| Token | Light | Dark | Usage |
+|---|---|---|---|
+| `T.bg` | `#F8FAFC` | `#050B14` | Page background |
+| `T.card` | `#FFFFFF` | `#0B1220` | Card background |
+| `T.deep` | `#F1F5F9` | `#07111F` | Section/sidebar bg |
+| `T.elevated` | `#F0F4F8` | `#0F1929` | Hover/elevated state |
+| `T.border` | `#E2E8F0` | `#1E2D3D` | Standard borders |
+| `T.borderLight` | `#CBD5E1` | `#243447` | Lighter borders |
+| `T.text` | `#0F172A` | `#F1F5F9` | Primary text |
+| `T.textSec` | `#64748B` | `#94A3B8` | Secondary text |
+| `T.textDim` | `#94A3B8` | `#475569` | Dimmed/tertiary text |
+| `T.trust` | `#16C784` | `#16C784` | Accent green |
+| `T.codeBg` | `#0F172A` | `#050B14` | Code block bg (always dark) |
+| `T.codeText` | `#F1F5F9` | `#F1F5F9` | Code block text (always light) |
+
+All dashboard pages (`Overview`, `Events`, `Queue`, `Rules`, `ApiKeys`, `Webhooks`, `Users`, `Settings`, `Analytics`) use `useT()`.
+
+### AppLayout (`src/components/layout/AppLayout.tsx`)
+Sidebar and header use a theme-aware `S` object (computed from `useTheme()`). Sidebar: white in light / `#07111F` in dark. Header: `rgba(255,255,255,0.95)` in light / `rgba(7,17,31,0.95)` in dark. Sun/Moon toggle in header right.
+
+### CSS (`src/index.css`)
+`:root` defines **light-mode defaults** for CSS vars (`--c-bg: #F8FAFC`, etc.). `[data-theme="dark"]` block overrides them with dark values. Body `font-family: 'Inter'`. CSS utility classes (`.g-card`, `.btn-trust`, `.btn-outline`, `.nav-item`, `.g-input`, badges, etc.) use CSS vars so they adapt automatically.
 
 ### Public pages (light)
-Landing, Login, Register use a light palette defined as the `C` constant in `Landing.tsx`:
-
-| Token | Value | Usage |
-|---|---|---|
-| `C.bg` | `#F8FAFC` | Page background |
-| `C.surface` | `#FFFFFF` | Cards |
-| `C.border` | `#E2E8F0` | Borders |
-| `C.text` | `#0F172A` | Primary text |
-| `C.textSec` | `#64748B` | Secondary text |
-| `C.trust` | `#16C784` | Accent green |
-| `C.dark` | `#0F172A` | Dark CTA sections |
+Landing, Login, Register use a light palette defined as the `C` constant in `Landing.tsx`. These pages are always light regardless of the global theme toggle.
 
 CSS utility classes (defined in `index.css`): `.g-card`, `.g-card-hover`, `.btn-trust`, `.btn-outline`, `.trust-pill`, `.nav-item`, `.g-input`, `.badge-{low|medium|high|critical}`, `.badge-{allow|review|block}`, `.mono`, `.pulse-dot`, `.scan-anim`, `.anim-{0-5}`.
 
-Fonts loaded from Google Fonts: **Syne** (UI/headings) + **IBM Plex Mono** (data, code, numbers). Applied via `font-family` in CSS or `.mono` class.
+Fonts loaded from Google Fonts: **Inter** (UI/headings, all weights 300–800) + **IBM Plex Mono** (data, code, numbers). Applied via `font-family` in CSS or `.mono` class.
 
 ## Language
 
