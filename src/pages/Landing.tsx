@@ -179,30 +179,79 @@ const TEAMS = [
   },
 ]
 
-const PRICING_PLANS = [
+const PRICING_PLANS: {
+  id: string; name: string; tier: string
+  price: string | null; sub: string | null; subtitle: string
+  badge: string | null; featured: boolean
+  cta: string; ctaTo: string; external: boolean
+  features: string[]
+}[] = [
   {
-    name: 'Free',
-    desc: 'For individuals and early-stage teams.',
-    highlight: false,
-    cta: 'Start for free',
-    ctaTo: '/register' as const,
-    features: ['Up to 10,000 events / month', 'Core RiskScore API', '7-day event history', 'API key management', 'Community support'],
+    id: 'trial', name: '14-Day Trial', tier: 'Trial',
+    price: null, sub: null,
+    subtitle: 'For teams evaluating real-time trust infrastructure.',
+    badge: null, featured: false,
+    cta: 'Start free trial', ctaTo: '/register', external: false,
+    features: [
+      '10,000 risk events',
+      'Core RiskScore API',
+      'Dashboard access',
+      'Shadow Mode',
+      'Basic webhooks',
+      'Community support',
+    ],
   },
   {
-    name: 'Growth',
-    desc: 'For scaling products with real fraud exposure.',
-    highlight: true,
-    cta: 'Contact us',
-    ctaTo: '/demo' as const,
-    features: ['Up to 500,000 events / month', 'All core modules', '90-day event history', 'Webhook delivery', 'Custom rules (up to 25)', 'Email support'],
+    id: 'starter', name: 'Starter', tier: 'Starter',
+    price: '£99', sub: '/mo',
+    subtitle: 'For startups shipping their first fraud defense layer.',
+    badge: null, featured: false,
+    cta: 'Start with Starter', ctaTo: '/register', external: false,
+    features: [
+      '50,000 events/month',
+      'RiskScore API',
+      'Webhooks',
+      '30-day event history',
+      'Basic rules engine',
+      'Dashboard analytics',
+      'Email support',
+    ],
   },
   {
-    name: 'Enterprise',
-    desc: 'For platforms with advanced compliance needs.',
-    highlight: false,
-    cta: 'Contact sales',
-    ctaTo: '/demo' as const,
-    features: ['Unlimited events', 'All modules including DocVerify', 'Full data retention', 'Dedicated SLA & support', 'SSO & advanced audit logs', 'Custom integrations'],
+    id: 'growth', name: 'Growth', tier: 'Growth',
+    price: '£499', sub: '/mo',
+    subtitle: 'For platforms scaling with real fraud exposure.',
+    badge: 'Most Popular', featured: true,
+    cta: 'Start scaling', ctaTo: '/register', external: false,
+    features: [
+      '500,000 events/month',
+      'All core modules',
+      'Device Intelligence',
+      'BehaviorAI',
+      'SessionGuard',
+      '90-day history',
+      'Advanced rules',
+      'Webhook delivery',
+      'Team access',
+      'Priority support',
+    ],
+  },
+  {
+    id: 'enterprise', name: 'Enterprise', tier: 'Enterprise',
+    price: null, sub: null,
+    subtitle: 'Advanced trust infrastructure for high-volume operations.',
+    badge: null, featured: false,
+    cta: 'Contact sales', ctaTo: 'mailto:sales@genuinux.io', external: true,
+    features: [
+      'Unlimited events',
+      'Custom orchestration',
+      'Dedicated infrastructure',
+      'SLA & priority support',
+      'SSO & audit logs',
+      'Custom integrations',
+      'Advanced compliance tooling',
+      'Dedicated account manager',
+    ],
   },
 ]
 
@@ -775,63 +824,154 @@ export default function Landing() {
       </section>
 
       {/* ── Pricing ──────────────────────────── id="pricing" */}
-      <section id="pricing" className="max-w-5xl mx-auto px-6 py-24">
-        <div className="text-center mb-14">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold mb-5"
-            style={{ background: C.trustBg, border: `1px solid ${C.trustBd}`, color: C.trustT }}>
-            Pricing
-          </div>
-          <h2 className="font-bold"
-            style={{ fontSize: 'clamp(2rem, 4vw, 2.75rem)', letterSpacing: '-0.03em', color: C.text }}>
-            Simple, transparent pricing.
-          </h2>
-          <p className="text-base mt-4" style={{ color: C.textSec }}>
-            Start for free. Scale when you're ready. No hidden fees.
-          </p>
-        </div>
+      <section id="pricing" style={{ background: C.bg, borderTop: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}` }}>
+        <div className="max-w-6xl mx-auto px-6 py-24">
 
-        <div className="grid md:grid-cols-3 gap-6">
-          {PRICING_PLANS.map((plan, i) => (
-            <div key={i} className="p-7 rounded-2xl flex flex-col"
-              style={{
-                background: plan.highlight ? C.dark : C.surface,
-                border: `1px solid ${plan.highlight ? C.trust : C.border}`,
-                boxShadow: plan.highlight ? C.shadowLg : C.shadow,
-              }}>
-              {plan.highlight && (
-                <div className="text-[10px] font-bold uppercase tracking-widest mb-5 px-2.5 py-1 rounded-full self-start"
-                  style={{ background: C.trustBg, color: C.trust, border: `1px solid ${C.trustBd}` }}>
-                  Most popular
-                </div>
-              )}
-              <h3 className="text-xl font-bold mb-1" style={{ color: plan.highlight ? '#FFFFFF' : C.text }}>
-                {plan.name}
-              </h3>
-              <p className="text-sm mb-6" style={{ color: plan.highlight ? '#94A3B8' : C.textSec }}>
-                {plan.desc}
-              </p>
-              <ul className="space-y-2.5 flex-1 mb-8">
-                {plan.features.map((f, j) => (
-                  <li key={j} className="flex items-center gap-2.5 text-sm"
-                    style={{ color: plan.highlight ? '#94A3B8' : C.textSec }}>
-                    <CheckCircle size={13} style={{ color: C.trust, flexShrink: 0 }} />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              <Link to={plan.ctaTo}
-                className="text-sm font-bold py-3 rounded-xl text-center block transition-all duration-150"
-                style={
-                  plan.highlight
-                    ? { background: '#FFFFFF', color: C.dark }
-                    : i === 0
-                      ? { background: C.trust, color: '#FFFFFF' }
-                      : { border: `1px solid ${C.border}`, color: C.text }
-                }>
-                {plan.cta}
-              </Link>
+          {/* Header */}
+          <div className="text-center mb-16">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold mb-5"
+              style={{ background: C.trustBg, border: `1px solid ${C.trustBd}`, color: C.trustT }}>
+              Pricing
             </div>
-          ))}
+            <h2 className="font-bold"
+              style={{ fontSize: 'clamp(2rem, 4vw, 2.75rem)', letterSpacing: '-0.03em', color: C.text }}>
+              Built to scale with
+              <span style={{ color: C.trust }}> your platform.</span>
+            </h2>
+            <p className="text-base mt-4 max-w-xl mx-auto" style={{ color: C.textSec }}>
+              Start with a trial. Scale as your risk coverage grows.
+              No contracts, no hidden fees.
+            </p>
+          </div>
+
+          {/* Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
+            {PRICING_PLANS.map(plan => {
+              const fg = plan.featured
+
+              return (
+                <div key={plan.id} className="flex flex-col rounded-2xl"
+                  style={fg ? {
+                    background:   C.dark,
+                    border:       '1px solid rgba(22,199,132,0.45)',
+                    boxShadow:    '0 0 0 1px rgba(22,199,132,0.08), 0 32px 80px rgba(22,199,132,0.13), 0 8px 32px rgba(15,23,42,0.45)',
+                    padding:      '32px 28px',
+                  } : {
+                    background:   plan.id === 'trial' ? C.bg : C.surface,
+                    border:       `1px solid ${C.border}`,
+                    boxShadow:    plan.id === 'enterprise' ? C.shadowMd : C.shadow,
+                    padding:      '28px 24px',
+                  }}>
+
+                  {/* Badge */}
+                  {fg && (
+                    <div className="text-[10px] font-bold uppercase tracking-widest mb-6 px-2.5 py-1 rounded-full self-start"
+                      style={{ background: C.trustBg, color: C.trust, border: `1px solid ${C.trustBd}` }}>
+                      {plan.badge}
+                    </div>
+                  )}
+
+                  {/* Tier label */}
+                  <p className="text-[10px] font-semibold uppercase tracking-widest mb-2"
+                    style={{ color: fg ? '#475569' : C.textMut }}>
+                    {plan.tier}
+                  </p>
+
+                  {/* Plan name */}
+                  <h3 className="font-bold mb-3"
+                    style={{ fontSize: fg ? '1.5rem' : '1.25rem', color: fg ? '#FFFFFF' : C.text }}>
+                    {plan.name}
+                  </h3>
+
+                  {/* Price */}
+                  <div className="flex items-baseline gap-1 mb-1" style={{ minHeight: 48 }}>
+                    {plan.price
+                      ? <>
+                          <span className="font-black mono"
+                            style={{ fontSize: fg ? '2.5rem' : '2rem', lineHeight: 1, color: fg ? '#FFFFFF' : C.text }}>
+                            {plan.price}
+                          </span>
+                          <span className="text-sm" style={{ color: fg ? '#475569' : C.textMut }}>
+                            {plan.sub}
+                          </span>
+                        </>
+                      : <span className="text-sm font-medium"
+                          style={{ color: fg ? '#475569' : C.textMut, fontStyle: 'italic', paddingTop: 10 }}>
+                          {plan.id === 'trial' ? 'No payment required' : 'Custom pricing'}
+                        </span>
+                    }
+                  </div>
+
+                  {/* Divider */}
+                  <div className="my-5" style={{ height: 1, background: fg ? '#1E293B' : C.borderL }} />
+
+                  {/* Subtitle */}
+                  <p className="text-sm leading-relaxed mb-6"
+                    style={{ color: fg ? '#94A3B8' : C.textSec }}>
+                    {plan.subtitle}
+                  </p>
+
+                  {/* Feature list */}
+                  <ul className="space-y-2.5 flex-1 mb-8">
+                    {plan.features.map((f, j) => (
+                      <li key={j} className="flex items-start gap-2.5 text-sm"
+                        style={{ color: fg ? '#94A3B8' : C.textSec }}>
+                        <CheckCircle size={13} style={{ color: C.trust, flexShrink: 0, marginTop: 2 }} />
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+
+                  {/* CTA */}
+                  {plan.external
+                    ? <a href={plan.ctaTo}
+                        className="text-sm font-bold py-3.5 rounded-xl text-center block transition-all duration-150"
+                        style={{ background: C.dark, color: '#FFFFFF' }}
+                        onMouseEnter={e => (e.currentTarget.style.background = C.dark2)}
+                        onMouseLeave={e => (e.currentTarget.style.background = C.dark)}>
+                        {plan.cta}
+                      </a>
+                    : <Link to={plan.ctaTo}
+                        className="text-sm font-bold py-3.5 rounded-xl text-center block transition-all duration-150"
+                        style={fg
+                          ? { background: C.trust, color: '#050B14' }
+                          : plan.id === 'trial'
+                            ? { border: `1px solid ${C.border}`, color: C.textSec }
+                            : { border: `1px solid ${C.border}`, color: C.text }
+                        }
+                        onMouseEnter={e => {
+                          if (fg) { e.currentTarget.style.background = C.trustT; return }
+                          e.currentTarget.style.borderColor = C.trust
+                          e.currentTarget.style.color = C.trust
+                        }}
+                        onMouseLeave={e => {
+                          if (fg) { e.currentTarget.style.background = C.trust; return }
+                          e.currentTarget.style.borderColor = C.border
+                          e.currentTarget.style.color = plan.id === 'trial' ? C.textSec : C.text
+                        }}>
+                        {plan.cta}
+                      </Link>
+                  }
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Volume note */}
+          <p className="text-center text-sm mt-10" style={{ color: C.textMut }}>
+            Need more volume?{' '}
+            <span style={{ color: C.textSec }}>
+              Additional events scale automatically as your platform grows.
+            </span>{' '}
+            <a href="mailto:sales@genuinux.io"
+              className="font-semibold transition-opacity duration-150"
+              style={{ color: C.trust }}
+              onMouseEnter={e => (e.currentTarget.style.opacity = '0.75')}
+              onMouseLeave={e => (e.currentTarget.style.opacity = '1')}>
+              Talk to us →
+            </a>
+          </p>
+
         </div>
       </section>
 
