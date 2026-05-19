@@ -6,7 +6,7 @@ import {
   RefreshCw, Save, CheckCircle2, AlertTriangle, Info,
   Copy, Check, Cpu, Mail, Send, X, Trash2, Pencil,
   Clock, KeyRound, Webhook, ExternalLink, ChevronDown, ChevronUp,
-  ClipboardList,
+  ClipboardList, Eye,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
@@ -829,11 +829,14 @@ function TeamTab({ members, currentProfile, onMembersChange }: {
 
 // ─── Tab: Risk Preferences ────────────────────────────────────────────────────
 
-function RiskTab({ prefs, orgId, isOwner }: { prefs: RiskPrefs; orgId: string; isOwner: boolean }) {
-  const [local,   setLocal]   = useState<RiskPrefs>(prefs)
-  const [saving,  setSaving]  = useState(false)
-  const [saved,   setSaved]   = useState(false)
-  const [errMsg,  setErrMsg]  = useState<string | null>(null)
+function RiskTab({ prefs, orgId, isOwner, shadowMode: initialShadowMode }: {
+  prefs: RiskPrefs; orgId: string; isOwner: boolean; shadowMode: boolean
+}) {
+  const [local,       setLocal]       = useState<RiskPrefs>(prefs)
+  const [shadowMode,  setShadowMode]  = useState(initialShadowMode)
+  const [saving,      setSaving]      = useState(false)
+  const [saved,       setSaved]       = useState(false)
+  const [errMsg,      setErrMsg]      = useState<string | null>(null)
   const [needsMigration, setNeedsMigration] = useState(false)
 
   const set = <K extends keyof RiskPrefs>(key: K, val: RiskPrefs[K]) =>
@@ -846,12 +849,12 @@ function RiskTab({ prefs, orgId, isOwner }: { prefs: RiskPrefs; orgId: string; i
 
     const { error } = await supabase
       .from('organizations')
-      .update({ settings_json: local } as Record<string, unknown>)
+      .update({ settings_json: local, shadow_mode: shadowMode } as Record<string, unknown>)
       .eq('id', orgId)
 
     setSaving(false)
     if (error) {
-      if (error.code === '42703' || error.message.includes('settings_json')) {
+      if (error.code === '42703' || error.message.includes('settings_json') || error.message.includes('shadow_mode')) {
         setNeedsMigration(true)
       } else {
         setErrMsg(error.message)
@@ -954,6 +957,79 @@ function RiskTab({ prefs, orgId, isOwner }: { prefs: RiskPrefs; orgId: string; i
         </div>
       </SectionCard>
 
+      <SectionCard
+        title="Decision Mode"
+        subtitle="Control whether Genuinux actually blocks/reviews users or only simulates decisions."
+      >
+        <div className="grid grid-cols-2 gap-3">
+          {([
+            {
+              mode: false,
+              label: 'Live Mode',
+              icon: <ShieldCheck size={16} />,
+              desc: 'Decisions are enforced. Block and review outcomes affect real users.',
+              accent: '#16C784',
+              accentBg: 'rgba(22,199,132,0.08)',
+              accentBorder: 'rgba(22,199,132,0.25)',
+            },
+            {
+              mode: true,
+              label: 'Shadow Mode',
+              icon: <Eye size={16} />,
+              desc: 'Engine runs fully but every live decision is "allow". Suggested decisions are recorded for analysis.',
+              accent: '#38BDF8',
+              accentBg: 'rgba(56,189,248,0.08)',
+              accentBorder: 'rgba(56,189,248,0.25)',
+            },
+          ] as const).map(({ mode, label, icon, desc, accent, accentBg, accentBorder }) => {
+            const selected = shadowMode === mode
+            return (
+              <button
+                key={label}
+                type="button"
+                onClick={() => isOwner && setShadowMode(mode)}
+                disabled={!isOwner}
+                className="text-left p-4 rounded-lg transition-all"
+                style={{
+                  background: selected ? accentBg : '#07111F',
+                  border: `1px solid ${selected ? accentBorder : '#1E2D3D'}`,
+                  cursor: isOwner ? 'pointer' : 'default',
+                  opacity: !isOwner ? 0.6 : 1,
+                }}
+              >
+                <div className="flex items-center gap-2 mb-2" style={{ color: selected ? accent : '#475569' }}>
+                  {icon}
+                  <span className="text-sm font-semibold" style={{ color: selected ? accent : '#94A3B8' }}>
+                    {label}
+                  </span>
+                  {selected && (
+                    <span
+                      className="ml-auto text-[9px] mono px-1.5 py-0.5 rounded"
+                      style={{ background: accentBg, color: accent, border: `1px solid ${accentBorder}` }}
+                    >
+                      ACTIVE
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] leading-relaxed" style={{ color: '#475569' }}>{desc}</p>
+              </button>
+            )
+          })}
+        </div>
+        {shadowMode && (
+          <div
+            className="mt-3 flex items-start gap-2 px-3 py-2.5 rounded-lg text-xs"
+            style={{ background: 'rgba(56,189,248,0.06)', border: '1px solid rgba(56,189,248,0.15)', color: '#94A3B8' }}
+          >
+            <Info size={12} className="flex-shrink-0 mt-0.5" style={{ color: '#38BDF8' }} />
+            <span>
+              Shadow Mode is active. All users will be allowed through. Check the Overview dashboard
+              for a breakdown of what <em>would have been</em> blocked.
+            </span>
+          </div>
+        )}
+      </SectionCard>
+
       {needsMigration && (
         <div className="g-card p-5 space-y-3"
           style={{ border: '1px solid rgba(245,158,11,0.3)' }}>
@@ -966,7 +1042,7 @@ function RiskTab({ prefs, orgId, isOwner }: { prefs: RiskPrefs; orgId: string; i
           </p>
           <pre className="text-xs mono p-3 rounded-lg overflow-x-auto"
             style={{ background: '#050B14', color: '#16C784', border: '1px solid #1E2D3D' }}>
-            {`ALTER TABLE organizations\n  ADD COLUMN IF NOT EXISTS settings_json JSONB NOT NULL DEFAULT '{}';`}
+            {`ALTER TABLE organizations\n  ADD COLUMN IF NOT EXISTS settings_json JSONB NOT NULL DEFAULT '{}';\nALTER TABLE organizations\n  ADD COLUMN IF NOT EXISTS shadow_mode boolean NOT NULL DEFAULT false;\nALTER TABLE risk_events\n  ADD COLUMN IF NOT EXISTS shadow_mode boolean NOT NULL DEFAULT false,\n  ADD COLUMN IF NOT EXISTS suggested_decision text;`}
           </pre>
         </div>
       )}
@@ -1672,7 +1748,7 @@ export default function SettingsPage() {
         <TeamTab members={members} currentProfile={profile} onMembersChange={setMembers} />
       )}
       {tab === 'risk' && (
-        <RiskTab prefs={riskPrefs} orgId={org.id} isOwner={isOwner} />
+        <RiskTab prefs={riskPrefs} orgId={org.id} isOwner={isOwner} shadowMode={org.shadow_mode} />
       )}
       {tab === 'billing' && (
         <BillingTab plan={org.plan} orgId={org.id} billingSuccess={billingSuccess} />

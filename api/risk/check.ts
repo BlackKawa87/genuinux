@@ -60,6 +60,11 @@ interface CheckResponse {
   applied_rule: { id: string; name: string } | null
   summary: string
   processing_time_ms: number
+  // Shadow mode (only present when org.shadow_mode = true)
+  shadow_mode?: boolean
+  suggested_decision?: 'approve' | 'review' | 'block'
+  live_decision?: 'approve'
+  message?: string
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -343,6 +348,8 @@ async function insertRiskEvent(
   payload: CheckPayload,
   result: ReturnType<typeof analyze>,
   ruleMatch: RuleMatchResult,
+  shadowMode: boolean,
+  suggestedDecision: string | null,
 ): Promise<string | null> {
   const { data, error } = await supabase
     .from('risk_events')
@@ -358,7 +365,7 @@ async function insertRiskEvent(
       trust_score:         result.trust_score,
       fraud_score:         result.fraud_score,
       risk_level:          result.risk_level,
-      decision:            ruleMatch.decision,
+      decision:            result.decision,
       signals_json:        result.signals,
       risk_reasons_json:   result.risk_reasons,
       confidence_level:    result.confidence_level,
@@ -366,6 +373,8 @@ async function insertRiskEvent(
       ai_summary:          result.ai_summary,
       applied_rule_id:     ruleMatch.applied_rule_id,
       applied_rule_name:   ruleMatch.applied_rule_name,
+      shadow_mode:         shadowMode,
+      suggested_decision:  suggestedDecision,
     })
     .select('id')
     .single()
@@ -428,6 +437,8 @@ async function dispatchWebhooks(
   payload: CheckPayload,
   result: ReturnType<typeof analyze>,
   ruleMatch: RuleMatchResult,
+  shadowMode: boolean,
+  suggestedDecision: string | null,
 ): Promise<void> {
   const { data: webhooks } = await supabase
     .from('webhooks')
@@ -437,7 +448,11 @@ async function dispatchWebhooks(
 
   if (!webhooks || webhooks.length === 0) return
 
-  const eventsToFire = resolveWebhookEvents(ruleMatch.decision, Boolean(ruleMatch.applied_rule_id))
+  // In shadow mode only fire risk.check.completed — avoid triggering
+  // block/review handlers when nothing was actually blocked/reviewed.
+  const eventsToFire = shadowMode
+    ? ['risk.check.completed']
+    : resolveWebhookEvents(ruleMatch.decision, Boolean(ruleMatch.applied_rule_id))
   const createdAt    = new Date().toISOString()
   const timestamp    = Math.floor(Date.now() / 1000).toString()
 
@@ -455,6 +470,11 @@ async function dispatchWebhooks(
                         : null,
     summary:          result.ai_summary,
     created_at:       createdAt,
+    ...(shadowMode && {
+      shadow_mode:        true,
+      suggested_decision: suggestedDecision === 'allow' ? 'approve' : suggestedDecision,
+      live_decision:      'approve',
+    }),
   }
 
   await Promise.allSettled(
@@ -715,9 +735,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // ── 1.5. Free plan — monthly event limit (10,000 / month) ───
   const { data: orgRow } = await supabase
     .from('organizations')
-    .select('plan')
+    .select('plan, shadow_mode')
     .eq('id', orgId)
     .single()
+
+  const isShadowMode = Boolean((orgRow as { plan: string; shadow_mode?: boolean } | null)?.shadow_mode)
 
   if ((orgRow as { plan: string } | null)?.plan === 'free') {
     const startOfMonth = new Date()
@@ -781,7 +803,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     ip_signup_count_1h: context.ip_signup_count_last_1h    ?? 0,
     device_user_count:  context.device_distinct_users       ?? 0,
   }, result.decision)
-  const finalDecision = ruleMatch.decision
+  const suggestedDecision = ruleMatch.decision
+  // In shadow mode the live outcome is always 'allow' — engine still runs fully.
+  const liveDecision      = isShadowMode ? 'allow' : suggestedDecision
 
   // ── 4.6. AI Summary ────────────────────────────────────────
   // Generates a human-readable summary using the template engine (default)
@@ -791,30 +815,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     trust_score: result.trust_score,
     fraud_score: result.fraud_score,
     risk_level:  result.risk_level,
-    decision:    finalDecision,
+    decision:    liveDecision,
     signals:     result.signals,
     metadata:    payload.metadata,
   })
 
-  const effectiveResult = { ...result, decision: finalDecision, ai_summary }
+  const effectiveResult = { ...result, decision: liveDecision, ai_summary }
 
   // ── 5 & 6. Persistência (paralela onde possível) ────────────
   await upsertUserChecked(supabase, orgId, payload)
 
-  const eventId = await insertRiskEvent(supabase, orgId, payload, effectiveResult, ruleMatch)
+  const eventId = await insertRiskEvent(
+    supabase, orgId, payload, effectiveResult, ruleMatch,
+    isShadowMode, isShadowMode ? suggestedDecision : null,
+  )
 
-  // ── 7. Review queue ─────────────────────────────────────────
+  // ── 7. Review queue (skipped in shadow mode) ────────────────
   if (effectiveResult.decision === 'review' && eventId) {
-    // Não bloqueia a resposta
     createReviewQueueItem(supabase, orgId, eventId).catch(() => {})
   }
 
   // ── 8. Webhooks (fire-and-forget) ───────────────────────────
   if (eventId) {
-    dispatchWebhooks(supabase, orgId, eventId, payload, effectiveResult, ruleMatch).catch(() => {})
+    dispatchWebhooks(
+      supabase, orgId, eventId, payload, effectiveResult, ruleMatch,
+      isShadowMode, isShadowMode ? suggestedDecision : null,
+    ).catch(() => {})
   }
 
   // ── 9. Resposta ─────────────────────────────────────────────
+  const shadowSuggestedLabel = suggestedDecision === 'allow' ? 'approve' : suggestedDecision
   const response: CheckResponse = {
     event_id:            eventId ?? `evt_${Date.now()}`,
     trust_score:         effectiveResult.trust_score,
@@ -834,6 +864,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                            : null,
     summary:             effectiveResult.ai_summary,
     processing_time_ms:  effectiveResult.processing_time_ms,
+    ...(isShadowMode && {
+      shadow_mode:        true,
+      suggested_decision: shadowSuggestedLabel as 'approve' | 'review' | 'block',
+      live_decision:      'approve',
+      message:            suggestedDecision === 'block'
+        ? 'This event would have been blocked in Live Mode.'
+        : suggestedDecision === 'review'
+          ? 'This event would have been flagged for review in Live Mode.'
+          : undefined,
+    }),
   }
 
   return res.status(200).json(response)

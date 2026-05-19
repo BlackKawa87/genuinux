@@ -42,6 +42,7 @@ export interface Organization {
   industry: string | null
   plan: Plan
   owner_id: string
+  shadow_mode: boolean
   created_at: string
 }
 
@@ -101,6 +102,8 @@ export interface RiskEvent {
   applied_rule_id: string | null
   applied_rule_name: string | null
   feedback_status: FeedbackType | null
+  shadow_mode: boolean
+  suggested_decision: string | null
   created_at: string
 }
 

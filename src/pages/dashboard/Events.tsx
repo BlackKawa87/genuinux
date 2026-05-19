@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import {
   Search, X, RefreshCw, ChevronDown,
   Shield, User, Globe, Monitor, AlertTriangle, Zap,
-  Mail, Activity, CheckCircle2, ShieldCheck,
+  Mail, Activity, CheckCircle2, ShieldCheck, Eye,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
@@ -417,6 +417,23 @@ function EventDetailPanel({
               <p className="text-xs" style={{ color: '#818CF8' }}>
                 Decision influenced by rule:{' '}
                 <span className="font-semibold" style={{ color: '#A5B4FC' }}>{event.applied_rule_name}</span>
+              </p>
+            </div>
+          )}
+
+          {/* Shadow mode banner */}
+          {event.shadow_mode && (
+            <div
+              className="px-6 py-3 flex items-center gap-2.5"
+              style={{ borderBottom: '1px solid #0D1B2A', background: 'rgba(56,189,248,0.05)' }}
+            >
+              <Eye size={12} style={{ color: '#38BDF8', flexShrink: 0 }} />
+              <p className="text-xs" style={{ color: '#38BDF8' }}>
+                Shadow Mode —{' '}
+                {event.suggested_decision && event.suggested_decision !== 'allow'
+                  ? <>would have been <span className="font-semibold capitalize">{event.suggested_decision}</span> in Live Mode</>
+                  : 'would have been Allowed in Live Mode'
+                }
               </p>
             </div>
           )}
@@ -1003,9 +1020,16 @@ export default function Events() {
 
                     {/* Decision */}
                     <td className="px-4 py-3">
-                      <span className={`text-[10px] px-2.5 py-0.5 rounded-full mono badge-${ev.decision}`}>
-                        {ev.decision}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className={`text-[10px] px-2.5 py-0.5 rounded-full mono badge-${ev.decision}`}>
+                          {ev.decision}
+                        </span>
+                        {ev.shadow_mode && (
+                          <span title={`Shadow mode — would have been: ${ev.suggested_decision ?? '—'}`}>
+                            <Eye size={10} style={{ color: '#38BDF8', flexShrink: 0 }} />
+                          </span>
+                        )}
+                      </div>
                     </td>
 
                     {/* Created at */}

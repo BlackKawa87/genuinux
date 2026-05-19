@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import {
   Shield, Activity, CheckCircle, XCircle,
-  Clock, TrendingUp, RefreshCw, Zap,
+  Clock, TrendingUp, RefreshCw, Zap, Eye,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
@@ -209,10 +209,11 @@ function HorizBar({ label, count, max, color, sub }: {
 
 export default function Overview() {
   const { user } = useAuth()
-  const [orgId,   setOrgId]   = useState<string | null>(null)
-  const [events,  setEvents]  = useState<RiskEvent[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error,   setError]   = useState<string | null>(null)
+  const [orgId,      setOrgId]      = useState<string | null>(null)
+  const [shadowMode, setShadowMode] = useState(false)
+  const [events,     setEvents]     = useState<RiskEvent[]>([])
+  const [loading,    setLoading]    = useState(true)
+  const [error,      setError]      = useState<string | null>(null)
   const [, setTick] = useState(0)
 
   // ── Data loading ──────────────────────────────────────────────
@@ -231,7 +232,15 @@ export default function Overview() {
         setLoading(false)
         return
       }
-      setOrgId(profile.organization_id as string)
+      const resolvedOrgId = profile.organization_id as string
+      setOrgId(resolvedOrgId)
+
+      const { data: org } = await supabase
+        .from('organizations')
+        .select('shadow_mode')
+        .eq('id', resolvedOrgId)
+        .single()
+      if (org) setShadowMode(Boolean((org as { shadow_mode?: boolean }).shadow_mode))
     })()
   }, [user])
 
@@ -286,6 +295,14 @@ export default function Overview() {
   , [events, total])
 
   const blockRate = total > 0 ? ((blocked / total) * 100).toFixed(1) : '0.0'
+
+  // Shadow mode — what would have happened in live mode
+  const shadowWouldBlock  = useMemo(() =>
+    events.filter(e => e.shadow_mode && e.suggested_decision === 'block').length,
+  [events])
+  const shadowWouldReview = useMemo(() =>
+    events.filter(e => e.shadow_mode && e.suggested_decision === 'review').length,
+  [events])
 
   // Hourly buckets — last 24h, index 23 = most recent hour
   const hourlyBuckets = useMemo(() => {
@@ -432,6 +449,41 @@ export default function Overview() {
           Refresh
         </button>
       </div>
+
+      {/* ── Shadow mode banner ────────────────────────────────── */}
+      {shadowMode && (
+        <div
+          className="mb-5 flex items-start gap-3 px-4 py-3.5 rounded-lg"
+          style={{ background: 'rgba(56,189,248,0.06)', border: '1px solid rgba(56,189,248,0.2)' }}
+        >
+          <Eye size={15} className="flex-shrink-0 mt-0.5" style={{ color: '#38BDF8' }} />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold" style={{ color: '#38BDF8' }}>
+              Shadow Mode is active
+            </p>
+            <p className="text-xs mt-0.5" style={{ color: '#94A3B8' }}>
+              No users are being blocked. The engine runs fully — decisions below reflect what
+              <em> would have happened</em> in Live Mode.
+            </p>
+          </div>
+          {(shadowWouldBlock > 0 || shadowWouldReview > 0) && (
+            <div className="flex items-center gap-4 flex-shrink-0 text-xs mono">
+              {shadowWouldBlock > 0 && (
+                <span>
+                  <span style={{ color: '#EF4444' }}>{shadowWouldBlock}</span>
+                  <span style={{ color: '#475569' }}> would block</span>
+                </span>
+              )}
+              {shadowWouldReview > 0 && (
+                <span>
+                  <span style={{ color: '#F59E0B' }}>{shadowWouldReview}</span>
+                  <span style={{ color: '#475569' }}> would review</span>
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Stat cards ────────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 mb-5">
