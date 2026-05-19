@@ -7,55 +7,54 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
+import { can, ROLE_META } from '../../lib/permissions'
 
-const NAV_TOP = [
-  { to: '/dashboard',          icon: LayoutDashboard, label: 'Overview'      },
-  { to: '/dashboard/events',   icon: Activity,        label: 'Risk Events'   },
-  { to: '/dashboard/users',    icon: Users,           label: 'Users'         },
-  { to: '/dashboard/queue',    icon: ListChecks,      label: 'Review Queue'  },
-  { to: '/dashboard/rules',    icon: GitBranch,       label: 'Rules'         },
-  { to: '/dashboard/api-keys', icon: Key,             label: 'API Keys'      },
-  { to: '/dashboard/webhooks', icon: Globe,           label: 'Webhooks'      },
-]
+const NAV_ALL = [
+  { to: '/dashboard',          icon: LayoutDashboard, label: 'Overview',      permission: null               },
+  { to: '/dashboard/events',   icon: Activity,        label: 'Risk Events',   permission: null               },
+  { to: '/dashboard/users',    icon: Users,           label: 'Users',         permission: 'act_queue'        },
+  { to: '/dashboard/queue',    icon: ListChecks,      label: 'Review Queue',  permission: 'act_queue'        },
+  { to: '/dashboard/rules',    icon: GitBranch,       label: 'Rules',         permission: 'manage_rules'     },
+  { to: '/dashboard/api-keys', icon: Key,             label: 'API Keys',      permission: 'manage_api_keys'  },
+  { to: '/dashboard/webhooks', icon: Globe,           label: 'Webhooks',      permission: 'manage_webhooks'  },
+] as const
 
 export default function AppLayout() {
   const location  = useLocation()
   const navigate  = useNavigate()
-  const { user, signOut } = useAuth()
+  const { user, profile, signOut } = useAuth()
 
   const [orgName, setOrgName] = useState<string>('')
   const [plan,    setPlan]    = useState<string>('')
 
+  const role    = profile?.role ?? null
+  const roleMeta = ROLE_META[role ?? ''] ?? null
+
+  const navItems = NAV_ALL.filter(item =>
+    item.permission === null || can(role, item.permission as Parameters<typeof can>[1])
+  )
+
   useEffect(() => {
-    if (!user) return
-    void (async () => {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('organization_id')
-        .eq('user_id', user.id)
-        .single()
-
-      if (!profile?.organization_id) return
-
-      const { data: org } = await supabase
-        .from('organizations')
-        .select('name, plan')
-        .eq('id', profile.organization_id)
-        .single()
-
-      if (org) {
-        setOrgName(org.name as string)
-        setPlan(org.plan as string)
-      }
-    })()
-  }, [user])
+    if (!profile?.organization_id) return
+    void supabase
+      .from('organizations')
+      .select('name, plan')
+      .eq('id', profile.organization_id)
+      .single()
+      .then(({ data: org }) => {
+        if (org) {
+          setOrgName(org.name as string)
+          setPlan(org.plan as string)
+        }
+      })
+  }, [profile?.organization_id])
 
   const isActive = (path: string) =>
     path === '/dashboard'
       ? location.pathname === path
       : location.pathname.startsWith(path)
 
-  const currentPage = NAV_TOP.find(n => isActive(n.to))?.label ?? 'Dashboard'
+  const currentPage = NAV_ALL.find(n => isActive(n.to))?.label ?? 'Dashboard'
 
   const handleSignOut = async () => {
     await signOut()
@@ -114,7 +113,7 @@ export default function AppLayout() {
 
         {/* Nav */}
         <nav className="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">
-          {NAV_TOP.map(item => (
+          {navItems.map(item => (
             <Link
               key={item.to}
               to={item.to}
@@ -151,9 +150,19 @@ export default function AppLayout() {
             className="mt-2 px-3 py-2.5 rounded-lg"
             style={{ background: '#0B1220', border: '1px solid #1E2D3D' }}
           >
-            <p className="text-xs truncate mono mb-2" style={{ color: '#475569' }}>
-              {user?.email}
-            </p>
+            <div className="flex items-center justify-between mb-1.5">
+              <p className="text-xs truncate mono" style={{ color: '#475569', maxWidth: '120px' }}>
+                {user?.email}
+              </p>
+              {roleMeta && (
+                <span
+                  className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 ml-1"
+                  style={{ background: roleMeta.bg, color: roleMeta.color }}
+                >
+                  {roleMeta.label}
+                </span>
+              )}
+            </div>
             <button
               onClick={() => void handleSignOut()}
               className="flex items-center gap-2 text-xs transition-colors duration-150"

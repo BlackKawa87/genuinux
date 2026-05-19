@@ -4,12 +4,14 @@ import { useSearchParams } from 'react-router-dom'
 import {
   Building2, Users, ShieldCheck, CreditCard, Lock,
   RefreshCw, Save, CheckCircle2, AlertTriangle, Info,
-  Copy, Check, Cpu, Mail, Send, X,
+  Copy, Check, Cpu, Mail, Send, X, Trash2, Pencil,
   Clock, KeyRound, Webhook, ExternalLink, ChevronDown, ChevronUp,
   ClipboardList,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
+import { can, ROLE_META, ROLE_ORDER, ASSIGNABLE_ROLES, ADMIN_ASSIGNABLE_ROLES } from '../../lib/permissions'
+import type { Role } from '../../lib/permissions'
 import type { Organization, Profile, AuditLog } from '../../types'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -71,12 +73,6 @@ const PLANS = [
     features: ['Unlimited events', 'Full data retention', 'Dedicated SLA & support', 'SSO & advanced audit logs', 'Custom integrations'] },
 ]
 
-const ROLE_META: Record<string, { color: string; bg: string }> = {
-  owner:  { color: '#16C784', bg: 'rgba(22,199,132,0.1)'  },
-  admin:  { color: '#818CF8', bg: 'rgba(129,140,248,0.1)' },
-  member: { color: '#94A3B8', bg: 'rgba(148,163,184,0.08)' },
-}
-
 const INDUSTRIES = [
   'Fintech', 'E-commerce', 'Gaming', 'Crypto / Web3', 'Marketplaces',
   'SaaS', 'Healthcare', 'Insurance', 'Travel', 'Other',
@@ -120,6 +116,9 @@ function formatAction(action: string): string {
     'webhook.updated':      'Webhook updated',
     'webhook.deleted':      'Webhook deleted',
     'org.updated':          'Organization updated',
+    'member.role_changed':  'Member role changed',
+    'member.removed':       'Member removed',
+    'member.invited':       'Member invited',
   }
   return map[action] ?? action.split('.').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' › ')
 }
@@ -131,6 +130,7 @@ function getActionIcon(action: string): ReactNode {
   if (action.startsWith('webhook.')) return <Webhook size={11} />
   if (action.startsWith('review.'))  return <CheckCircle2 size={11} />
   if (action.startsWith('org.'))     return <Building2 size={11} />
+  if (action.startsWith('member.'))  return <Users size={11} />
   return <Clock size={11} />
 }
 
@@ -141,6 +141,7 @@ function getActionColor(action: string): string {
   if (action.startsWith('webhook.')) return '#38BDF8'
   if (action.startsWith('review.'))  return '#A78BFA'
   if (action.startsWith('org.'))     return '#94A3B8'
+  if (action.startsWith('member.'))  return '#38BDF8'
   return '#475569'
 }
 
@@ -365,43 +366,110 @@ CREATE TABLE IF NOT EXISTS pending_invites (
   id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id  uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   email            text NOT NULL,
-  role             text NOT NULL DEFAULT 'member',
+  role             text NOT NULL DEFAULT 'analyst',
   created_by       uuid REFERENCES auth.users(id),
   created_at       timestamptz NOT NULL DEFAULT now(),
   expires_at       timestamptz NOT NULL DEFAULT (now() + interval '7 days'),
   accepted_at      timestamptz
 );
-CREATE INDEX IF NOT EXISTS pending_invites_org  ON pending_invites (organization_id);
+CREATE INDEX IF NOT EXISTS pending_invites_org   ON pending_invites (organization_id);
 CREATE INDEX IF NOT EXISTS pending_invites_email ON pending_invites (email);
-
--- RLS
 ALTER TABLE pending_invites ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "org_members_read_invites"
-  ON pending_invites FOR SELECT
+CREATE POLICY "org_members_read_invites"  ON pending_invites FOR SELECT
   USING (organization_id = current_org_id());
-
-CREATE POLICY "org_admins_manage_invites"
-  ON pending_invites FOR ALL
+CREATE POLICY "org_admins_manage_invites" ON pending_invites FOR ALL
   USING (organization_id = current_org_id() AND current_user_role() IN ('owner', 'admin'))
   WITH CHECK (organization_id = current_org_id() AND current_user_role() IN ('owner', 'admin'));`
 
-function TeamTab({ members, currentProfile }: { members: Profile[]; currentProfile: Profile | null }) {
+const ROLE_PERMS = [
+  { role: 'owner',   perms: ['Full access', 'Manage billing', 'Create/revoke API keys', 'Manage members', 'Edit settings'] },
+  { role: 'admin',   perms: ['Manage rules', 'Manage webhooks', 'Review events', 'View all dashboard'] },
+  { role: 'analyst', perms: ['View risk events', 'Act on review queue', 'Add notes', 'Submit feedback'] },
+  { role: 'viewer',  perms: ['View dashboard', 'View risk events (read-only)'] },
+]
+
+function TeamTab({ members, currentProfile, onMembersChange }: {
+  members: Profile[]
+  currentProfile: Profile | null
+  onMembersChange: (m: Profile[]) => void
+}) {
   const { session } = useAuth()
-  const [showInvite,   setShowInvite]   = useState(false)
+  const [showInvite,    setShowInvite]    = useState(false)
   const [showMigration, setShowMigration] = useState(false)
-  const [invEmail,     setInvEmail]     = useState('')
-  const [invRole,      setInvRole]      = useState<'admin' | 'member'>('member')
-  const [invLoading,   setInvLoading]   = useState(false)
-  const [invSuccess,   setInvSuccess]   = useState(false)
-  const [invError,     setInvError]     = useState<string | null>(null)
+  const [invEmail,      setInvEmail]      = useState('')
+  const [invRole,       setInvRole]       = useState<Role>('analyst')
+  const [invLoading,    setInvLoading]    = useState(false)
+  const [invSuccess,    setInvSuccess]    = useState(false)
+  const [invError,      setInvError]      = useState<string | null>(null)
+  const [editingRole,   setEditingRole]   = useState<string | null>(null)  // profile.id
+  const [confirmRemove, setConfirmRemove] = useState<string | null>(null)  // profile.id
+  const [actionLoading, setActionLoading] = useState<string | null>(null)  // profile.id
 
-  const isOwnerOrAdmin = currentProfile?.role === 'owner' || currentProfile?.role === 'admin'
+  const myRole  = currentProfile?.role ?? 'viewer'
+  const isOwner = myRole === 'owner'
+  const isAdmin = myRole === 'admin'
 
-  const sorted = [...members].sort((a, b) => {
-    const order = { owner: 0, admin: 1, member: 2 }
-    return (order[a.role] ?? 3) - (order[b.role] ?? 3)
-  })
+  const canChangeRole = (target: Profile) => {
+    if (target.user_id === currentProfile?.user_id) return false
+    if (isOwner) return target.role !== 'owner'
+    if (isAdmin) return target.role !== 'owner' && target.role !== 'admin'
+    return false
+  }
+
+  const canRemove = (target: Profile) => {
+    if (target.user_id === currentProfile?.user_id) return false
+    if (isOwner) return target.role !== 'owner'
+    if (isAdmin) return target.role !== 'owner' && target.role !== 'admin'
+    return false
+  }
+
+  const assignableRoles = isOwner ? ASSIGNABLE_ROLES : ADMIN_ASSIGNABLE_ROLES
+
+  const sorted = [...members].sort((a, b) => (ROLE_ORDER[a.role] ?? 5) - (ROLE_ORDER[b.role] ?? 5))
+
+  const handleRoleChange = async (target: Profile, newRole: string) => {
+    setActionLoading(target.id)
+    try {
+      await supabase.from('profiles').update({ role: newRole }).eq('id', target.id)
+      await supabase.from('audit_logs').insert({
+        organization_id: currentProfile!.organization_id,
+        user_id:         currentProfile!.user_id,
+        action:          'member.role_changed',
+        target_type:     'profile',
+        target_id:       target.id,
+        user_agent:      navigator.userAgent,
+        metadata_json:   { member_email: target.email, old_role: target.role, new_role: newRole },
+      })
+      onMembersChange(members.map(m => m.id === target.id ? { ...m, role: newRole as Profile['role'] } : m))
+      setEditingRole(null)
+    } catch {
+      // silent — user can retry
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleRemove = async (target: Profile) => {
+    setActionLoading(target.id)
+    try {
+      await supabase.from('profiles').delete().eq('id', target.id)
+      await supabase.from('audit_logs').insert({
+        organization_id: currentProfile!.organization_id,
+        user_id:         currentProfile!.user_id,
+        action:          'member.removed',
+        target_type:     'profile',
+        target_id:       target.id,
+        user_agent:      navigator.userAgent,
+        metadata_json:   { member_email: target.email, member_role: target.role },
+      })
+      onMembersChange(members.filter(m => m.id !== target.id))
+      setConfirmRemove(null)
+    } catch {
+      // silent — user can retry
+    } finally {
+      setActionLoading(null)
+    }
+  }
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -424,18 +492,29 @@ function TeamTab({ members, currentProfile }: { members: Profile[]; currentProfi
       setInvError(json.error ?? 'Failed to send invite.')
       return
     }
+
+    void supabase.from('audit_logs').insert({
+      organization_id: currentProfile!.organization_id,
+      user_id:         currentProfile!.user_id,
+      action:          'member.invited',
+      user_agent:      navigator.userAgent,
+      metadata_json:   { invited_email: invEmail, invited_role: invRole },
+    })
+
     setInvSuccess(true)
     setInvEmail('')
     setTimeout(() => { setInvSuccess(false); setShowInvite(false) }, 2500)
   }
 
+  const showActions = isOwner || isAdmin
+
   return (
     <div className="space-y-5">
       <SectionCard
         title="Team Members"
-        subtitle={`${members.length} member${members.length !== 1 ? 's' : ''} in this organization`}
+        subtitle={`${members.length} member${members.length !== 1 ? 's' : ''} in this workspace`}
         action={
-          isOwnerOrAdmin ? (
+          showActions ? (
             <button
               onClick={() => { setShowInvite(true); setInvError(null); setInvSuccess(false) }}
               className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-colors"
@@ -453,9 +532,9 @@ function TeamTab({ members, currentProfile }: { members: Profile[]; currentProfi
           <table className="w-full">
             <thead>
               <tr style={{ borderBottom: '1px solid #1E2D3D' }}>
-                {['Member', 'Role', 'Joined'].map(h => (
+                {['Member', 'Role', 'Joined', ...(showActions ? ['Actions'] : [])].map(h => (
                   <th key={h} className="px-6 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider"
-                    style={{ color: '#2D4057' }}>
+                    style={{ color: '#2D4057', width: h === 'Actions' ? '120px' : undefined }}>
                     {h}
                   </th>
                 ))}
@@ -463,13 +542,17 @@ function TeamTab({ members, currentProfile }: { members: Profile[]; currentProfi
             </thead>
             <tbody>
               {sorted.map((m, i) => {
-                const meta = ROLE_META[m.role] ?? ROLE_META.member
-                const isMe = m.user_id === currentProfile?.user_id
+                const meta  = ROLE_META[m.role] ?? ROLE_META.viewer
+                const isMe  = m.user_id === currentProfile?.user_id
+                const isBusy = actionLoading === m.id
+                const isConfirmingRemove = confirmRemove === m.id
+                const isEditingThisRole  = editingRole   === m.id
                 return (
                   <tr
                     key={m.id}
                     style={{ borderBottom: i < sorted.length - 1 ? '1px solid #0D1B2A' : 'none' }}
                   >
+                    {/* Member */}
                     <td className="px-6 py-3.5">
                       <div className="flex items-center gap-3">
                         <div
@@ -492,18 +575,91 @@ function TeamTab({ members, currentProfile }: { members: Profile[]; currentProfi
                         </div>
                       </div>
                     </td>
+
+                    {/* Role — pill or editable dropdown */}
                     <td className="px-6 py-3.5">
-                      <span
-                        className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
-                        style={{ background: meta.bg, color: meta.color }}
-                      >
-                        {m.role}
-                      </span>
+                      {isEditingThisRole ? (
+                        <select
+                          autoFocus
+                          defaultValue={m.role}
+                          disabled={isBusy}
+                          className="g-input text-xs"
+                          style={{ minWidth: '110px' }}
+                          onChange={e => void handleRoleChange(m, e.target.value)}
+                          onBlur={() => !isBusy && setEditingRole(null)}
+                        >
+                          {assignableRoles.map(r => (
+                            <option key={r} value={r}>{ROLE_META[r]?.label ?? r}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span
+                          className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
+                          style={{ background: meta.bg, color: meta.color }}
+                        >
+                          {meta.label}
+                        </span>
+                      )}
                     </td>
+
+                    {/* Joined */}
                     <td className="px-6 py-3.5">
                       <p className="text-xs mono" style={{ color: '#94A3B8' }}>{formatTs(m.created_at)}</p>
                       <p className="text-[10px] mono mt-0.5" style={{ color: '#2D4057' }}>{relativeTime(m.created_at)}</p>
                     </td>
+
+                    {/* Actions */}
+                    {showActions && (
+                      <td className="px-6 py-3.5">
+                        {isConfirmingRemove ? (
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px]" style={{ color: '#EF4444' }}>Remove?</span>
+                            <button
+                              onClick={() => void handleRemove(m)}
+                              disabled={isBusy}
+                              className="text-[10px] font-semibold px-2 py-0.5 rounded"
+                              style={{ background: 'rgba(239,68,68,0.1)', color: '#EF4444', border: '1px solid rgba(239,68,68,0.2)' }}
+                            >
+                              {isBusy ? '…' : 'Yes'}
+                            </button>
+                            <button
+                              onClick={() => setConfirmRemove(null)}
+                              className="text-[10px] px-2 py-0.5 rounded"
+                              style={{ color: '#475569' }}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            {canChangeRole(m) && !isEditingThisRole && (
+                              <button
+                                onClick={() => setEditingRole(m.id)}
+                                className="p-1.5 rounded transition-colors"
+                                style={{ color: '#2D4057' }}
+                                title="Change role"
+                                onMouseEnter={e => (e.currentTarget.style.color = '#818CF8')}
+                                onMouseLeave={e => (e.currentTarget.style.color = '#2D4057')}
+                              >
+                                <Pencil size={11} />
+                              </button>
+                            )}
+                            {canRemove(m) && (
+                              <button
+                                onClick={() => setConfirmRemove(m.id)}
+                                className="p-1.5 rounded transition-colors"
+                                style={{ color: '#2D4057' }}
+                                title="Remove member"
+                                onMouseEnter={e => (e.currentTarget.style.color = '#EF4444')}
+                                onMouseLeave={e => (e.currentTarget.style.color = '#2D4057')}
+                              >
+                                <Trash2 size={11} />
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 )
               })}
@@ -512,23 +668,25 @@ function TeamTab({ members, currentProfile }: { members: Profile[]; currentProfi
         </div>
       </SectionCard>
 
-      {/* Role reference */}
-      <SectionCard title="Role Permissions" subtitle="What each role can do in the dashboard.">
+      {/* Role permissions reference */}
+      <SectionCard title="Role Permissions" subtitle="What each role can do in this workspace.">
         <div className="space-y-2.5">
-          {[
-            { role: 'owner',  perms: 'Full access — manage API keys, webhooks, billing, team, and all settings.' },
-            { role: 'admin',  perms: 'Manage rules, review queue, events. Cannot manage API keys or billing.' },
-            { role: 'member', perms: 'Read-only access to events, queue, and reports.' },
-          ].map(({ role, perms }) => {
+          {ROLE_PERMS.map(({ role, perms }) => {
             const meta = ROLE_META[role]
             return (
               <div key={role} className="flex items-start gap-3 px-4 py-3 rounded-lg"
                 style={{ background: '#050B14', border: '1px solid #1E2D3D' }}>
                 <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold flex-shrink-0 mt-0.5"
                   style={{ background: meta.bg, color: meta.color }}>
-                  {role}
+                  {meta.label}
                 </span>
-                <p className="text-xs" style={{ color: '#475569' }}>{perms}</p>
+                <div className="flex flex-wrap gap-x-3 gap-y-1">
+                  {perms.map(p => (
+                    <span key={p} className="text-[11px] flex items-center gap-1" style={{ color: '#475569' }}>
+                      <span style={{ color: meta.color }}>·</span> {p}
+                    </span>
+                  ))}
+                </div>
               </div>
             )
           })}
@@ -544,11 +702,11 @@ function TeamTab({ members, currentProfile }: { members: Profile[]; currentProfi
           <div className="flex items-center gap-2">
             <Info size={12} style={{ color: '#475569' }} />
             <span className="text-xs font-semibold" style={{ color: '#475569' }}>
-              Required: pending_invites DB migration
+              Required: team invites DB migration
             </span>
           </div>
           {showMigration
-            ? <ChevronUp size={12} style={{ color: '#475569' }} />
+            ? <ChevronUp  size={12} style={{ color: '#475569' }} />
             : <ChevronDown size={12} style={{ color: '#475569' }} />}
         </button>
         {showMigration && (
@@ -588,7 +746,7 @@ function TeamTab({ members, currentProfile }: { members: Profile[]; currentProfi
                 </div>
                 <div>
                   <h3 className="text-sm font-semibold" style={{ color: '#E2E8F0' }}>Invite team member</h3>
-                  <p className="text-xs" style={{ color: '#475569' }}>They'll receive an email to join your org</p>
+                  <p className="text-xs" style={{ color: '#475569' }}>They'll receive an email to join your workspace</p>
                 </div>
               </div>
               <button onClick={() => setShowInvite(false)} style={{ color: '#475569' }}>
@@ -600,10 +758,10 @@ function TeamTab({ members, currentProfile }: { members: Profile[]; currentProfi
               <div className="flex items-center gap-3 px-4 py-4 rounded-lg"
                 style={{ background: 'rgba(22,199,132,0.06)', border: '1px solid rgba(22,199,132,0.2)' }}>
                 <CheckCircle2 size={14} style={{ color: '#16C784' }} />
-                <p className="text-sm" style={{ color: '#16C784' }}>Invite sent!</p>
+                <p className="text-sm" style={{ color: '#16C784' }}>Invite sent successfully!</p>
               </div>
             ) : (
-              <form onSubmit={handleInvite} className="space-y-4">
+              <form onSubmit={e => void handleInvite(e)} className="space-y-4">
                 <div>
                   <label className="block text-xs font-semibold mb-1.5" style={{ color: '#94A3B8' }}>
                     Email address
@@ -623,11 +781,14 @@ function TeamTab({ members, currentProfile }: { members: Profile[]; currentProfi
                   </label>
                   <select
                     value={invRole}
-                    onChange={e => setInvRole(e.target.value as 'admin' | 'member')}
+                    onChange={e => setInvRole(e.target.value as Role)}
                     className="g-input text-sm w-full"
                   >
-                    <option value="member">Member — read-only access</option>
-                    <option value="admin">Admin — manage rules and queue</option>
+                    {(isOwner ? ASSIGNABLE_ROLES : ADMIN_ASSIGNABLE_ROLES).map(r => (
+                      <option key={r} value={r}>
+                        {ROLE_META[r]?.label} — {ROLE_META[r]?.desc}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -653,9 +814,7 @@ function TeamTab({ members, currentProfile }: { members: Profile[]; currentProfi
                     className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold"
                     style={{ background: '#16C784', color: '#050B14' }}
                   >
-                    {invLoading
-                      ? <RefreshCw size={13} className="animate-spin" />
-                      : <Send size={13} />}
+                    {invLoading ? <RefreshCw size={13} className="animate-spin" /> : <Send size={13} />}
                     Send invite
                   </button>
                 </div>
@@ -1477,7 +1636,13 @@ export default function SettingsPage() {
 
       {/* Tab bar */}
       <div className="flex items-center gap-1 mb-6 flex-wrap" style={{ borderBottom: '1px solid #1E2D3D', paddingBottom: 0 }}>
-        {TABS.map(t => {
+        {TABS.filter(t => {
+          if (t.id === 'billing')  return profile.role === 'owner'
+          if (t.id === 'team')     return can(profile.role, 'manage_members') || profile.role === 'admin'
+          if (t.id === 'risk')     return can(profile.role, 'manage_rules')
+          if (t.id === 'audit')    return can(profile.role, 'review_events')
+          return true
+        }).map(t => {
           const active = tab === t.id
           return (
             <button
@@ -1504,7 +1669,7 @@ export default function SettingsPage() {
         <OrgTab org={org} isOwner={isOwner} onSaved={setOrg} />
       )}
       {tab === 'team' && (
-        <TeamTab members={members} currentProfile={profile} />
+        <TeamTab members={members} currentProfile={profile} onMembersChange={setMembers} />
       )}
       {tab === 'risk' && (
         <RiskTab prefs={riskPrefs} orgId={org.id} isOwner={isOwner} />

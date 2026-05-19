@@ -50,7 +50,7 @@ export interface Profile {
   user_id: string
   full_name: string | null
   email: string
-  role: 'owner' | 'admin' | 'member'
+  role: 'owner' | 'admin' | 'analyst' | 'viewer' | 'member'
   organization_id: string
   created_at: string
 }
