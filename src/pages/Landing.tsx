@@ -331,7 +331,7 @@ export default function Landing() {
         }}>
         <div className="flex items-center justify-between px-6 py-4 max-w-7xl mx-auto">
           <Link to="/">
-            <img src="/logo-full.png" alt="Genuinux" style={{ height: '88px', display: 'block' }} />
+            <img src="/logo-horizontal.png" alt="Genuinux" style={{ height: '88px', display: 'block' }} />
           </Link>
 
           <div className="hidden md:flex items-center gap-8">
