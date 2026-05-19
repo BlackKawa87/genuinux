@@ -228,11 +228,29 @@ Both in **light mode** (`#F8FAFC` bg, `#FFFFFF` card with soft shadow). No dark 
 
 Register adds **company name** and **website** fields. On successful sign-up, calls `supabase.auth.getUser()` to get the new user ID, then updates the org `name` (and `website` if provided) that was auto-created by the DB trigger.
 
+### Auth Flows
+- **Password reset**: `/forgot-password` → Supabase email → `/reset-password` (token auto-exchanged from URL fragment).
+- **Team invite**: Settings → Team → "Invite member" modal → `POST /api/team/invite` → Supabase `inviteUserByEmail` → `/join?token=<uuid>`. Requires `pending_invites` table (SQL migration shown inline in the Team tab).
+
+### Blog
+3 real articles at `/blog/:slug`. Slugs: `detect-account-takeover`, `cost-of-false-positives`, `first-custom-fraud-rule`. Landing cards are clickable `<Link>` components with dates and read times.
+
+### Billing (Stripe)
+- `POST /api/billing/checkout` — creates Stripe checkout session → returns redirect URL. Body: `{ plan: 'starter' | 'pro' }`.
+- `POST /api/billing/portal` — creates Stripe customer portal session. Requires existing `stripe_customer_id` on org.
+- `POST /api/billing/webhook` — handles `customer.subscription.{created,updated,deleted}` → updates `organizations.plan`.
+- Requires env vars: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_STARTER`, `STRIPE_PRICE_PRO`.
+- Requires DB column: `ALTER TABLE organizations ADD COLUMN IF NOT EXISTS stripe_customer_id text;` (SQL shown inline in Billing tab).
+- Without Stripe env vars, Upgrade buttons return 503 with a clear error message — the UI degrades gracefully.
+
 ### Pending / Not Yet Built
-- Invite team members flow in Settings → Team (shows "Coming Soon" banner).
-- Stripe billing integration in Settings → Billing (placeholder).
-- Password reset flow (Login has "Forgot?" link with `href="#"`).
-- Blog posts (3 placeholder cards live at `#blog`).
+- Invite team members: works end-to-end but requires running the `pending_invites` SQL migration in Supabase first.
+- Stripe billing: API endpoints ready — requires adding Stripe env vars to Vercel and running the `stripe_customer_id` migration.
+- Password reset: fully functional via Supabase email.
+- Blog: 3 real articles live at `/blog/:slug`.
+- Invite flow to same org: currently new invited users are assigned to the invited org via the `/join` page, but the auto-created org from the DB trigger remains. A cleanup step (deleting the auto-created org) can be added later.
+- Stripe billing: "Contact us" button on Enterprise plan (links to `billing@genuinux.io`).
+- Blog: more posts, search/filter, RSS feed.
 
 ## TypeScript Config
 

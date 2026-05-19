@@ -69,7 +69,7 @@ export default function Login() {
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="text-xs font-semibold" style={{ color: '#64748B' }}>Password</label>
-                <a href="#" className="text-xs font-medium" style={{ color: '#16C784' }}>Forgot?</a>
+                <Link to="/forgot-password" className="text-xs font-medium" style={{ color: '#16C784' }}>Forgot?</Link>
               </div>
               <input
                 type="password"

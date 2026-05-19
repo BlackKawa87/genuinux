@@ -207,9 +207,15 @@ const PRICING_PLANS = [
 ]
 
 const BLOG_POSTS = [
-  { category: 'Fraud Detection',  title: 'How to detect account takeover before it happens',         desc: 'An overview of behavioral signals that predict ATO attempts — and how to act on them in real time.' },
-  { category: 'Risk Strategy',    title: 'The true cost of false positives in fraud prevention',      desc: 'Every blocked legitimate user has a cost. We break down how to measure it and optimize your thresholds.' },
-  { category: 'Developer Guide',  title: 'Building your first custom fraud rule with Genuinux',       desc: 'A step-by-step guide to writing, testing, and deploying custom rules without touching your production code.' },
+  { slug: 'detect-account-takeover', category: 'Fraud Detection',  date: 'May 12, 2026',   readTime: '5 min',
+    title: 'How to detect account takeover before it happens',
+    desc:  'An overview of behavioral signals that predict ATO attempts — and how to act on them in real time.' },
+  { slug: 'cost-of-false-positives', category: 'Risk Strategy',    date: 'Apr 28, 2026',   readTime: '4 min',
+    title: 'The true cost of false positives in fraud prevention',
+    desc:  'Every blocked legitimate user has a cost. We break down how to measure it and optimize your thresholds.' },
+  { slug: 'first-custom-fraud-rule', category: 'Developer Guide',  date: 'Apr 15, 2026',   readTime: '6 min',
+    title: 'Building your first custom fraud rule with Genuinux',
+    desc:  'A step-by-step guide to writing, testing, and deploying custom rules without touching your production code.' },
 ]
 
 const CERTS = [
@@ -813,23 +819,25 @@ export default function Landing() {
 
           <div className="grid md:grid-cols-3 gap-6">
             {BLOG_POSTS.map((post, i) => (
-              <div key={i} className="p-6 rounded-2xl flex flex-col"
-                style={{ background: C.bg, border: `1px solid ${C.border}`, boxShadow: C.shadow }}>
+              <Link key={i} to={`/blog/${post.slug}`}
+                className="p-6 rounded-2xl flex flex-col transition-all duration-150 group"
+                style={{ background: C.bg, border: `1px solid ${C.border}`, boxShadow: C.shadow }}
+                onMouseEnter={e => (e.currentTarget.style.borderColor = C.trust)}
+                onMouseLeave={e => (e.currentTarget.style.borderColor = C.border)}
+              >
                 <div className="flex items-center justify-between mb-5">
                   <span className="text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-full"
                     style={{ background: C.trustBg, color: C.trustT, border: `1px solid ${C.trustBd}` }}>
                     {post.category}
                   </span>
-                  <span className="text-[10px] font-semibold px-2.5 py-1 rounded-full"
-                    style={{ background: C.borderL, color: C.textMut }}>
-                    Coming soon
-                  </span>
+                  <span className="text-[10px]" style={{ color: C.textMut }}>{post.date} · {post.readTime}</span>
                 </div>
-                <h3 className="text-sm font-bold mb-3 leading-snug flex-1" style={{ color: C.text }}>
+                <h3 className="text-sm font-bold mb-3 leading-snug flex-1 transition-colors"
+                  style={{ color: C.text }}>
                   {post.title}
                 </h3>
                 <p className="text-xs leading-relaxed" style={{ color: C.textSec }}>{post.desc}</p>
-              </div>
+              </Link>
             ))}
           </div>
         </div>

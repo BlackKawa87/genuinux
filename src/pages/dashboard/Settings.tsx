@@ -3,8 +3,8 @@ import type { ReactNode } from 'react'
 import {
   Building2, Users, ShieldCheck, CreditCard, Lock,
   RefreshCw, Save, CheckCircle2, AlertTriangle, Info,
-  Copy, Check, Cpu, Mail,
-  Clock, KeyRound, Webhook,
+  Copy, Check, Cpu, Mail, Send, X,
+  Clock, KeyRound, Webhook, ExternalLink, ChevronDown, ChevronUp,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
@@ -306,13 +306,62 @@ function OrgTab({
 
 // ─── Tab: Team ────────────────────────────────────────────────────────────────
 
+const INVITE_MIGRATION_SQL = `-- Run in Supabase SQL editor (Settings → Team requires this table)
+CREATE TABLE IF NOT EXISTS pending_invites (
+  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id  uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  email            text NOT NULL,
+  role             text NOT NULL DEFAULT 'member',
+  created_by       uuid REFERENCES auth.users(id),
+  created_at       timestamptz NOT NULL DEFAULT now(),
+  expires_at       timestamptz NOT NULL DEFAULT (now() + interval '7 days'),
+  accepted_at      timestamptz
+);
+CREATE INDEX IF NOT EXISTS pending_invites_org  ON pending_invites (organization_id);
+CREATE INDEX IF NOT EXISTS pending_invites_email ON pending_invites (email);`
+
 function TeamTab({ members, currentProfile }: { members: Profile[]; currentProfile: Profile | null }) {
-  const [showInvite, setShowInvite] = useState(false)
+  const { session } = useAuth()
+  const [showInvite,   setShowInvite]   = useState(false)
+  const [showMigration, setShowMigration] = useState(false)
+  const [invEmail,     setInvEmail]     = useState('')
+  const [invRole,      setInvRole]      = useState<'admin' | 'member'>('member')
+  const [invLoading,   setInvLoading]   = useState(false)
+  const [invSuccess,   setInvSuccess]   = useState(false)
+  const [invError,     setInvError]     = useState<string | null>(null)
+
+  const isOwnerOrAdmin = currentProfile?.role === 'owner' || currentProfile?.role === 'admin'
 
   const sorted = [...members].sort((a, b) => {
     const order = { owner: 0, admin: 1, member: 2 }
     return (order[a.role] ?? 3) - (order[b.role] ?? 3)
   })
+
+  const handleInvite = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!session?.access_token) return
+    setInvLoading(true); setInvError(null)
+
+    const res = await fetch('/api/team/invite', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ email: invEmail, role: invRole }),
+    })
+    const json = await res.json() as { success?: boolean; error?: string; code?: string }
+    setInvLoading(false)
+
+    if (!res.ok) {
+      if (json.code === 'TABLE_MISSING') setShowMigration(true)
+      setInvError(json.error ?? 'Failed to send invite.')
+      return
+    }
+    setInvSuccess(true)
+    setInvEmail('')
+    setTimeout(() => { setInvSuccess(false); setShowInvite(false) }, 2500)
+  }
 
   return (
     <div className="space-y-5">
@@ -320,16 +369,18 @@ function TeamTab({ members, currentProfile }: { members: Profile[]; currentProfi
         title="Team Members"
         subtitle={`${members.length} member${members.length !== 1 ? 's' : ''} in this organization`}
         action={
-          <button
-            onClick={() => setShowInvite(true)}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-colors"
-            style={{ border: '1px solid #1E2D3D', color: '#94A3B8' }}
-            onMouseEnter={e => (e.currentTarget.style.borderColor = '#16C784')}
-            onMouseLeave={e => (e.currentTarget.style.borderColor = '#1E2D3D')}
-          >
-            <Mail size={11} />
-            Invite member
-          </button>
+          isOwnerOrAdmin ? (
+            <button
+              onClick={() => { setShowInvite(true); setInvError(null); setInvSuccess(false) }}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-colors"
+              style={{ border: '1px solid #1E2D3D', color: '#94A3B8' }}
+              onMouseEnter={e => (e.currentTarget.style.borderColor = '#16C784')}
+              onMouseLeave={e => (e.currentTarget.style.borderColor = '#1E2D3D')}
+            >
+              <Mail size={11} />
+              Invite member
+            </button>
+          ) : undefined
         }
       >
         <div className="overflow-x-auto -mx-6">
@@ -418,6 +469,40 @@ function TeamTab({ members, currentProfile }: { members: Profile[]; currentProfi
         </div>
       </SectionCard>
 
+      {/* DB migration hint */}
+      <div className="g-card overflow-hidden" style={{ border: '1px solid #1E2D3D' }}>
+        <button
+          onClick={() => setShowMigration(v => !v)}
+          className="w-full flex items-center justify-between px-5 py-3.5 text-left"
+        >
+          <div className="flex items-center gap-2">
+            <Info size={12} style={{ color: '#475569' }} />
+            <span className="text-xs font-semibold" style={{ color: '#475569' }}>
+              Required: pending_invites DB migration
+            </span>
+          </div>
+          {showMigration
+            ? <ChevronUp size={12} style={{ color: '#475569' }} />
+            : <ChevronDown size={12} style={{ color: '#475569' }} />}
+        </button>
+        {showMigration && (
+          <div className="px-5 pb-5">
+            <p className="text-xs mb-3" style={{ color: '#475569' }}>
+              Run once in your Supabase SQL editor to enable team invites:
+            </p>
+            <div className="relative">
+              <pre className="text-[11px] mono leading-relaxed p-4 rounded-lg overflow-x-auto"
+                style={{ background: '#050B14', color: '#94A3B8', border: '1px solid #1E2D3D' }}>
+                {INVITE_MIGRATION_SQL}
+              </pre>
+              <div className="absolute top-2 right-2">
+                <CopyButton text={INVITE_MIGRATION_SQL} />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Invite modal */}
       {showInvite && (
         <>
@@ -429,33 +514,87 @@ function TeamTab({ members, currentProfile }: { members: Profile[]; currentProfi
             className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 rounded-xl p-6 w-full max-w-md"
             style={{ background: '#0B1220', border: '1px solid #1E2D3D' }}
           >
-            <div className="flex items-center gap-3 mb-5">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center"
-                style={{ background: 'rgba(22,199,132,0.1)', border: '1px solid rgba(22,199,132,0.2)' }}>
-                <Mail size={14} style={{ color: '#16C784' }} />
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center"
+                  style={{ background: 'rgba(22,199,132,0.1)', border: '1px solid rgba(22,199,132,0.2)' }}>
+                  <Mail size={14} style={{ color: '#16C784' }} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold" style={{ color: '#E2E8F0' }}>Invite team member</h3>
+                  <p className="text-xs" style={{ color: '#475569' }}>They'll receive an email to join your org</p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-sm font-semibold" style={{ color: '#E2E8F0' }}>Invite team member</h3>
-                <p className="text-xs" style={{ color: '#475569' }}>Coming soon</p>
+              <button onClick={() => setShowInvite(false)} style={{ color: '#475569' }}>
+                <X size={16} />
+              </button>
+            </div>
+
+            {invSuccess ? (
+              <div className="flex items-center gap-3 px-4 py-4 rounded-lg"
+                style={{ background: 'rgba(22,199,132,0.06)', border: '1px solid rgba(22,199,132,0.2)' }}>
+                <CheckCircle2 size={14} style={{ color: '#16C784' }} />
+                <p className="text-sm" style={{ color: '#16C784' }}>Invite sent!</p>
               </div>
-            </div>
-            <div
-              className="flex items-start gap-3 px-4 py-4 rounded-lg mb-5"
-              style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)' }}
-            >
-              <Clock size={13} style={{ color: '#F59E0B', flexShrink: 0, marginTop: 1 }} />
-              <p className="text-xs" style={{ color: '#94A3B8' }}>
-                Team invitations via email are on the roadmap. Members can currently be added directly
-                in the Supabase dashboard by linking their profile to this organization.
-              </p>
-            </div>
-            <button
-              onClick={() => setShowInvite(false)}
-              className="w-full py-2 rounded-lg text-sm font-semibold"
-              style={{ background: '#0F1929', color: '#94A3B8', border: '1px solid #1E2D3D' }}
-            >
-              Got it
-            </button>
+            ) : (
+              <form onSubmit={handleInvite} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold mb-1.5" style={{ color: '#94A3B8' }}>
+                    Email address
+                  </label>
+                  <input
+                    type="email"
+                    value={invEmail}
+                    onChange={e => setInvEmail(e.target.value)}
+                    placeholder="colleague@company.com"
+                    required
+                    className="g-input text-sm w-full"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold mb-1.5" style={{ color: '#94A3B8' }}>
+                    Role
+                  </label>
+                  <select
+                    value={invRole}
+                    onChange={e => setInvRole(e.target.value as 'admin' | 'member')}
+                    className="g-input text-sm w-full"
+                  >
+                    <option value="member">Member — read-only access</option>
+                    <option value="admin">Admin — manage rules and queue</option>
+                  </select>
+                </div>
+
+                {invError && (
+                  <p className="text-xs px-3 py-2.5 rounded-lg"
+                    style={{ background: 'rgba(239,68,68,0.06)', color: '#EF4444', border: '1px solid rgba(239,68,68,0.15)' }}>
+                    {invError}
+                  </p>
+                )}
+
+                <div className="flex gap-3 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowInvite(false)}
+                    className="flex-1 py-2 rounded-lg text-sm"
+                    style={{ background: '#0F1929', color: '#94A3B8', border: '1px solid #1E2D3D' }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={invLoading}
+                    className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold"
+                    style={{ background: '#16C784', color: '#050B14' }}
+                  >
+                    {invLoading
+                      ? <RefreshCw size={13} className="animate-spin" />
+                      : <Send size={13} />}
+                    Send invite
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </>
       )}
@@ -626,10 +765,75 @@ function RiskTab({ prefs, orgId, isOwner }: { prefs: RiskPrefs; orgId: string; i
 
 // ─── Tab: Billing ─────────────────────────────────────────────────────────────
 
-function BillingTab({ plan }: { plan: string }) {
+const STRIPE_MIGRATION_SQL = `-- Run in Supabase SQL editor to enable Stripe billing
+ALTER TABLE organizations
+  ADD COLUMN IF NOT EXISTS stripe_customer_id text;`
+
+function BillingTab({ plan }: { plan: string; orgId: string }) {
+  const { session } = useAuth()
+  const [upgrading, setUpgrading] = useState<string | null>(null)
+  const [portalLoading, setPortalLoading] = useState(false)
+  const [billingError, setBillingError] = useState<string | null>(null)
+  const [showStripeMigration, setShowStripeMigration] = useState(false)
+
+  const handleUpgrade = async (planId: string) => {
+    if (!session?.access_token) return
+    setUpgrading(planId); setBillingError(null)
+
+    const res  = await fetch('/api/billing/checkout', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body:    JSON.stringify({ plan: planId }),
+    })
+    const json = await res.json() as { url?: string; error?: string; code?: string }
+    setUpgrading(null)
+
+    if (!res.ok) {
+      setBillingError(json.error ?? 'Checkout failed.')
+      return
+    }
+    if (json.url) window.location.href = json.url
+  }
+
+  const handlePortal = async () => {
+    if (!session?.access_token) return
+    setPortalLoading(true); setBillingError(null)
+
+    const res  = await fetch('/api/billing/portal', {
+      method:  'POST',
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    })
+    const json = await res.json() as { url?: string; error?: string }
+    setPortalLoading(false)
+
+    if (!res.ok) { setBillingError(json.error ?? 'Portal failed.'); return }
+    if (json.url) window.location.href = json.url
+  }
+
+  const isPaid = plan !== 'free'
+
   return (
     <div className="space-y-5">
-      <SectionCard title="Current Plan">
+      <SectionCard
+        title="Current Plan"
+        action={
+          isPaid ? (
+            <button
+              onClick={handlePortal}
+              disabled={portalLoading}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-colors"
+              style={{ border: '1px solid #1E2D3D', color: '#94A3B8' }}
+              onMouseEnter={e => (e.currentTarget.style.borderColor = '#16C784')}
+              onMouseLeave={e => (e.currentTarget.style.borderColor = '#1E2D3D')}
+            >
+              {portalLoading
+                ? <RefreshCw size={11} className="animate-spin" />
+                : <ExternalLink size={11} />}
+              Manage subscription
+            </button>
+          ) : undefined
+        }
+      >
         <div className="flex items-center gap-4">
           <span
             className="text-sm font-bold px-3 py-1.5 rounded-lg"
@@ -642,15 +846,19 @@ function BillingTab({ plan }: { plan: string }) {
             {plan.toUpperCase()}
           </span>
           <p className="text-xs" style={{ color: '#475569' }}>
-            Your organization is on the <strong style={{ color: '#94A3B8' }}>{plan}</strong> plan.
-            Upgrade to unlock higher limits and additional features.
+            {isPaid
+              ? `Active ${plan} subscription. Manage invoices and payment methods via the Stripe portal.`
+              : `You're on the free plan. Upgrade to unlock higher limits and additional features.`}
           </p>
         </div>
       </SectionCard>
 
       <div className="grid grid-cols-4 gap-3">
         {PLANS.map(p => {
-          const isCurrent = p.id === plan
+          const isCurrent  = p.id === plan
+          const isUpgrading = upgrading === p.id
+          const isPayable  = p.id === 'starter' || p.id === 'pro'
+
           return (
             <div
               key={p.id}
@@ -693,21 +901,75 @@ function BillingTab({ plan }: { plan: string }) {
                 ))}
               </ul>
               <button
-                disabled={isCurrent}
-                className="w-full py-2 rounded-lg text-xs font-semibold transition-opacity"
+                disabled={isCurrent || isUpgrading || (!isPayable && !isCurrent)}
+                onClick={() => isPayable && !isCurrent ? handleUpgrade(p.id) : undefined}
+                className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-opacity"
                 style={{
-                  background: isCurrent ? '#0F1929' : '#16C784',
-                  color: isCurrent ? '#475569' : '#050B14',
+                  background: isCurrent ? '#0F1929' : p.id === 'enterprise' ? '#0F1929' : '#16C784',
+                  color: isCurrent ? '#475569' : p.id === 'enterprise' ? '#94A3B8' : '#050B14',
                   opacity: isCurrent ? 0.7 : 1,
-                  cursor: isCurrent ? 'not-allowed' : 'default',
-                  border: isCurrent ? '1px solid #1E2D3D' : 'none',
+                  cursor: isCurrent || p.id === 'enterprise' ? 'not-allowed' : 'pointer',
+                  border: (isCurrent || p.id === 'enterprise') ? '1px solid #1E2D3D' : 'none',
                 }}
               >
-                {isCurrent ? 'Current plan' : 'Upgrade'}
+                {isUpgrading && <RefreshCw size={11} className="animate-spin" />}
+                {isCurrent ? 'Current plan' : p.id === 'enterprise' ? 'Contact us' : 'Upgrade'}
               </button>
             </div>
           )
         })}
+      </div>
+
+      {billingError && (
+        <div className="flex items-start gap-3 px-4 py-3 rounded-lg"
+          style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)' }}>
+          <AlertTriangle size={13} style={{ color: '#EF4444', flexShrink: 0, marginTop: 1 }} />
+          <div>
+            <p className="text-xs" style={{ color: '#EF4444' }}>{billingError}</p>
+            {billingError.includes('STRIPE_NOT_CONFIGURED') && (
+              <p className="text-[11px] mt-1" style={{ color: '#475569' }}>
+                Add <span className="mono" style={{ color: '#94A3B8' }}>STRIPE_SECRET_KEY</span>,{' '}
+                <span className="mono" style={{ color: '#94A3B8' }}>STRIPE_PRICE_STARTER</span>, and{' '}
+                <span className="mono" style={{ color: '#94A3B8' }}>STRIPE_PRICE_PRO</span>{' '}
+                to your Vercel environment variables to enable billing.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Stripe DB migration */}
+      <div className="g-card overflow-hidden" style={{ border: '1px solid #1E2D3D' }}>
+        <button
+          onClick={() => setShowStripeMigration(v => !v)}
+          className="w-full flex items-center justify-between px-5 py-3.5 text-left"
+        >
+          <div className="flex items-center gap-2">
+            <Info size={12} style={{ color: '#475569' }} />
+            <span className="text-xs font-semibold" style={{ color: '#475569' }}>
+              Required: Stripe DB migration
+            </span>
+          </div>
+          {showStripeMigration
+            ? <ChevronUp size={12} style={{ color: '#475569' }} />
+            : <ChevronDown size={12} style={{ color: '#475569' }} />}
+        </button>
+        {showStripeMigration && (
+          <div className="px-5 pb-5">
+            <p className="text-xs mb-3" style={{ color: '#475569' }}>
+              Run once in your Supabase SQL editor to store Stripe customer IDs:
+            </p>
+            <div className="relative">
+              <pre className="text-[11px] mono p-4 rounded-lg overflow-x-auto"
+                style={{ background: '#050B14', color: '#94A3B8', border: '1px solid #1E2D3D' }}>
+                {STRIPE_MIGRATION_SQL}
+              </pre>
+              <div className="absolute top-2 right-2">
+                <CopyButton text={STRIPE_MIGRATION_SQL} />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <div
@@ -716,10 +978,10 @@ function BillingTab({ plan }: { plan: string }) {
       >
         <CreditCard size={16} style={{ color: '#475569', flexShrink: 0 }} />
         <div>
-          <p className="text-sm font-semibold" style={{ color: '#94A3B8' }}>Stripe integration coming soon</p>
+          <p className="text-sm font-semibold" style={{ color: '#94A3B8' }}>Enterprise & custom pricing</p>
           <p className="text-xs mt-0.5" style={{ color: '#475569' }}>
-            Billing and plan upgrades will be managed through Stripe. Contact{' '}
-            <span style={{ color: '#16C784' }}>billing@genuinux.io</span> for enterprise pricing.
+            Need a custom volume deal, SLA guarantee, or dedicated support? Contact{' '}
+            <a href="mailto:billing@genuinux.io" style={{ color: '#16C784' }}>billing@genuinux.io</a>.
           </p>
         </div>
       </div>
@@ -994,7 +1256,7 @@ export default function SettingsPage() {
         <RiskTab prefs={riskPrefs} orgId={org.id} isOwner={isOwner} />
       )}
       {tab === 'billing' && (
-        <BillingTab plan={org.plan} />
+        <BillingTab plan={org.plan} orgId={org.id} />
       )}
       {tab === 'security' && (
         <SecurityTab auditLogs={auditLogs} />
