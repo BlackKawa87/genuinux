@@ -3,10 +3,13 @@ import type { ReactNode } from 'react'
 import {
   Search, X, RefreshCw, ChevronDown,
   Shield, User, Globe, Monitor, AlertTriangle, Zap,
+  Mail, Activity, CheckCircle2,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
+import { buildRiskReasons, calcConfidence } from '../../lib/riskEngine'
 import type { RiskEvent, RiskLevel, Decision, EventType } from '../../types'
+import type { RiskReason, ConfidenceLevel } from '../../lib/riskEngine'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -179,6 +182,106 @@ function RelatedRow({ ev, onSelect }: { ev: Partial<RiskEvent>; onSelect: () => 
   )
 }
 
+// ─── Explainability helpers ───────────────────────────────────────────────────
+
+const CATEGORY_ICON: Record<string, ReactNode> = {
+  email:      <Mail     size={11} />,
+  ip:         <Globe    size={11} />,
+  device:     <Monitor  size={11} />,
+  velocity:   <Zap      size={11} />,
+  behavioral: <Activity size={11} />,
+}
+
+const CONFIDENCE_META: Record<ConfidenceLevel, { label: string; color: string; bg: string }> = {
+  high:   { label: 'High confidence',   color: '#16C784', bg: 'rgba(22,199,132,0.08)'  },
+  medium: { label: 'Medium confidence', color: '#F59E0B', bg: 'rgba(245,158,11,0.08)'  },
+  low:    { label: 'Low confidence',    color: '#F97316', bg: 'rgba(249,115,22,0.08)'  },
+}
+
+function parseRiskReasons(raw: unknown, signals: Signal[]): RiskReason[] {
+  if (Array.isArray(raw) && raw.length > 0) return raw as RiskReason[]
+  // Fallback: derive from signals for events that pre-date this feature
+  return buildRiskReasons(signals as Parameters<typeof buildRiskReasons>[0])
+}
+
+function RiskReasonsSection({
+  event, signals,
+}: {
+  event: RiskEvent
+  signals: Signal[]
+}) {
+  const reasons = parseRiskReasons(event.risk_reasons_json, signals)
+  const confidence = event.confidence_level ?? calcConfidence(
+    signals as Parameters<typeof calcConfidence>[0],
+    event.fraud_score,
+  )
+  const recommendedAction = event.recommended_action
+
+  if (reasons.length === 0 && !recommendedAction) return null
+
+  const conf = CONFIDENCE_META[confidence]
+
+  return (
+    <div className="px-6 py-4" style={{ borderBottom: '1px solid #0D1B2A' }}>
+      {/* Header row */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <CheckCircle2 size={12} style={{ color: '#818CF8' }} />
+          <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#475569' }}>
+            Why this decision?
+          </p>
+        </div>
+        <span
+          className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+          style={{ background: conf.bg, color: conf.color, border: `1px solid ${conf.color}28` }}
+        >
+          {conf.label}
+        </span>
+      </div>
+
+      {/* Recommended action */}
+      {recommendedAction && (
+        <p className="text-xs leading-relaxed mb-3" style={{ color: '#94A3B8' }}>
+          {recommendedAction}
+        </p>
+      )}
+
+      {/* Reasons list */}
+      {reasons.length > 0 && (
+        <div className="space-y-2">
+          {reasons.map((r, i) => (
+            <div
+              key={i}
+              className="flex items-start gap-3 px-3 py-2.5 rounded-lg"
+              style={{ background: '#050B14', border: '1px solid #1E2D3D' }}
+            >
+              <span
+                className="flex-shrink-0 mt-0.5"
+                style={{ color: SEV_COLORS[r.severity] ?? '#475569' }}
+              >
+                {CATEGORY_ICON[r.category] ?? <AlertTriangle size={11} />}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs leading-relaxed" style={{ color: '#E2E8F0' }}>{r.reason}</p>
+              </div>
+              <span
+                className="text-[10px] px-2 py-0.5 rounded-full font-medium flex-shrink-0 mono"
+                style={{
+                  background: `${SEV_COLORS[r.severity] ?? '#475569'}18`,
+                  color: SEV_COLORS[r.severity] ?? '#475569',
+                  border: `1px solid ${SEV_COLORS[r.severity] ?? '#475569'}30`,
+                }}
+              >
+                {r.severity}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── EventDetailPanel ─────────────────────────────────────────────────────────
 
 function EventDetailPanel({
@@ -326,6 +429,9 @@ function EventDetailPanel({
               </p>
             </div>
           )}
+
+          {/* Explainability — Why this decision? */}
+          <RiskReasonsSection event={event} signals={signals} />
 
           {/* User & Session */}
           <CollapsibleSection

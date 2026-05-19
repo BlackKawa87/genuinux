@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { analyze } from './riskEngine'
-import type { RiskEngineInput } from './riskEngine'
+import { analyze, buildRiskReasons, calcConfidence, buildRecommendedAction } from './riskEngine'
+import type { RiskEngineInput, DetectedSignal } from './riskEngine'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -375,6 +375,145 @@ describe('decision thresholds', () => {
   it('clean US user gets allow', () => {
     const result = analyze(clean)
     expect(result.decision).toBe('allow')
+  })
+})
+
+// ─── Explainability layer ─────────────────────────────────────────────────────
+
+describe('buildRiskReasons', () => {
+  it('returns empty array for no signals', () => {
+    expect(buildRiskReasons([])).toEqual([])
+  })
+
+  it('maps EMAIL_DISPOSABLE to email category', () => {
+    const sig: DetectedSignal = { code: 'EMAIL_DISPOSABLE', label: 'Disposable email', severity: 'high', fraud_impact: 25, trust_impact: 20 }
+    const reasons = buildRiskReasons([sig])
+    expect(reasons[0].category).toBe('email')
+    expect(reasons[0].severity).toBe('high')
+    expect(reasons[0].reason.length).toBeGreaterThan(10)
+  })
+
+  it('maps DEVICE_PRIOR_BLOCK to device category', () => {
+    const sig: DetectedSignal = { code: 'DEVICE_PRIOR_BLOCK', label: 'Device blocked', severity: 'critical', fraud_impact: 45, trust_impact: 40 }
+    const reasons = buildRiskReasons([sig])
+    expect(reasons[0].category).toBe('device')
+  })
+
+  it('maps VELOCITY_USER to velocity category', () => {
+    const sig: DetectedSignal = { code: 'VELOCITY_USER', label: 'High velocity', severity: 'high', fraud_impact: 30, trust_impact: 25 }
+    const reasons = buildRiskReasons([sig])
+    expect(reasons[0].category).toBe('velocity')
+  })
+
+  it('maps UA_AUTOMATION to behavioral category', () => {
+    const sig: DetectedSignal = { code: 'UA_AUTOMATION', label: 'Bot UA', severity: 'high', fraud_impact: 35, trust_impact: 30 }
+    const reasons = buildRiskReasons([sig])
+    expect(reasons[0].category).toBe('behavioral')
+  })
+
+  it('does not accuse the user directly — reasons are non-accusatory', () => {
+    const signals: DetectedSignal[] = [
+      { code: 'EMAIL_DISPOSABLE', label: 'x', severity: 'high', fraud_impact: 25, trust_impact: 20 },
+      { code: 'DEVICE_PRIOR_BLOCK', label: 'x', severity: 'critical', fraud_impact: 45, trust_impact: 40 },
+    ]
+    for (const r of buildRiskReasons(signals)) {
+      // Should not contain accusatory terms
+      expect(r.reason.toLowerCase()).not.toContain('fraudster')
+      expect(r.reason.toLowerCase()).not.toContain('criminal')
+      expect(r.reason.toLowerCase()).not.toContain('liar')
+    }
+  })
+})
+
+describe('calcConfidence', () => {
+  it('high confidence for 0 signals (clearly clean)', () => {
+    expect(calcConfidence([], 0)).toBe('high')
+  })
+
+  it('high confidence for fraud_score >= 70', () => {
+    const sig: DetectedSignal = { code: 'DEVICE_PRIOR_BLOCK', label: 'x', severity: 'critical', fraud_impact: 45, trust_impact: 40 }
+    expect(calcConfidence([sig], 75)).toBe('high')
+  })
+
+  it('high confidence for 3+ signals', () => {
+    const sig: DetectedSignal = { code: 'EMAIL_DISPOSABLE', label: 'x', severity: 'high', fraud_impact: 25, trust_impact: 20 }
+    expect(calcConfidence([sig, sig, sig], 50)).toBe('high')
+  })
+
+  it('medium confidence for 2 signals with moderate fraud', () => {
+    const sig: DetectedSignal = { code: 'EMAIL_ABSENT', label: 'x', severity: 'medium', fraud_impact: 20, trust_impact: 20 }
+    expect(calcConfidence([sig, sig], 40)).toBe('medium')
+  })
+
+  it('low confidence for 1 signal with low fraud', () => {
+    const sig: DetectedSignal = { code: 'EMAIL_ABSENT', label: 'x', severity: 'medium', fraud_impact: 20, trust_impact: 20 }
+    expect(calcConfidence([sig], 20)).toBe('low')
+  })
+})
+
+describe('buildRecommendedAction', () => {
+  it('contains "blocked" for block decision', () => {
+    const action = buildRecommendedAction('block', 'high', 3)
+    expect(action.toLowerCase()).toContain('block')
+  })
+
+  it('contains "manual review" for review decision', () => {
+    const action = buildRecommendedAction('review', 'medium', 2)
+    expect(action.toLowerCase()).toContain('manual review')
+  })
+
+  it('contains "no action" for clean allow', () => {
+    const action = buildRecommendedAction('allow', 'low', 0)
+    expect(action.toLowerCase()).toContain('no action')
+  })
+
+  it('mentions monitoring for allow with signals', () => {
+    const action = buildRecommendedAction('allow', 'low', 1)
+    expect(action.toLowerCase()).toContain('monitor')
+  })
+
+  it('critical block has stronger language', () => {
+    const critical = buildRecommendedAction('block', 'critical', 5)
+    const high     = buildRecommendedAction('block', 'high', 5)
+    expect(critical).not.toBe(high)
+    expect(critical.toLowerCase()).toContain('critical')
+  })
+})
+
+describe('analyze() output includes explainability fields', () => {
+  it('includes risk_reasons array', () => {
+    const result = analyze(clean)
+    expect(Array.isArray(result.risk_reasons)).toBe(true)
+  })
+
+  it('includes confidence_level', () => {
+    const result = analyze(clean)
+    expect(['low', 'medium', 'high']).toContain(result.confidence_level)
+  })
+
+  it('includes recommended_action string', () => {
+    const result = analyze(clean)
+    expect(typeof result.recommended_action).toBe('string')
+    expect(result.recommended_action.length).toBeGreaterThan(10)
+  })
+
+  it('clean user has high confidence and no reasons', () => {
+    const result = analyze(clean)
+    expect(result.confidence_level).toBe('high')
+    expect(result.risk_reasons).toHaveLength(0)
+  })
+
+  it('risky user has reasons matching signals', () => {
+    const result = analyze({
+      ...clean,
+      email: 'x@mailinator.com',
+      context: { ...clean.context, device_has_prior_block: true },
+    })
+    expect(result.risk_reasons.length).toBe(result.signals.length)
+    const codes = result.signals.map(s => s.code)
+    const categories = result.risk_reasons.map(r => r.category)
+    if (codes.includes('EMAIL_DISPOSABLE')) expect(categories).toContain('email')
+    if (codes.includes('DEVICE_PRIOR_BLOCK')) expect(categories).toContain('device')
   })
 })
 

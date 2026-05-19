@@ -45,11 +45,18 @@ interface CheckResponse {
   fraud_score: number
   risk_level: string
   decision: 'approve' | 'review' | 'block'
+  confidence_level: string
   signals: Array<{
     code: string
     label: string
     severity: string
   }>
+  risk_reasons: Array<{
+    category: string
+    severity: string
+    reason: string
+  }>
+  recommended_action: string
   summary: string
   processing_time_ms: number
 }
@@ -346,12 +353,15 @@ async function insertRiskEvent(
       device_id:        payload.device_id  ?? null,
       user_agent:       payload.user_agent ?? null,
       country:          payload.country    ?? null,
-      trust_score:      result.trust_score,
-      fraud_score:      result.fraud_score,
-      risk_level:       result.risk_level,
-      decision:         result.decision,
-      signals_json:     result.signals,
-      ai_summary:       result.ai_summary,
+      trust_score:         result.trust_score,
+      fraud_score:         result.fraud_score,
+      risk_level:          result.risk_level,
+      decision:            result.decision,
+      signals_json:        result.signals,
+      risk_reasons_json:   result.risk_reasons,
+      confidence_level:    result.confidence_level,
+      recommended_action:  result.recommended_action,
+      ai_summary:          result.ai_summary,
     })
     .select('id')
     .single()
@@ -694,11 +704,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     fraud_score:         effectiveResult.fraud_score,
     risk_level:          effectiveResult.risk_level,
     decision:            effectiveResult.decision === 'allow' ? 'approve' : effectiveResult.decision,
+    confidence_level:    effectiveResult.confidence_level,
     signals:             effectiveResult.signals.map(s => ({
       code:     s.code,
       label:    s.label,
       severity: s.severity,
     })),
+    risk_reasons:        effectiveResult.risk_reasons,
+    recommended_action:  effectiveResult.recommended_action,
     summary:             effectiveResult.ai_summary,
     processing_time_ms:  effectiveResult.processing_time_ms,
   }

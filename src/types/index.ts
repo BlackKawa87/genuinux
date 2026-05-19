@@ -73,6 +73,9 @@ export interface RiskEvent {
   risk_level: RiskLevel
   decision: Decision
   signals_json: Record<string, unknown> | null
+  risk_reasons_json: unknown | null
+  confidence_level: 'low' | 'medium' | 'high' | null
+  recommended_action: string | null
   ai_summary: string | null
   created_at: string
 }

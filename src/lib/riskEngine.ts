@@ -71,6 +71,19 @@ export interface DetectedSignal {
   trust_impact: number
 }
 
+/** Categoria de origem do sinal de risco. */
+export type RiskCategory = 'email' | 'ip' | 'device' | 'velocity' | 'behavioral'
+
+/** Uma razão explícita e legível por humano para a decisão de risco. */
+export interface RiskReason {
+  category: RiskCategory
+  severity: 'low' | 'medium' | 'high' | 'critical'
+  reason: string
+}
+
+/** Grau de certeza do engine sobre a decisão. */
+export type ConfidenceLevel = 'low' | 'medium' | 'high'
+
 /** Resultado completo da avaliação de risco. */
 export interface RiskEngineOutput {
   trust_score: number
@@ -78,6 +91,9 @@ export interface RiskEngineOutput {
   risk_level: RiskLevel
   decision: Decision
   signals: DetectedSignal[]
+  risk_reasons: RiskReason[]
+  confidence_level: ConfidenceLevel
+  recommended_action: string
   ai_summary: string
   processing_time_ms: number
 }
@@ -484,6 +500,90 @@ function getDecision(riskLevel: RiskLevel, fraudScore: number): Decision {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Explainability — mapeamentos de signal → razão legível
+// ─────────────────────────────────────────────────────────────────────────────
+
+const SIGNAL_CATEGORY: Record<string, RiskCategory> = {
+  EMAIL_ABSENT:         'email',
+  EMAIL_DISPOSABLE:     'email',
+  EMAIL_DUPLICATE:      'email',
+  IP_ABSENT:            'ip',
+  IP_MULTI_USER:        'ip',
+  IP_HIGH_RISK_COUNTRY: 'ip',
+  DEVICE_ABSENT:        'device',
+  DEVICE_PRIOR_BLOCK:   'device',
+  DEVICE_MULTI_ACCOUNT: 'device',
+  VELOCITY_USER:        'velocity',
+  VELOCITY_SIGNUP_IP:   'velocity',
+  VELOCITY_DEVICE:      'velocity',
+  UA_ABSENT:            'behavioral',
+  UA_AUTOMATION:        'behavioral',
+  EVENT_SENSITIVE:      'behavioral',
+  METADATA_SUSPICIOUS:  'behavioral',
+  METADATA_HIGH_VALUE:  'behavioral',
+}
+
+const SIGNAL_REASON: Record<string, string> = {
+  EMAIL_ABSENT:         'No email address was provided with this request.',
+  EMAIL_DISPOSABLE:     'The email domain is associated with temporary or disposable addresses.',
+  EMAIL_DUPLICATE:      'This email address is linked to multiple accounts in the system.',
+  IP_ABSENT:            'No IP address was provided, limiting our ability to verify the request origin.',
+  IP_MULTI_USER:        'An unusually high number of distinct users have been detected from this IP address.',
+  IP_HIGH_RISK_COUNTRY: 'This request originated from a region with an elevated fraud risk profile.',
+  DEVICE_ABSENT:        'No device fingerprint was included, limiting device-level verification.',
+  DEVICE_PRIOR_BLOCK:   'This device was previously associated with an event that resulted in a block decision.',
+  DEVICE_MULTI_ACCOUNT: 'Multiple user accounts have been linked to this device.',
+  VELOCITY_USER:        'An unusually high number of requests was submitted by this user in a short timeframe.',
+  VELOCITY_SIGNUP_IP:   'Multiple account registrations were detected from the same IP address in a short period.',
+  VELOCITY_DEVICE:      'Rapid account-switching activity was detected on this device.',
+  UA_ABSENT:            'No browser identifier was detected — this is uncommon in legitimate browser traffic.',
+  UA_AUTOMATION:        'The request signature is consistent with automated tooling rather than a human user.',
+  EVENT_SENSITIVE:      'This event type involves elevated financial exposure and warrants additional scrutiny.',
+  METADATA_SUSPICIOUS:  'The request metadata contains indicators consistent with proxy or VPN usage.',
+  METADATA_HIGH_VALUE:  'This transaction involves a high monetary value, warranting additional verification.',
+}
+
+/** Converts detected signals into human-readable, non-accusatory risk reasons. */
+export function buildRiskReasons(signals: DetectedSignal[]): RiskReason[] {
+  return signals.map(s => ({
+    category: SIGNAL_CATEGORY[s.code] ?? 'behavioral',
+    severity: s.severity,
+    reason:   SIGNAL_REASON[s.code] ?? s.label,
+  }))
+}
+
+/**
+ * Measures how certain the engine is about the decision.
+ * High = clear evidence in one direction. Low = borderline case.
+ */
+export function calcConfidence(signals: DetectedSignal[], fraudScore: number): ConfidenceLevel {
+  if (signals.length === 0)                            return 'high'   // clearly clean
+  if (fraudScore >= 70 || signals.length >= 3)         return 'high'   // clearly risky
+  if (signals.length >= 2 || fraudScore >= 40)         return 'medium'
+  return 'low'
+}
+
+/** Returns a professional, actionable recommendation based on the decision. */
+export function buildRecommendedAction(
+  decision: Decision,
+  riskLevel: RiskLevel,
+  signalCount: number,
+): string {
+  if (decision === 'block') {
+    return riskLevel === 'critical'
+      ? 'This event has been automatically blocked due to critical risk indicators. Manual review is required before any exception is considered.'
+      : 'This event has been blocked due to elevated risk signals. Review the details before approving.'
+  }
+  if (decision === 'review') {
+    return 'Manual review is recommended before proceeding. Verify the user\'s identity and the legitimacy of this request.'
+  }
+  if (signalCount > 0) {
+    return 'This event has been approved. Continue monitoring this user for any unusual pattern changes.'
+  }
+  return 'No risk indicators were detected. No action is required at this time.'
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Ponto de entrada público
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -530,9 +630,12 @@ export function analyze(input: RiskEngineInput): RiskEngineOutput {
   const signals = rawSignals.filter(s => !seen.has(s.code) && seen.add(s.code))
 
   const { trust_score, fraud_score } = calculateScores(signals)
-  const risk_level = getRiskLevel(fraud_score)
-  const decision   = getDecision(risk_level, fraud_score)
-  const ai_summary = templateSummary({ event_type: input.event_type, trust_score, fraud_score, risk_level, decision, signals, metadata: input.metadata })
+  const risk_level         = getRiskLevel(fraud_score)
+  const decision           = getDecision(risk_level, fraud_score)
+  const risk_reasons       = buildRiskReasons(signals)
+  const confidence_level   = calcConfidence(signals, fraud_score)
+  const recommended_action = buildRecommendedAction(decision, risk_level, signals.length)
+  const ai_summary         = templateSummary({ event_type: input.event_type, trust_score, fraud_score, risk_level, decision, signals, metadata: input.metadata })
 
   return {
     trust_score,
@@ -540,6 +643,9 @@ export function analyze(input: RiskEngineInput): RiskEngineOutput {
     risk_level,
     decision,
     signals,
+    risk_reasons,
+    confidence_level,
+    recommended_action,
     ai_summary,
     processing_time_ms: Date.now() - start,
   }

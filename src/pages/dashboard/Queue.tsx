@@ -3,11 +3,13 @@ import type { ReactNode } from 'react'
 import {
   RefreshCw, X, ChevronDown, CheckCircle, XCircle,
   AlertTriangle, MessageSquare, ArrowUpCircle, RotateCcw,
-  Shield, Zap, User,
+  Shield, Zap, User, Mail, Globe, Monitor, Activity, CheckCircle2,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
+import { buildRiskReasons, calcConfidence } from '../../lib/riskEngine'
 import type { RiskEvent, ReviewStatus } from '../../types'
+import type { RiskReason, ConfidenceLevel } from '../../lib/riskEngine'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -151,6 +153,94 @@ function CollapsibleSection({
         />
       </button>
       {expanded && <div className="px-6 pb-5">{children}</div>}
+    </div>
+  )
+}
+
+// ─── Explainability helpers ───────────────────────────────────────────────────
+
+const CATEGORY_ICON: Record<string, ReactNode> = {
+  email:      <Mail     size={11} />,
+  ip:         <Globe    size={11} />,
+  device:     <Monitor  size={11} />,
+  velocity:   <Zap      size={11} />,
+  behavioral: <Activity size={11} />,
+}
+
+const CONFIDENCE_META: Record<ConfidenceLevel, { label: string; color: string; bg: string }> = {
+  high:   { label: 'High confidence',   color: '#16C784', bg: 'rgba(22,199,132,0.08)'  },
+  medium: { label: 'Medium confidence', color: '#F59E0B', bg: 'rgba(245,158,11,0.08)'  },
+  low:    { label: 'Low confidence',    color: '#F97316', bg: 'rgba(249,115,22,0.08)'  },
+}
+
+function parseRiskReasons(raw: unknown, signals: Signal[]): RiskReason[] {
+  if (Array.isArray(raw) && raw.length > 0) return raw as RiskReason[]
+  return buildRiskReasons(signals as Parameters<typeof buildRiskReasons>[0])
+}
+
+function QueueRiskReasons({ ev }: { ev: RiskEvent }) {
+  const signals = parseSignals(ev.signals_json)
+  const reasons = parseRiskReasons(ev.risk_reasons_json, signals)
+  const confidence = ev.confidence_level ?? calcConfidence(
+    signals as Parameters<typeof calcConfidence>[0],
+    ev.fraud_score,
+  )
+  const recommended = ev.recommended_action
+
+  if (reasons.length === 0) return null
+
+  const conf = CONFIDENCE_META[confidence]
+
+  return (
+    <div className="px-6 py-4" style={{ borderBottom: '1px solid #0D1B2A' }}>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <CheckCircle2 size={12} style={{ color: '#818CF8' }} />
+          <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#475569' }}>
+            Why flagged?
+          </p>
+        </div>
+        <span
+          className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+          style={{ background: conf.bg, color: conf.color, border: `1px solid ${conf.color}28` }}
+        >
+          {conf.label}
+        </span>
+      </div>
+
+      {recommended && (
+        <p className="text-xs leading-relaxed mb-3" style={{ color: '#94A3B8' }}>
+          {recommended}
+        </p>
+      )}
+
+      <div className="space-y-2">
+        {reasons.map((r, i) => (
+          <div
+            key={i}
+            className="flex items-start gap-3 px-3 py-2.5 rounded-lg"
+            style={{ background: '#050B14', border: '1px solid #1E2D3D' }}
+          >
+            <span
+              className="flex-shrink-0 mt-0.5"
+              style={{ color: SEV_COLORS[r.severity] ?? '#475569' }}
+            >
+              {CATEGORY_ICON[r.category] ?? <AlertTriangle size={11} />}
+            </span>
+            <p className="text-xs leading-relaxed flex-1" style={{ color: '#E2E8F0' }}>{r.reason}</p>
+            <span
+              className="text-[10px] px-2 py-0.5 rounded-full font-medium flex-shrink-0 mono"
+              style={{
+                background: `${SEV_COLORS[r.severity] ?? '#475569'}18`,
+                color: SEV_COLORS[r.severity] ?? '#475569',
+                border: `1px solid ${SEV_COLORS[r.severity] ?? '#475569'}30`,
+              }}
+            >
+              {r.severity}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
@@ -363,6 +453,9 @@ function CaseDetailPanel({
               </p>
             </div>
           )}
+
+          {/* Explainability — Why flagged? */}
+          {ev && <QueueRiskReasons ev={ev} />}
 
           {/* User & Session */}
           <CollapsibleSection
