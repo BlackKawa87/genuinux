@@ -3,9 +3,10 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Key, Activity, ListChecks,
   Users, Settings, LogOut, Globe, GitBranch, BookOpen,
-  ChevronRight, BarChart2,
+  ChevronRight, BarChart2, Sun, Moon,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
+import { useTheme } from '../../contexts/ThemeContext'
 import { supabase } from '../../lib/supabase'
 import { can, ROLE_META } from '../../lib/permissions'
 
@@ -24,6 +25,7 @@ export default function AppLayout() {
   const location  = useLocation()
   const navigate  = useNavigate()
   const { user, profile, signOut } = useAuth()
+  const { theme, toggle } = useTheme()
 
   const [orgName, setOrgName] = useState<string>('')
   const [plan,    setPlan]    = useState<string>('')
@@ -62,25 +64,44 @@ export default function AppLayout() {
     navigate('/')
   }
 
+  const dark = theme === 'dark'
+
+  const S = {
+    outer:           dark ? '#050B14'               : '#F8FAFC',
+    sidebar:         dark ? '#07111F'               : '#FFFFFF',
+    sidebarBorder:   dark ? '#1E2D3D'               : '#E2E8F0',
+    header:          dark ? 'rgba(7,17,31,0.95)'    : 'rgba(255,255,255,0.95)',
+    headerBorder:    dark ? '#1E2D3D'               : '#E2E8F0',
+    orgCard:         dark ? '#0B1220'               : '#F8FAFC',
+    orgCardBorder:   dark ? '#1E2D3D'               : '#E2E8F0',
+    orgName:         dark ? '#E2E8F0'               : '#0F172A',
+    logoFilter:      dark ? 'brightness(0) invert(1)' : 'none',
+    breadcrumbDim:   dark ? '#2D4057'               : '#94A3B8',
+    breadcrumbPage:  dark ? '#94A3B8'               : '#0F172A',
+    divider:         dark ? '#1E2D3D'               : '#E2E8F0',
+    toggleColor:     dark ? '#94A3B8'               : '#64748B',
+    liveColor:       '#16C784',
+  }
+
   return (
-    <div className="flex min-h-screen" style={{ background: '#050B14' }}>
+    <div className="flex min-h-screen" style={{ background: S.outer }}>
 
       {/* ── Sidebar ─────────────────────────────────────────────── */}
       <aside
         className="fixed left-0 top-0 h-screen w-[220px] flex flex-col z-30"
-        style={{ background: '#07111F', borderRight: '1px solid #1E2D3D' }}
+        style={{ background: S.sidebar, borderRight: `1px solid ${S.sidebarBorder}` }}
       >
         {/* Logo */}
         <div
           className="flex items-center justify-between px-5 py-4 flex-shrink-0"
-          style={{ borderBottom: '1px solid #1E2D3D' }}
+          style={{ borderBottom: `1px solid ${S.sidebarBorder}` }}
         >
           <img
-            src="/logo-full.png"
+            src="/logo-horizontal.png"
             alt="Genuinux"
-            style={{ height: '88px', display: 'block', filter: 'brightness(0) invert(1)' }}
+            style={{ height: '44px', display: 'block', filter: S.logoFilter }}
           />
-          <p className="text-[10px] mono flex items-center gap-1" style={{ color: '#16C784' }}>
+          <p className="text-[10px] mono flex items-center gap-1" style={{ color: S.liveColor }}>
             <span className="pulse-dot inline-block w-1.5 h-1.5 rounded-full bg-current" />
             Live
           </p>
@@ -90,9 +111,9 @@ export default function AppLayout() {
         {orgName && (
           <div
             className="mx-3 mt-3 px-3 py-2 rounded-lg flex-shrink-0"
-            style={{ background: '#0B1220', border: '1px solid #1E2D3D' }}
+            style={{ background: S.orgCard, border: `1px solid ${S.orgCardBorder}` }}
           >
-            <p className="text-xs font-semibold truncate" style={{ color: '#E2E8F0' }}>
+            <p className="text-xs font-semibold truncate" style={{ color: S.orgName }}>
               {orgName}
             </p>
             {plan && (
@@ -129,7 +150,7 @@ export default function AppLayout() {
         {/* Bottom */}
         <div
           className="px-3 pb-3 pt-2 flex-shrink-0 space-y-0.5"
-          style={{ borderTop: '1px solid #1E2D3D' }}
+          style={{ borderTop: `1px solid ${S.sidebarBorder}` }}
         >
           <Link
             to="/docs"
@@ -149,7 +170,7 @@ export default function AppLayout() {
           {/* User card */}
           <div
             className="mt-2 px-3 py-2.5 rounded-lg"
-            style={{ background: '#0B1220', border: '1px solid #1E2D3D' }}
+            style={{ background: S.orgCard, border: `1px solid ${S.orgCardBorder}` }}
           >
             <div className="flex items-center justify-between mb-1.5">
               <p className="text-xs truncate mono" style={{ color: '#475569', maxWidth: '120px' }}>
@@ -186,16 +207,16 @@ export default function AppLayout() {
           className="sticky top-0 z-20 flex items-center justify-between px-7 flex-shrink-0"
           style={{
             height: 52,
-            background: 'rgba(7,17,31,0.95)',
-            borderBottom: '1px solid #1E2D3D',
+            background: S.header,
+            borderBottom: `1px solid ${S.headerBorder}`,
             backdropFilter: 'blur(8px)',
           }}
         >
           {/* Breadcrumb */}
-          <div className="flex items-center gap-2 text-xs" style={{ color: '#475569' }}>
-            <span style={{ color: '#2D4057' }}>Dashboard</span>
-            <ChevronRight size={12} style={{ color: '#2D4057' }} />
-            <span style={{ color: '#94A3B8' }}>{currentPage}</span>
+          <div className="flex items-center gap-2 text-xs" style={{ color: S.breadcrumbDim }}>
+            <span style={{ color: S.breadcrumbDim }}>Dashboard</span>
+            <ChevronRight size={12} style={{ color: S.breadcrumbDim }} />
+            <span style={{ color: S.breadcrumbPage }}>{currentPage}</span>
           </div>
 
           {/* Right side */}
@@ -212,7 +233,7 @@ export default function AppLayout() {
                 >
                   {orgName.charAt(0).toUpperCase()}
                 </div>
-                <span className="text-xs font-medium" style={{ color: '#94A3B8' }}>
+                <span className="text-xs font-medium" style={{ color: S.breadcrumbPage }}>
                   {orgName}
                 </span>
                 {plan && (
@@ -230,15 +251,24 @@ export default function AppLayout() {
               </div>
             )}
 
-            <div
-              className="w-px h-3.5 flex-shrink-0"
-              style={{ background: '#1E2D3D' }}
-            />
+            <div className="w-px h-3.5 flex-shrink-0" style={{ background: S.divider }} />
 
-            <span className="flex items-center gap-1.5 text-xs mono" style={{ color: '#16C784' }}>
+            <span className="flex items-center gap-1.5 text-xs mono" style={{ color: S.liveColor }}>
               <span className="pulse-dot inline-block w-1.5 h-1.5 rounded-full bg-current" />
               Live
             </span>
+
+            <div className="w-px h-3.5 flex-shrink-0" style={{ background: S.divider }} />
+
+            {/* Theme toggle */}
+            <button
+              onClick={toggle}
+              className="flex items-center justify-center w-7 h-7 rounded-md transition-opacity duration-150 hover:opacity-70"
+              style={{ color: S.toggleColor }}
+              title={dark ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              {dark ? <Sun size={15} /> : <Moon size={15} />}
+            </button>
           </div>
         </header>
 

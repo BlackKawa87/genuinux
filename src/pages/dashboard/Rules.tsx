@@ -285,7 +285,7 @@ function RuleModal({ rule, orgId, onSave, onClose }: {
               <p className="text-[10px] font-semibold uppercase tracking-widest mb-0.5" style={{ color: '#2D4057' }}>
                 {rule ? 'Edit Rule' : 'New Rule'}
               </p>
-              <p className="text-sm font-bold" style={{ color: '#E2E8F0', fontFamily: 'Syne, sans-serif' }}>
+              <p className="text-sm font-bold" style={{ color: '#E2E8F0', fontFamily: 'Inter, sans-serif' }}>
                 {rule ? 'Update this rule' : 'Create a custom rule'}
               </p>
             </div>

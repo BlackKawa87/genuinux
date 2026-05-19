@@ -296,7 +296,7 @@ export default function ApiKeys() {
         <div>
           <h1
             className="text-2xl font-bold"
-            style={{ fontFamily: 'Syne, sans-serif', color: '#FFFFFF' }}
+            style={{ fontFamily: 'Inter, sans-serif', color: '#FFFFFF' }}
           >
             API Keys
           </h1>
@@ -658,7 +658,7 @@ export default function ApiKeys() {
           <div>
             <h2
               className="text-base font-semibold"
-              style={{ fontFamily: 'Syne, sans-serif', color: '#FFFFFF' }}
+              style={{ fontFamily: 'Inter, sans-serif', color: '#FFFFFF' }}
             >
               Integration
             </h2>

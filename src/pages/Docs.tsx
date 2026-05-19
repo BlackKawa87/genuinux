@@ -45,7 +45,7 @@ function CodeBlock({ code, lang = 'bash' }: { code: string; lang?: string }) {
 function Section({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
   return (
     <section id={id} style={{ paddingBottom: 56, borderBottom: '1px solid #1E2D3D', marginBottom: 56 }}>
-      <h2 style={{ fontFamily: '"Syne", sans-serif', fontSize: 22, fontWeight: 700, color: '#F1F5F9', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
+      <h2 style={{ fontFamily: '"Inter", sans-serif', fontSize: 22, fontWeight: 700, color: '#F1F5F9', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
         <span style={{ display: 'inline-block', width: 3, height: 22, background: '#16C784', borderRadius: 2, flexShrink: 0 }} />
         {title}
       </h2>
@@ -539,7 +539,7 @@ export default function Docs() {
               <span style={{ color: '#1E2D3D' }}>·</span>
               <span style={{ fontSize: 11, color: '#475569', fontFamily: '"IBM Plex Mono", monospace' }}>v1.0</span>
             </div>
-            <h1 style={{ fontFamily: '"Syne", sans-serif', fontSize: 36, fontWeight: 800, color: '#F1F5F9', marginBottom: 12, lineHeight: 1.2 }}>
+            <h1 style={{ fontFamily: '"Inter", sans-serif', fontSize: 36, fontWeight: 800, color: '#F1F5F9', marginBottom: 12, lineHeight: 1.2 }}>
               Genuinux API Documentation
             </h1>
             <p style={{ color: '#94A3B8', fontSize: 15, lineHeight: 1.7, maxWidth: 600 }}>
@@ -958,7 +958,7 @@ X-Genuinux-Timestamp: 1716127323          # Unix timestamp of delivery`} />
 
             {/* CTA */}
             <div style={{ marginTop: 40, background: '#0B1220', border: '1px solid #16C78430', borderRadius: 10, padding: '24px 28px' }}>
-              <div style={{ fontFamily: '"Syne", sans-serif', fontWeight: 700, fontSize: 18, color: '#F1F5F9', marginBottom: 8 }}>
+              <div style={{ fontFamily: '"Inter", sans-serif', fontWeight: 700, fontSize: 18, color: '#F1F5F9', marginBottom: 8 }}>
                 Ready to integrate?
               </div>
               <p style={{ margin: '0 0 20px', fontSize: 13, color: '#94A3B8', lineHeight: 1.6, maxWidth: 480 }}>

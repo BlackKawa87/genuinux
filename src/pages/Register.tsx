@@ -75,9 +75,18 @@ export default function Register() {
       style={{ background: '#F8FAFC' }}>
 
       <div className="w-full max-w-[420px]">
+        {/* Back */}
+        <Link
+          to="/"
+          className="flex items-center gap-1.5 text-sm mb-6"
+          style={{ color: '#64748B' }}
+        >
+          ← Back to home
+        </Link>
+
         {/* Logo */}
         <Link to="/" className="flex justify-center mb-8">
-          <img src="/logo-full.png" alt="Genuinux" style={{ height: '140px', display: 'block' }} />
+          <img src="/logo-horizontal.png" alt="Genuinux" style={{ height: '48px', display: 'block' }} />
         </Link>
 
         {/* Card */}

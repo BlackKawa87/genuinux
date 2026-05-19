@@ -115,7 +115,7 @@ function DonutChart({ allow, review, block }: { allow: number; review: number; b
       <text x="44" y="41" textAnchor="middle" fill="#FFFFFF" fontSize="12" fontWeight="bold" fontFamily="IBM Plex Mono, monospace">
         {total > 0 ? total.toLocaleString() : '—'}
       </text>
-      <text x="44" y="52" textAnchor="middle" fill="#475569" fontSize="7" fontFamily="Syne, sans-serif">
+      <text x="44" y="52" textAnchor="middle" fill="#475569" fontSize="7" fontFamily="Inter, sans-serif">
         events
       </text>
     </svg>

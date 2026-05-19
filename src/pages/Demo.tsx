@@ -627,7 +627,7 @@ export default function Demo() {
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#16C784', display: 'inline-block', animation: 'pulse 2s infinite' }} />
             Risk engine running locally — no API key required
           </div>
-          <h1 style={{ fontSize: 'clamp(1.75rem, 4vw, 2.5rem)', fontWeight: 900, color: '#E2E8F0', marginBottom: 10, lineHeight: 1.2, fontFamily: '"Syne", sans-serif' }}>
+          <h1 style={{ fontSize: 'clamp(1.75rem, 4vw, 2.5rem)', fontWeight: 900, color: '#E2E8F0', marginBottom: 10, lineHeight: 1.2, fontFamily: '"Inter", sans-serif' }}>
             See fraud detection in action
           </h1>
           <p style={{ fontSize: 14, color: '#475569', maxWidth: 520, margin: '0 auto' }}>
@@ -790,7 +790,7 @@ export default function Demo() {
             <Shield size={11} />
             Free tier · No credit card required
           </div>
-          <h2 style={{ fontSize: 'clamp(1.75rem, 4vw, 2.5rem)', fontWeight: 900, color: '#E2E8F0', marginBottom: 12, lineHeight: 1.2, fontFamily: '"Syne", sans-serif' }}>
+          <h2 style={{ fontSize: 'clamp(1.75rem, 4vw, 2.5rem)', fontWeight: 900, color: '#E2E8F0', marginBottom: 12, lineHeight: 1.2, fontFamily: '"Inter", sans-serif' }}>
             Ready to protect your platform?
           </h2>
           <p style={{ fontSize: 14, color: '#475569', marginBottom: 32, maxWidth: 480, margin: '0 auto 32px', lineHeight: 1.7 }}>

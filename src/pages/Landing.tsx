@@ -6,7 +6,9 @@ import {
   ShoppingCart, Gamepad2, Landmark, Coins, MonitorSmartphone,
   UserCheck, LogIn, CreditCard, ArrowLeftRight, MousePointerClick,
   Menu, X, BookOpen, Terminal, Users, Eye, MessageSquare,
+  Sun, Moon,
 } from 'lucide-react'
+import { useTheme } from '../contexts/ThemeContext'
 
 const C = {
   bg:       '#F8FAFC',
@@ -305,6 +307,7 @@ export default function Landing() {
   const [hoveredModule,    setHoveredModule]    = useState<number | null>(null)
   const [hoveredVertical,  setHoveredVertical]  = useState<number | null>(null)
   const [mobileMenuOpen,   setMobileMenuOpen]   = useState(false)
+  const { theme, toggle } = useTheme()
 
   useEffect(() => {
     const handler = () => setScrolled(window.scrollY > 12)
@@ -348,6 +351,16 @@ export default function Landing() {
           </div>
 
           <div className="hidden md:flex items-center gap-3">
+            <button
+              onClick={toggle}
+              className="p-2 rounded-lg transition-colors duration-150 flex items-center justify-center"
+              style={{ color: C.textSec, border: `1px solid ${C.border}` }}
+              onMouseEnter={e => (e.currentTarget.style.color = C.text)}
+              onMouseLeave={e => (e.currentTarget.style.color = C.textSec)}
+              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+            </button>
             <Link to="/login"
               className="text-sm font-medium px-4 py-2 rounded-lg transition-colors duration-150"
               style={{ color: C.textSec, border: `1px solid ${C.border}` }}
@@ -409,8 +422,8 @@ export default function Landing() {
           AI Trust Infrastructure
         </div>
 
-        <h1 className="font-extrabold leading-none tracking-tight mb-6 anim-1"
-          style={{ fontSize: 'clamp(3rem, 7vw, 5.5rem)', color: C.text }}>
+        <h1 className="font-bold leading-none tracking-tight mb-6 anim-1"
+          style={{ fontSize: 'clamp(2.25rem, 5vw, 4rem)', color: C.text }}>
           Block fraud.
           <br />
           <span style={{ color: C.trust }}>Not customers.</span>

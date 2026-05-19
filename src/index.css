@@ -1,6 +1,23 @@
 @import "tailwindcss";
 
 :root {
+  /* light mode defaults */
+  --c-bg: #F8FAFC;
+  --c-card: #FFFFFF;
+  --c-deep: #F1F5F9;
+  --c-elevated: #EFF6FF;
+  --c-border: #E2E8F0;
+  --c-border-light: #CBD5E1;
+  --c-trust: #16C784;
+  --c-trust-dim: rgba(22, 199, 132, 0.08);
+  --c-trust-border: rgba(22, 199, 132, 0.2);
+  --c-muted: #64748B;
+  --c-dimmed: #94A3B8;
+  --c-text: #0F172A;
+  --c-nav-hover-bg: rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="dark"] {
   --c-bg: #050B14;
   --c-card: #0B1220;
   --c-deep: #07111F;
@@ -12,6 +29,8 @@
   --c-trust-border: rgba(22, 199, 132, 0.2);
   --c-muted: #94A3B8;
   --c-dimmed: #475569;
+  --c-text: #ffffff;
+  --c-nav-hover-bg: rgba(255, 255, 255, 0.04);
 }
 
 * { box-sizing: border-box; }
@@ -19,8 +38,8 @@ html { scroll-behavior: smooth; }
 
 body {
   background: var(--c-bg);
-  color: #ffffff;
-  font-family: 'Syne', system-ui, sans-serif;
+  color: var(--c-text);
+  font-family: 'Inter', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -83,7 +102,7 @@ body {
   font-weight: 700;
   border-radius: 8px;
   transition: opacity 0.15s ease, transform 0.15s ease;
-  font-family: 'Syne', sans-serif;
+  font-family: 'Inter', sans-serif;
   display: inline-flex;
   align-items: center;
 }
@@ -96,11 +115,11 @@ body {
   color: var(--c-muted);
   border-radius: 8px;
   transition: border-color 0.15s ease, color 0.15s ease;
-  font-family: 'Syne', sans-serif;
+  font-family: 'Inter', sans-serif;
 }
 .btn-outline:hover {
   border-color: var(--c-border-light);
-  color: #ffffff;
+  color: var(--c-text);
 }
 
 /* Trust pill badge */
@@ -125,9 +144,9 @@ body {
   background: none;
   border: none;
   width: 100%;
-  font-family: 'Syne', sans-serif;
+  font-family: 'Inter', sans-serif;
 }
-.nav-item:hover { background: rgba(255,255,255,0.04); color: #ffffff; }
+.nav-item:hover { background: var(--c-nav-hover-bg); color: var(--c-text); }
 .nav-item.active { background: var(--c-trust-dim); color: var(--c-trust); }
 
 /* Input */
@@ -135,13 +154,13 @@ body {
   width: 100%;
   background: var(--c-bg);
   border: 1px solid var(--c-border);
-  color: #ffffff;
+  color: var(--c-text);
   border-radius: 8px;
   padding: 10px 14px;
   font-size: 14px;
   outline: none;
   transition: border-color 0.15s;
-  font-family: 'Syne', sans-serif;
+  font-family: 'Inter', sans-serif;
 }
 .g-input:focus         { border-color: var(--c-trust); }
 .g-input::placeholder  { color: var(--c-dimmed); }

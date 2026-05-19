@@ -164,7 +164,7 @@ function WebhookModal({ webhook, orgId, onSave, onClose }: ModalProps) {
             <p className="text-[10px] font-semibold uppercase tracking-widest mb-0.5" style={{ color: '#2D4057' }}>
               {isEdit ? 'Edit Webhook' : 'New Webhook'}
             </p>
-            <p className="text-sm font-bold" style={{ color: '#E2E8F0', fontFamily: 'Syne, sans-serif' }}>
+            <p className="text-sm font-bold" style={{ color: '#E2E8F0', fontFamily: 'Inter, sans-serif' }}>
               {isEdit ? 'Update endpoint' : 'Register an endpoint'}
             </p>
           </div>
