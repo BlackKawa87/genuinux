@@ -1,11 +1,12 @@
 import { useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  Shield, Play, RefreshCw, ChevronDown, ChevronUp,
-  CheckCircle2, AlertTriangle, XCircle, Zap, ArrowRight,
-  Activity, Globe, Monitor, Mail, Cpu, Clock,
+  Shield, Play, RefreshCw, CheckCircle2, AlertTriangle,
+  XCircle, ArrowRight, Activity, Globe, Monitor, Mail,
+  Cpu, Clock, Copy, Check, Eye, ChevronDown, ChevronUp,
+  Zap,
 } from 'lucide-react'
-import { analyze } from '../lib/riskEngine'
+import { analyze, SIGNAL_CATEGORY } from '../lib/riskEngine'
 import type { RiskEngineInput, RiskEngineOutput, RiskEngineContext } from '../lib/riskEngine'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -20,23 +21,25 @@ interface DemoForm {
 }
 
 interface Preset {
-  id:          string
-  label:       string
-  tag:         string
-  description: string
-  color:       string
-  tagBg:       string
-  form:        Partial<DemoForm>
-  context:     Partial<RiskEngineContext>
-  metadata?:   Record<string, unknown>
+  id:           string
+  label:        string
+  tag:          string
+  tagColor:     string
+  tagBg:        string
+  description:  string
+  form:         Partial<DemoForm>
+  context:      Partial<RiskEngineContext>
+  metadata?:    Record<string, unknown>
+  isShadowMode?: boolean
 }
 
 // ─── Presets ──────────────────────────────────────────────────────────────────
 
 const PRESETS: Preset[] = [
   {
-    id: 'genuine', label: 'Genuine User', tag: 'Low risk', color: '#16C784', tagBg: 'rgba(22,199,132,0.12)',
-    description: 'Clean signup from a trusted user with normal signals.',
+    id: 'genuine', label: 'Genuine User', tag: 'Approve',
+    tagColor: '#16C784', tagBg: 'rgba(22,199,132,0.12)',
+    description: 'Clean signup from a known device, stable IP, reputable email.',
     form: {
       event_type: 'signup',
       email:      'john.doe@gmail.com',
@@ -55,8 +58,9 @@ const PRESETS: Preset[] = [
     },
   },
   {
-    id: 'suspicious', label: 'Suspicious Signup', tag: 'Review', color: '#F59E0B', tagBg: 'rgba(245,158,11,0.12)',
-    description: 'Disposable email linked to multiple accounts.',
+    id: 'suspicious', label: 'Suspicious Signup', tag: 'Review',
+    tagColor: '#F59E0B', tagBg: 'rgba(245,158,11,0.12)',
+    description: 'Multiple mild anomalies — not conclusive but worth flagging.',
     form: {
       event_type: 'signup',
       email:      'temp4829@guerrillamail.com',
@@ -75,8 +79,9 @@ const PRESETS: Preset[] = [
     },
   },
   {
-    id: 'multiAccount', label: 'Multi-Account Abuse', tag: 'High risk', color: '#F97316', tagBg: 'rgba(249,115,22,0.12)',
-    description: 'Device shared across many accounts with IP abuse.',
+    id: 'multiAccount', label: 'Multi-Account Abuse', tag: 'Block',
+    tagColor: '#EF4444', tagBg: 'rgba(239,68,68,0.12)',
+    description: 'Device shared across 6 accounts. IP used by 7+ users today.',
     form: {
       event_type: 'login',
       email:      'newaccount@outlook.com',
@@ -95,8 +100,30 @@ const PRESETS: Preset[] = [
     },
   },
   {
-    id: 'withdrawal', label: 'High-Risk Withdrawal', tag: 'Blocked', color: '#EF4444', tagBg: 'rgba(239,68,68,0.12)',
-    description: 'Automated $75K withdrawal with multiple critical signals.',
+    id: 'disposable', label: 'Disposable Email', tag: 'Review',
+    tagColor: '#F59E0B', tagBg: 'rgba(245,158,11,0.12)',
+    description: 'Throwaway email domain linked to 4 prior accounts in the org.',
+    form: {
+      event_type: 'signup',
+      email:      'throwaway4829@mailtemp.org',
+      ip_address: '172.16.45.23',
+      device_id:  'dev_f1e2d3c4',
+      country:    'FR',
+      user_agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/119.0.0.0',
+    },
+    context: {
+      user_events_last_10min:     1,
+      ip_distinct_users_last_24h: 3,
+      ip_signup_count_last_1h:    2,
+      device_distinct_users:      2,
+      device_has_prior_block:     false,
+      email_account_count:        4,
+    },
+  },
+  {
+    id: 'withdrawal', label: 'High-Risk Withdrawal', tag: 'Block',
+    tagColor: '#EF4444', tagBg: 'rgba(239,68,68,0.12)',
+    description: 'Automated $75K withdrawal request. No device. Scripted UA.',
     form: {
       event_type: 'withdrawal',
       email:      'account@trashmail.com',
@@ -116,8 +143,9 @@ const PRESETS: Preset[] = [
     metadata: { amount_usd: 75000 },
   },
   {
-    id: 'bot', label: 'Bot Behavior', tag: 'Blocked', color: '#EF4444', tagBg: 'rgba(239,68,68,0.12)',
-    description: 'Headless Chrome automation with velocity abuse.',
+    id: 'bot', label: 'Bot-Like Behavior', tag: 'Block',
+    tagColor: '#EF4444', tagBg: 'rgba(239,68,68,0.12)',
+    description: 'Headless Chrome. 22 events in 10 min. 30 distinct IP users.',
     form: {
       event_type: 'signup',
       email:      '',
@@ -135,6 +163,49 @@ const PRESETS: Preset[] = [
       email_account_count:        0,
     },
   },
+  {
+    id: 'sharedDevice', label: 'Shared Device Cluster', tag: 'Block',
+    tagColor: '#EF4444', tagBg: 'rgba(239,68,68,0.12)',
+    description: 'One device fingerprint shared by 8 users. Prior block on record.',
+    form: {
+      event_type: 'login',
+      email:      'user_new_session@gmail.com',
+      ip_address: '203.0.113.10',
+      device_id:  'dev_shared_cluster_x99',
+      country:    'ID',
+      user_agent: 'Mozilla/5.0 (Linux; Android 12; SM-A515F) Chrome/120.0.0.0',
+    },
+    context: {
+      user_events_last_10min:     1,
+      ip_distinct_users_last_24h: 5,
+      ip_signup_count_last_1h:    0,
+      device_distinct_users:      8,
+      device_has_prior_block:     true,
+      email_account_count:        1,
+    },
+  },
+  {
+    id: 'shadowMode', label: 'Shadow Mode', tag: 'Shadow',
+    tagColor: '#38BDF8', tagBg: 'rgba(56,189,248,0.12)',
+    description: 'Engine flags as block. Shadow Mode lets it through for observation.',
+    isShadowMode: true,
+    form: {
+      event_type: 'signup',
+      email:      'test_obs@mailtemp.net',
+      ip_address: '45.33.100.12',
+      device_id:  'dev_shadow_abc',
+      country:    'RU',
+      user_agent: 'python-requests/2.31.0',
+    },
+    context: {
+      user_events_last_10min:     8,
+      ip_distinct_users_last_24h: 12,
+      ip_signup_count_last_1h:    7,
+      device_distinct_users:      4,
+      device_has_prior_block:     true,
+      email_account_count:        2,
+    },
+  },
 ]
 
 const EVENT_TYPES = ['signup', 'login', 'transaction', 'withdrawal', 'referral', 'checkout', 'custom']
@@ -143,193 +214,286 @@ const EMPTY_FORM: DemoForm = {
   event_type: 'signup', email: '', ip_address: '', device_id: '', country: '', user_agent: '',
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Visual helpers ───────────────────────────────────────────────────────────
+
+const DECISION_META = {
+  allow:  { label: 'Approved',  icon: CheckCircle2,  color: '#16C784', bg: 'rgba(22,199,132,0.08)',  border: 'rgba(22,199,132,0.25)'  },
+  review: { label: 'Review',    icon: AlertTriangle,  color: '#F59E0B', bg: 'rgba(245,158,11,0.08)',  border: 'rgba(245,158,11,0.25)'  },
+  block:  { label: 'Blocked',   icon: XCircle,        color: '#EF4444', bg: 'rgba(239,68,68,0.08)',   border: 'rgba(239,68,68,0.25)'   },
+} as const
+
+const RISK_COLORS: Record<string, string> = {
+  low: '#16C784', medium: '#F59E0B', high: '#F97316', critical: '#EF4444',
+}
+const SEV_COLORS: Record<string, string> = {
+  low: '#16C784', medium: '#F59E0B', high: '#F97316', critical: '#EF4444',
+}
+const CATEGORY_COLORS: Record<string, string> = {
+  email: '#F59E0B', ip: '#38BDF8', device: '#A78BFA', velocity: '#F97316', behavioral: '#94A3B8',
+}
 
 function trustColor(s: number) { return s >= 70 ? '#16C784' : s >= 45 ? '#F59E0B' : '#EF4444' }
 function fraudColor(s: number) { return s >= 70 ? '#EF4444' : s >= 40 ? '#F59E0B' : '#16C784' }
 
-const DECISION_META = {
-  allow:  { label: 'Approved',     icon: CheckCircle2, color: '#16C784', bg: 'rgba(22,199,132,0.08)',  border: 'rgba(22,199,132,0.25)'  },
-  review: { label: 'Review',       icon: AlertTriangle, color: '#F59E0B', bg: 'rgba(245,158,11,0.08)',  border: 'rgba(245,158,11,0.25)'  },
-  block:  { label: 'Blocked',      icon: XCircle,       color: '#EF4444', bg: 'rgba(239,68,68,0.08)',   border: 'rgba(239,68,68,0.25)'   },
-} as const
-
-const RISK_COLORS = { low: '#16C784', medium: '#F59E0B', high: '#F97316', critical: '#EF4444' }
-
-const SEV_COLORS: Record<string, string> = {
-  low: '#16C784', medium: '#F59E0B', high: '#F97316', critical: '#EF4444',
-}
-
-// ─── Score display ─────────────────────────────────────────────────────────────
+// ─── Sub-components ───────────────────────────────────────────────────────────
 
 function ScoreBar({ label, score, color }: { label: string; score: number; color: string }) {
   return (
     <div>
-      <div className="flex items-baseline justify-between mb-2">
-        <span className="text-xs font-semibold" style={{ color: '#475569' }}>{label}</span>
-        <span className="text-4xl font-black mono" style={{ color }}>{score}</span>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8 }}>
+        <span style={{ fontSize: 10, fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
+        <span style={{ fontSize: 36, fontWeight: 900, color, fontFamily: '"IBM Plex Mono", monospace', lineHeight: 1 }}>{score}</span>
       </div>
-      <div className="rounded-full overflow-hidden" style={{ height: 5, background: '#1E2D3D' }}>
-        <div
-          className="h-full rounded-full"
-          style={{ width: `${score}%`, background: color, transition: 'width 1s cubic-bezier(0.4,0,0.2,1)' }}
-        />
+      <div style={{ height: 4, background: '#1E2D3D', borderRadius: 4, overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: `${score}%`, background: color, borderRadius: 4, transition: 'width 0.8s cubic-bezier(0.4,0,0.2,1)' }} />
       </div>
-      <p className="text-[10px] mt-1 text-right mono" style={{ color: '#2D4057' }}>/ 100</p>
+      <p style={{ fontSize: 10, marginTop: 4, textAlign: 'right', color: '#2D4057', fontFamily: '"IBM Plex Mono", monospace' }}>/ 100</p>
     </div>
+  )
+}
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false)
+  const copy = () => {
+    navigator.clipboard.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+  return (
+    <button
+      onClick={copy}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 5,
+        padding: '5px 10px', borderRadius: 6, border: '1px solid #1E2D3D',
+        background: copied ? 'rgba(22,199,132,0.1)' : '#07111F',
+        color: copied ? '#16C784' : '#475569',
+        fontSize: 11, fontWeight: 600, cursor: 'pointer',
+        transition: 'all 0.15s',
+      }}
+    >
+      {copied ? <Check size={11} /> : <Copy size={11} />}
+      {copied ? 'Copied!' : 'Copy JSON'}
+    </button>
   )
 }
 
 // ─── Results panel ────────────────────────────────────────────────────────────
 
-function ResultsPanel({ result, ms }: { result: RiskEngineOutput; ms: number }) {
-  const dec    = DECISION_META[result.decision]
+function ResultsPanel({
+  result, ms, isShadow, eventId,
+}: {
+  result: RiskEngineOutput
+  ms: number
+  isShadow: boolean
+  eventId: string
+}) {
+  const [showSignals, setShowSignals] = useState(true)
+  const [showJson,    setShowJson]    = useState(false)
+
+  const effectiveDecision = isShadow ? 'allow' : result.decision
+  const dec = DECISION_META[effectiveDecision]
   const DecIcon = dec.icon
   const riskColor = RISK_COLORS[result.risk_level] ?? '#94A3B8'
-  const [showApi, setShowApi] = useState(false)
 
-  const requestJson = JSON.stringify({
-    external_user_id: 'usr_demo',
-    event_type:       result.signals.length > 0 ? '...' : 'signup',
-    email:            '...',
-    ip_address:       '...',
-  }, null, 2)
-
-  const responseJson = JSON.stringify({
-    event_id:           'evt_' + Math.random().toString(36).slice(2, 10),
+  const apiJson = JSON.stringify({
+    event_id:           eventId,
+    external_user_id:   'usr_demo',
+    decision:           isShadow ? 'approve' : (result.decision === 'allow' ? 'approve' : result.decision),
+    risk_level:         result.risk_level,
     trust_score:        result.trust_score,
     fraud_score:        result.fraud_score,
-    risk_level:         result.risk_level,
-    decision:           result.decision === 'allow' ? 'approve' : result.decision,
-    signals:            result.signals.slice(0, 2).map(s => ({ code: s.code, severity: s.severity })),
-    summary:            result.ai_summary.slice(0, 60) + '...',
-    processing_time_ms: ms,
+    confidence_level:   result.confidence_level,
+    shadow_mode:        isShadow,
+    signals:            result.signals.map(s => ({
+      key:      s.code,
+      category: SIGNAL_CATEGORY[s.code] ?? 'behavioral',
+      severity: s.severity,
+      label:    s.label,
+    })),
+    risk_reasons:       result.risk_reasons,
+    recommended_action: result.recommended_action,
+    applied_rules:      [],
+    summary:            result.ai_summary,
+    metadata: {
+      engine_version:     'risk-engine-v1',
+      processed_at:       new Date().toISOString(),
+      processing_time_ms: ms,
+    },
+    ...(isShadow && {
+      suggested_decision: result.decision === 'allow' ? 'approve' : result.decision,
+      live_decision:      'approve',
+      message:            result.decision === 'block'
+        ? 'This event would have been blocked in Live Mode.'
+        : 'This event would have been flagged for review in Live Mode.',
+    }),
   }, null, 2)
 
   return (
-    <div className="flex flex-col gap-0 rounded-xl overflow-hidden" style={{ border: '1px solid #1E2D3D' }}>
+    <div style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid #1E2D3D', display: 'flex', flexDirection: 'column' }}>
 
-      {/* Score bars */}
-      <div className="grid grid-cols-2 gap-6 p-6" style={{ background: '#07111F' }}>
-        <ScoreBar label="Trust Score" score={result.trust_score} color={trustColor(result.trust_score)} />
-        <ScoreBar label="Fraud Score" score={result.fraud_score} color={fraudColor(result.fraud_score)} />
-      </div>
-
-      {/* Decision banner */}
-      <div
-        className="flex items-center justify-between px-6 py-4"
-        style={{ background: dec.bg, borderTop: `1px solid ${dec.border}`, borderBottom: `1px solid ${dec.border}` }}
-      >
-        <div className="flex items-center gap-3">
-          <DecIcon size={18} style={{ color: dec.color }} />
+      {/* Shadow Mode banner */}
+      {isShadow && (
+        <div style={{ background: 'rgba(56,189,248,0.08)', borderBottom: '1px solid rgba(56,189,248,0.2)', padding: '10px 18px', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Eye size={13} style={{ color: '#38BDF8', flexShrink: 0 }} />
           <div>
-            <p className="text-xs font-semibold" style={{ color: '#475569' }}>Decision</p>
-            <p className="text-lg font-black" style={{ color: dec.color }}>{dec.label}</p>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#38BDF8' }}>Shadow Mode Active</span>
+            <span style={{ fontSize: 11, color: '#475569', marginLeft: 8 }}>
+              Engine decision: <span style={{ color: '#EF4444', fontWeight: 600 }}>{result.decision}</span>
+              {' → '}
+              Live decision: <span style={{ color: '#16C784', fontWeight: 600 }}>approve</span>
+              {' — user sees no impact while you observe.'}
+            </span>
           </div>
         </div>
-        <div className="text-right">
-          <p className="text-xs font-semibold" style={{ color: '#475569' }}>Risk Level</p>
-          <p className="text-lg font-black capitalize" style={{ color: riskColor }}>{result.risk_level}</p>
+      )}
+
+      {/* Decision + scores */}
+      <div style={{ background: '#07111F', padding: '20px 20px 16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+          <ScoreBar label="Trust Score" score={result.trust_score} color={trustColor(result.trust_score)} />
+          <ScoreBar label="Fraud Score" score={result.fraud_score} color={fraudColor(result.fraud_score)} />
+        </div>
+
+        {/* Decision + meta row */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '12px 16px', borderRadius: 8,
+          background: dec.bg, border: `1px solid ${dec.border}`,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <DecIcon size={18} style={{ color: dec.color }} />
+            <div>
+              <p style={{ fontSize: 10, color: '#475569', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Decision</p>
+              <p style={{ fontSize: 18, fontWeight: 900, color: dec.color }}>
+                {dec.label}
+                {isShadow && <span style={{ fontSize: 11, fontWeight: 500, color: '#38BDF8', marginLeft: 8 }}>(shadow)</span>}
+              </p>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 20, textAlign: 'right' }}>
+            <div>
+              <p style={{ fontSize: 10, color: '#475569', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Risk Level</p>
+              <p style={{ fontSize: 16, fontWeight: 800, color: riskColor, textTransform: 'capitalize' }}>{result.risk_level}</p>
+            </div>
+            <div>
+              <p style={{ fontSize: 10, color: '#475569', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Confidence</p>
+              <p style={{ fontSize: 16, fontWeight: 800, color: '#94A3B8', textTransform: 'capitalize' }}>{result.confidence_level}</p>
+            </div>
+            <div>
+              <p style={{ fontSize: 10, color: '#475569', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Latency</p>
+              <p style={{ fontSize: 16, fontWeight: 800, color: '#475569', fontFamily: '"IBM Plex Mono", monospace' }}>{ms}ms</p>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* AI Summary */}
-      <div className="px-6 py-4" style={{ background: '#07111F', borderBottom: '1px solid #1E2D3D' }}>
-        <div className="flex items-center gap-2 mb-2">
-          <Zap size={11} style={{ color: '#16C784' }} />
-          <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#475569' }}>
-            AI Summary
-          </p>
-          <span className="text-[10px] px-1.5 py-0.5 rounded mono" style={{ background: '#050B14', color: '#2D4057', border: '1px solid #1E2D3D' }}>
-            {ms}ms
-          </span>
+      {/* Recommended Action */}
+      <div style={{ background: '#0B1220', borderTop: '1px solid #1E2D3D', padding: '14px 20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+          <Zap size={10} style={{ color: '#16C784' }} />
+          <p style={{ fontSize: 10, fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Recommended Action</p>
         </div>
-        <p className="text-sm leading-relaxed" style={{ color: '#94A3B8' }}>{result.ai_summary}</p>
-      </div>
-
-      {/* Signals */}
-      <div className="px-6 py-4" style={{ background: '#07111F', borderBottom: '1px solid #1E2D3D' }}>
-        <p className="text-[10px] font-semibold uppercase tracking-wider mb-3" style={{ color: '#475569' }}>
-          Detected Signals
-          <span className="ml-2 mono" style={{ color: '#2D4057' }}>({result.signals.length})</span>
+        <p style={{ fontSize: 13, color: '#E2E8F0', lineHeight: 1.6, fontWeight: 500 }}>
+          {result.recommended_action}
         </p>
-        {result.signals.length === 0 ? (
-          <div className="flex items-center gap-2 py-1">
-            <CheckCircle2 size={12} style={{ color: '#16C784' }} />
-            <p className="text-xs" style={{ color: '#475569' }}>No suspicious signals detected — event appears clean.</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {result.signals.map(sig => {
-              const sevColor = SEV_COLORS[sig.severity] ?? '#475569'
+      </div>
+
+      {/* Risk Reasons */}
+      {result.risk_reasons.length > 0 && (
+        <div style={{ background: '#07111F', borderTop: '1px solid #1E2D3D', padding: '14px 20px' }}>
+          <p style={{ fontSize: 10, fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>
+            Risk Reasons
+            <span style={{ marginLeft: 6, color: '#2D4057', fontFamily: '"IBM Plex Mono", monospace' }}>
+              ({result.risk_reasons.length})
+            </span>
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {result.risk_reasons.map((r, i) => {
+              const catColor = CATEGORY_COLORS[r.category] ?? '#94A3B8'
+              const sevColor = SEV_COLORS[r.severity] ?? '#94A3B8'
               return (
-                <div
-                  key={sig.code}
-                  className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg"
-                  style={{ background: '#050B14', border: '1px solid #1E2D3D' }}
-                >
-                  <div className="min-w-0">
-                    <p className="text-xs font-medium truncate" style={{ color: '#E2E8F0' }}>{sig.label}</p>
-                    <p className="text-[10px] mono mt-0.5" style={{ color: '#2D4057' }}>{sig.code}</p>
-                  </div>
-                  <span
-                    className="text-[10px] px-2 py-0.5 rounded-full font-semibold flex-shrink-0 mono"
-                    style={{
-                      background: `${sevColor}15`,
-                      color:  sevColor,
-                      border: `1px solid ${sevColor}30`,
-                    }}
-                  >
-                    {sig.severity}
+                <div key={i} style={{ display: 'flex', gap: 10, padding: '8px 12px', borderRadius: 8, background: '#050B14', border: '1px solid #1E2D3D', alignItems: 'flex-start' }}>
+                  <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: `${catColor}15`, color: catColor, border: `1px solid ${catColor}30`, flexShrink: 0, marginTop: 1, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    {r.category}
                   </span>
+                  <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: `${sevColor}15`, color: sevColor, border: `1px solid ${sevColor}30`, flexShrink: 0, marginTop: 1, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    {r.severity}
+                  </span>
+                  <p style={{ fontSize: 12, color: '#94A3B8', lineHeight: 1.5, margin: 0 }}>{r.reason}</p>
                 </div>
               )
             })}
           </div>
+        </div>
+      )}
+
+      {/* Detected Signals */}
+      <div style={{ background: '#0B1220', borderTop: '1px solid #1E2D3D' }}>
+        <button
+          onClick={() => setShowSignals(p => !p)}
+          style={{
+            width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '12px 20px', background: 'none', border: 'none', cursor: 'pointer',
+          }}
+        >
+          <p style={{ fontSize: 10, fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Detected Signals
+            <span style={{ marginLeft: 6, color: result.signals.length > 0 ? '#EF4444' : '#16C784', fontFamily: '"IBM Plex Mono", monospace' }}>
+              ({result.signals.length})
+            </span>
+          </p>
+          {showSignals ? <ChevronUp size={12} style={{ color: '#475569' }} /> : <ChevronDown size={12} style={{ color: '#475569' }} />}
+        </button>
+
+        {showSignals && (
+          <div style={{ padding: '0 20px 16px', display: 'flex', flexDirection: 'column', gap: 5 }}>
+            {result.signals.length === 0 ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderRadius: 8, background: '#050B14', border: '1px solid #1E2D3D' }}>
+                <CheckCircle2 size={12} style={{ color: '#16C784' }} />
+                <p style={{ fontSize: 12, color: '#475569' }}>No suspicious signals detected — event appears clean.</p>
+              </div>
+            ) : (
+              result.signals.map(sig => {
+                const sevColor = SEV_COLORS[sig.severity] ?? '#475569'
+                const catColor = CATEGORY_COLORS[SIGNAL_CATEGORY[sig.code] ?? 'behavioral'] ?? '#94A3B8'
+                return (
+                  <div key={sig.code} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '8px 12px', borderRadius: 8, background: '#050B14', border: '1px solid #1E2D3D' }}>
+                    <div style={{ minWidth: 0 }}>
+                      <p style={{ fontSize: 12, fontWeight: 500, color: '#E2E8F0', marginBottom: 2 }}>{sig.label}</p>
+                      <p style={{ fontSize: 10, color: '#2D4057', fontFamily: '"IBM Plex Mono", monospace' }}>{sig.code}</p>
+                    </div>
+                    <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
+                      <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 4, fontWeight: 700, background: `${catColor}15`, color: catColor, border: `1px solid ${catColor}30`, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        {SIGNAL_CATEGORY[sig.code] ?? 'behavioral'}
+                      </span>
+                      <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 4, fontWeight: 700, background: `${sevColor}15`, color: sevColor, border: `1px solid ${sevColor}30`, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        {sig.severity}
+                      </span>
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </div>
         )}
       </div>
 
-      {/* API equivalent toggle */}
-      <div style={{ background: '#050B14' }}>
-        <button
-          onClick={() => setShowApi(p => !p)}
-          className="w-full flex items-center justify-between px-6 py-3.5 text-xs transition-colors"
-          style={{ color: '#475569' }}
-          onMouseEnter={e => (e.currentTarget.style.color = '#94A3B8')}
-          onMouseLeave={e => (e.currentTarget.style.color = '#475569')}
-        >
-          <span className="flex items-center gap-2 font-semibold">
-            <Cpu size={11} />
-            API equivalent
-          </span>
-          {showApi ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
-        </button>
-
-        {showApi && (
-          <div className="grid grid-cols-2 gap-0 px-6 pb-5">
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: '#2D4057' }}>
-                POST /api/risk/check
-              </p>
-              <pre
-                className="text-[10px] mono leading-relaxed rounded-l-lg p-3 overflow-x-auto h-full"
-                style={{ background: '#07111F', color: '#475569', border: '1px solid #1E2D3D', borderRight: 'none' }}
-              >
-                {requestJson}
-              </pre>
-            </div>
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: '#16C784' }}>
-                200 OK
-              </p>
-              <pre
-                className="text-[10px] mono leading-relaxed rounded-r-lg p-3 overflow-x-auto h-full"
-                style={{ background: '#07111F', color: '#16C784', border: '1px solid #1E2D3D' }}
-              >
-                {responseJson}
-              </pre>
-            </div>
-          </div>
+      {/* API Response JSON */}
+      <div style={{ background: '#050B14', borderTop: '1px solid #1E2D3D' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px' }}>
+          <button
+            onClick={() => setShowJson(p => !p)}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#475569', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}
+          >
+            {showJson ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+            API Response JSON
+          </button>
+          <CopyButton text={apiJson} />
+        </div>
+        {showJson && (
+          <pre style={{ margin: 0, padding: '0 16px 16px', fontSize: 11, lineHeight: 1.7, fontFamily: '"IBM Plex Mono", monospace', color: '#16C784', overflowX: 'auto', whiteSpace: 'pre' }}>
+            {apiJson}
+          </pre>
         )}
       </div>
     </div>
@@ -338,62 +502,56 @@ function ResultsPanel({ result, ms }: { result: RiskEngineOutput; ms: number }) 
 
 // ─── Empty state ──────────────────────────────────────────────────────────────
 
-function EmptyResults() {
+function EmptyState() {
   return (
-    <div
-      className="flex flex-col items-center justify-center rounded-xl h-full min-h-[420px]"
-      style={{ background: '#07111F', border: '1px dashed #1E2D3D' }}
-    >
-      <div
-        className="w-12 h-12 rounded-xl flex items-center justify-center mb-4"
-        style={{ background: 'rgba(22,199,132,0.08)', border: '1px solid rgba(22,199,132,0.15)' }}
-      >
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderRadius: 12, minHeight: 440, background: '#07111F', border: '1px dashed #1E2D3D' }}>
+      <div style={{ width: 48, height: 48, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(22,199,132,0.08)', border: '1px solid rgba(22,199,132,0.15)', marginBottom: 16 }}>
         <Activity size={20} style={{ color: '#16C784' }} />
       </div>
-      <p className="text-sm font-semibold mb-1" style={{ color: '#475569' }}>Results appear here</p>
-      <p className="text-xs text-center px-8" style={{ color: '#2D4057' }}>
-        Select a scenario from the presets above or fill in the form, then click Run Risk Check.
+      <p style={{ fontSize: 14, fontWeight: 600, color: '#475569', marginBottom: 6 }}>Select a scenario to begin</p>
+      <p style={{ fontSize: 12, color: '#2D4057', textAlign: 'center', maxWidth: 260, lineHeight: 1.6 }}>
+        Choose one of the 8 scenarios above — the risk engine will run instantly and show a full decision breakdown.
       </p>
     </div>
   )
 }
 
-// ─── Main page ────────────────────────────────────────────────────────────────
+// ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function Demo() {
-  const [form,       setForm]       = useState<DemoForm>(EMPTY_FORM)
-  const [preset,     setPreset]     = useState<string | null>(null)
-  const [presetCtx,  setPresetCtx]  = useState<Partial<RiskEngineContext>>({})
-  const [presetMeta, setPresetMeta] = useState<Record<string, unknown> | undefined>(undefined)
-  const [result,     setResult]     = useState<RiskEngineOutput | null>(null)
-  const [running,    setRunning]    = useState(false)
-  const [ms,         setMs]         = useState(0)
+  const [form,        setForm]        = useState<DemoForm>(EMPTY_FORM)
+  const [preset,      setPreset]      = useState<string | null>(null)
+  const [presetCtx,   setPresetCtx]   = useState<Partial<RiskEngineContext>>({})
+  const [presetMeta,  setPresetMeta]  = useState<Record<string, unknown> | undefined>(undefined)
+  const [result,      setResult]      = useState<RiskEngineOutput | null>(null)
+  const [running,     setRunning]     = useState(false)
+  const [ms,          setMs]          = useState(0)
+  const [isShadow,    setIsShadow]    = useState(false)
+  const [eventId,     setEventId]     = useState('')
 
-  const applyPreset = useCallback((p: Preset) => {
-    setPreset(p.id)
-    setForm({ ...EMPTY_FORM, ...p.form })
-    setPresetCtx(p.context)
-    setPresetMeta(p.metadata)
-    setResult(null)
-  }, [])
-
-  const handleRun = useCallback(async () => {
+  const runEngine = useCallback(async (
+    f: DemoForm,
+    ctx: Partial<RiskEngineContext>,
+    meta: Record<string, unknown> | undefined,
+    shadow: boolean,
+  ) => {
     setRunning(true)
     setResult(null)
+    setIsShadow(shadow)
+    setEventId('evt_' + Math.random().toString(36).slice(2, 10))
 
-    // Brief pause to make the processing feel real
-    await new Promise(r => setTimeout(r, 380))
+    await new Promise(r => setTimeout(r, 320))
 
     const input: RiskEngineInput = {
       external_user_id: 'usr_demo',
-      event_type:       form.event_type as RiskEngineInput['event_type'],
-      email:            form.email      || undefined,
-      ip_address:       form.ip_address || undefined,
-      device_id:        form.device_id  || undefined,
-      country:          form.country    || undefined,
-      user_agent:       form.user_agent || undefined,
-      metadata:         presetMeta,
-      context:          presetCtx as RiskEngineContext,
+      event_type:       f.event_type as RiskEngineInput['event_type'],
+      email:            f.email      || undefined,
+      ip_address:       f.ip_address || undefined,
+      device_id:        f.device_id  || undefined,
+      country:          f.country    || undefined,
+      user_agent:       f.user_agent || undefined,
+      metadata:         meta,
+      context:          ctx as RiskEngineContext,
     }
 
     const t0  = performance.now()
@@ -403,7 +561,21 @@ export default function Demo() {
     setMs(elapsed)
     setResult(out)
     setRunning(false)
-  }, [form, presetCtx, presetMeta])
+  }, [])
+
+  const applyPreset = useCallback((p: Preset) => {
+    setPreset(p.id)
+    const newForm = { ...EMPTY_FORM, ...p.form }
+    setForm(newForm)
+    setPresetCtx(p.context)
+    setPresetMeta(p.metadata)
+    setResult(null)
+    void runEngine(newForm, p.context, p.metadata, p.isShadowMode ?? false)
+  }, [runEngine])
+
+  const handleRun = useCallback(() => {
+    void runEngine(form, presetCtx, presetMeta, isShadow && preset === 'shadowMode')
+  }, [form, presetCtx, presetMeta, isShadow, preset, runEngine])
 
   const handleReset = () => {
     setForm(EMPTY_FORM)
@@ -411,6 +583,7 @@ export default function Demo() {
     setPresetCtx({})
     setPresetMeta(undefined)
     setResult(null)
+    setIsShadow(false)
   }
 
   const setField = <K extends keyof DemoForm>(k: K, v: DemoForm[K]) => {
@@ -421,333 +594,234 @@ export default function Demo() {
   return (
     <div style={{ background: '#050B14', minHeight: '100vh', color: '#E2E8F0' }}>
 
-      {/* ── Nav ──────────────────────────────────────────────── */}
-      <nav
-        className="sticky top-0 z-30 flex items-center justify-between px-8"
-        style={{
-          height: 56,
-          background: 'rgba(5,11,20,0.92)',
-          borderBottom: '1px solid #1E2D3D',
-          backdropFilter: 'blur(8px)',
-        }}
-      >
-        <Link to="/" className="flex items-center no-underline">
-          <img src="/logo-full.png" alt="Genuinux" style={{ height: '80px', display: 'block', filter: 'brightness(0) invert(1)' }} />
-          <span
-            className="text-[10px] px-2 py-0.5 rounded-full mono"
-            style={{ background: 'rgba(22,199,132,0.1)', color: '#16C784', border: '1px solid rgba(22,199,132,0.2)' }}
-          >
+      {/* Nav */}
+      <nav style={{ position: 'sticky', top: 0, zIndex: 30, height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px', background: 'rgba(5,11,20,0.92)', borderBottom: '1px solid #1E2D3D', backdropFilter: 'blur(8px)' }}>
+        <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
+          <img src="/logo-full.png" alt="Genuinux" style={{ height: 80, display: 'block', filter: 'brightness(0) invert(1)' }} />
+          <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 20, background: 'rgba(22,199,132,0.1)', color: '#16C784', border: '1px solid rgba(22,199,132,0.2)', fontFamily: '"IBM Plex Mono", monospace', fontWeight: 600 }}>
             Live Demo
           </span>
         </Link>
-
-        <div className="flex items-center gap-3">
-          <Link
-            to="/login"
-            className="text-xs font-medium no-underline transition-colors"
-            style={{ color: '#475569' }}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <Link to="/docs" style={{ fontSize: 12, color: '#475569', textDecoration: 'none' }}
             onMouseEnter={e => ((e.target as HTMLElement).style.color = '#94A3B8')}
-            onMouseLeave={e => ((e.target as HTMLElement).style.color = '#475569')}
-          >
+            onMouseLeave={e => ((e.target as HTMLElement).style.color = '#475569')}>
+            API Docs
+          </Link>
+          <Link to="/login" style={{ fontSize: 12, color: '#475569', textDecoration: 'none' }}
+            onMouseEnter={e => ((e.target as HTMLElement).style.color = '#94A3B8')}
+            onMouseLeave={e => ((e.target as HTMLElement).style.color = '#475569')}>
             Sign in
           </Link>
-          <Link
-            to="/register"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold no-underline"
-            style={{ background: '#16C784', color: '#050B14' }}
-          >
-            Get API Key
-            <ArrowRight size={11} />
+          <Link to="/register" style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 14px', borderRadius: 8, background: '#16C784', color: '#050B14', fontSize: 12, fontWeight: 700, textDecoration: 'none' }}>
+            Get API Key <ArrowRight size={11} />
           </Link>
         </div>
       </nav>
 
-      <div className="max-w-6xl mx-auto px-8 py-12">
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '40px 32px 80px' }}>
 
-        {/* ── Hero ─────────────────────────────────────────────── */}
-        <div className="text-center mb-12">
-          <div
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold mb-5"
-            style={{ background: 'rgba(22,199,132,0.08)', color: '#16C784', border: '1px solid rgba(22,199,132,0.2)' }}
-          >
-            <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
-            Engine running locally in your browser — no API key required
+        {/* Hero */}
+        <div style={{ textAlign: 'center', marginBottom: 36 }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '5px 14px', borderRadius: 20, background: 'rgba(22,199,132,0.08)', color: '#16C784', border: '1px solid rgba(22,199,132,0.2)', fontSize: 11, fontWeight: 600, marginBottom: 16 }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#16C784', display: 'inline-block', animation: 'pulse 2s infinite' }} />
+            Risk engine running locally — no API key required
           </div>
-          <h1 className="text-4xl font-black mb-4 leading-tight" style={{ color: '#E2E8F0' }}>
+          <h1 style={{ fontSize: 'clamp(1.75rem, 4vw, 2.5rem)', fontWeight: 900, color: '#E2E8F0', marginBottom: 10, lineHeight: 1.2, fontFamily: '"Syne", sans-serif' }}>
             See fraud detection in action
           </h1>
-          <p className="text-base max-w-xl mx-auto" style={{ color: '#475569' }}>
-            Run the Genuinux risk engine against real scenarios. Inspect every signal,
-            score, and decision — exactly as your integration would receive them.
+          <p style={{ fontSize: 14, color: '#475569', maxWidth: 520, margin: '0 auto' }}>
+            Select a scenario — the engine runs instantly and returns a full risk decision, every signal, and the exact API response your integration would receive.
           </p>
         </div>
 
-        {/* ── Presets ───────────────────────────────────────────── */}
-        <div className="grid grid-cols-5 gap-3 mb-8">
+        {/* Scenario cards (8) */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 28 }}>
           {PRESETS.map(p => {
             const active = preset === p.id
             return (
               <button
                 key={p.id}
                 onClick={() => applyPreset(p)}
-                className="text-left rounded-xl p-4 transition-all duration-150"
                 style={{
+                  textAlign: 'left', padding: '14px 16px', borderRadius: 10, cursor: 'pointer',
                   background: active ? '#0B1220' : '#07111F',
-                  border: active ? `1px solid ${p.color}50` : '1px solid #1E2D3D',
-                  outline: 'none',
+                  border: active ? `1px solid ${p.tagColor}40` : '1px solid #1E2D3D',
+                  outline: 'none', transition: 'all 0.15s',
+                  boxShadow: active ? `0 0 0 1px ${p.tagColor}20` : 'none',
                 }}
-                onMouseEnter={e => {
-                  if (!active) e.currentTarget.style.borderColor = '#2D4057'
-                }}
-                onMouseLeave={e => {
-                  if (!active) e.currentTarget.style.borderColor = '#1E2D3D'
-                }}
+                onMouseEnter={e => { if (!active) e.currentTarget.style.borderColor = '#2D4057' }}
+                onMouseLeave={e => { if (!active) e.currentTarget.style.borderColor = '#1E2D3D' }}
               >
-                <span
-                  className="inline-block text-[10px] px-2 py-0.5 rounded-full font-semibold mb-2"
-                  style={{ background: p.tagBg, color: p.color }}
-                >
+                <span style={{ display: 'inline-block', fontSize: 10, padding: '2px 7px', borderRadius: 4, fontWeight: 700, marginBottom: 8, background: p.tagBg, color: p.tagColor }}>
                   {p.tag}
                 </span>
-                <p className="text-xs font-bold mb-1" style={{ color: active ? '#E2E8F0' : '#94A3B8' }}>
-                  {p.label}
-                </p>
-                <p className="text-[10px] leading-relaxed" style={{ color: '#2D4057' }}>
-                  {p.description}
-                </p>
+                <p style={{ fontSize: 12, fontWeight: 700, color: active ? '#E2E8F0' : '#94A3B8', marginBottom: 4, lineHeight: 1.3 }}>{p.label}</p>
+                <p style={{ fontSize: 10, color: '#2D4057', lineHeight: 1.5 }}>{p.description}</p>
               </button>
             )
           })}
         </div>
 
-        {/* ── Demo area ─────────────────────────────────────────── */}
-        <div className="grid gap-6" style={{ gridTemplateColumns: '1fr 1.2fr' }}>
+        {/* Main demo area */}
+        <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: 20 }}>
 
-          {/* Form */}
-          <div
-            className="rounded-xl p-6 flex flex-col gap-4"
-            style={{ background: '#07111F', border: '1px solid #1E2D3D' }}
-          >
-            <div className="flex items-center justify-between mb-1">
-              <p className="text-sm font-bold" style={{ color: '#E2E8F0' }}>Check parameters</p>
-              <button
-                onClick={handleReset}
-                className="text-[10px] flex items-center gap-1 transition-colors"
-                style={{ color: '#2D4057' }}
+          {/* Left: Form */}
+          <div style={{ background: '#07111F', border: '1px solid #1E2D3D', borderRadius: 12, padding: 20, display: 'flex', flexDirection: 'column', gap: 14, alignSelf: 'start' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <p style={{ fontSize: 12, fontWeight: 700, color: '#E2E8F0' }}>Check parameters</p>
+              <button onClick={handleReset} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', color: '#2D4057', fontSize: 10 }}
                 onMouseEnter={e => (e.currentTarget.style.color = '#475569')}
-                onMouseLeave={e => (e.currentTarget.style.color = '#2D4057')}
-              >
-                <RefreshCw size={9} />
-                Reset
+                onMouseLeave={e => (e.currentTarget.style.color = '#2D4057')}>
+                <RefreshCw size={9} /> Reset
               </button>
             </div>
 
             {/* event_type */}
             <div>
-              <label className="block text-[10px] font-semibold uppercase tracking-wider mb-1.5 flex items-center gap-1.5"
-                style={{ color: '#475569' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
                 <Activity size={10} /> Event type
               </label>
-              <select
-                value={form.event_type}
-                onChange={e => setField('event_type', e.target.value)}
-                className="g-input text-sm w-full"
-              >
-                {EVENT_TYPES.map(t => (
-                  <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
-                ))}
+              <select value={form.event_type} onChange={e => setField('event_type', e.target.value)} className="g-input" style={{ width: '100%', fontSize: 13 }}>
+                {EVENT_TYPES.map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
               </select>
             </div>
 
             {/* email */}
             <div>
-              <label className="block text-[10px] font-semibold uppercase tracking-wider mb-1.5 flex items-center gap-1.5"
-                style={{ color: '#475569' }}>
-                <Mail size={10} /> Email address
+              <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+                <Mail size={10} /> Email
               </label>
-              <input
-                value={form.email}
-                onChange={e => setField('email', e.target.value)}
-                placeholder="user@example.com"
-                className="g-input text-sm w-full"
-              />
+              <input value={form.email} onChange={e => setField('email', e.target.value)} placeholder="user@example.com" className="g-input" style={{ width: '100%', fontSize: 13 }} />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              {/* ip */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               <div>
-                <label className="block text-[10px] font-semibold uppercase tracking-wider mb-1.5 flex items-center gap-1.5"
-                  style={{ color: '#475569' }}>
-                  <Globe size={10} /> IP address
+                <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+                  <Globe size={10} /> IP
                 </label>
-                <input
-                  value={form.ip_address}
-                  onChange={e => setField('ip_address', e.target.value)}
-                  placeholder="104.18.45.12"
-                  className="g-input text-sm w-full mono"
-                />
+                <input value={form.ip_address} onChange={e => setField('ip_address', e.target.value)} placeholder="1.2.3.4" className="g-input mono" style={{ width: '100%', fontSize: 12 }} />
               </div>
-              {/* country */}
               <div>
-                <label className="block text-[10px] font-semibold uppercase tracking-wider mb-1.5"
-                  style={{ color: '#475569' }}>
-                  Country (ISO)
-                </label>
-                <input
-                  value={form.country}
-                  onChange={e => setField('country', e.target.value.toUpperCase().slice(0, 2))}
-                  placeholder="US"
-                  className="g-input text-sm w-full mono"
-                  maxLength={2}
-                />
+                <label style={{ fontSize: 10, fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 6 }}>Country</label>
+                <input value={form.country} onChange={e => setField('country', e.target.value.toUpperCase().slice(0, 2))} placeholder="US" className="g-input mono" style={{ width: '100%', fontSize: 13 }} maxLength={2} />
               </div>
             </div>
 
-            {/* device_id */}
             <div>
-              <label className="block text-[10px] font-semibold uppercase tracking-wider mb-1.5 flex items-center gap-1.5"
-                style={{ color: '#475569' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
                 <Monitor size={10} /> Device ID
               </label>
-              <input
-                value={form.device_id}
-                onChange={e => setField('device_id', e.target.value)}
-                placeholder="dev_a1b2c3d4"
-                className="g-input text-sm w-full mono"
-              />
+              <input value={form.device_id} onChange={e => setField('device_id', e.target.value)} placeholder="dev_a1b2c3" className="g-input mono" style={{ width: '100%', fontSize: 12 }} />
             </div>
 
-            {/* user_agent */}
             <div>
-              <label className="block text-[10px] font-semibold uppercase tracking-wider mb-1.5 flex items-center gap-1.5"
-                style={{ color: '#475569' }}>
-                <Cpu size={10} /> User agent
+              <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+                <Cpu size={10} /> User Agent
               </label>
-              <textarea
-                value={form.user_agent}
-                onChange={e => setField('user_agent', e.target.value)}
-                placeholder="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)…"
-                rows={2}
-                className="g-input text-xs w-full mono resize-none"
-                style={{ lineHeight: 1.6 }}
-              />
+              <textarea value={form.user_agent} onChange={e => setField('user_agent', e.target.value)} placeholder="Mozilla/5.0…" rows={2} className="g-input mono" style={{ width: '100%', fontSize: 11, resize: 'none', lineHeight: 1.6 }} />
             </div>
 
-            {/* Context note */}
             {preset && (
-              <div
-                className="flex items-start gap-2 px-3 py-2.5 rounded-lg"
-                style={{ background: 'rgba(22,199,132,0.05)', border: '1px solid rgba(22,199,132,0.12)' }}
-              >
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 10px', borderRadius: 8, background: 'rgba(22,199,132,0.05)', border: '1px solid rgba(22,199,132,0.12)' }}>
                 <Clock size={10} style={{ color: '#16C784', flexShrink: 0, marginTop: 2 }} />
-                <p className="text-[10px]" style={{ color: '#475569' }}>
-                  Historical context loaded from preset (IP velocity, device history, email duplicates).
+                <p style={{ fontSize: 10, color: '#475569', lineHeight: 1.5 }}>
+                  Historical context loaded (IP velocity, device history, email count). Edit any field to test your own scenario.
                 </p>
               </div>
             )}
 
-            {/* Run button */}
             <button
-              onClick={() => void handleRun()}
+              onClick={handleRun}
               disabled={running}
-              className="w-full flex items-center justify-center gap-2.5 py-3 rounded-xl text-sm font-bold transition-all mt-1"
               style={{
+                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                padding: '11px 0', borderRadius: 10, fontSize: 13, fontWeight: 700,
                 background: running ? 'rgba(22,199,132,0.15)' : '#16C784',
                 color: running ? '#16C784' : '#050B14',
                 border: running ? '1px solid rgba(22,199,132,0.3)' : 'none',
                 cursor: running ? 'wait' : 'pointer',
+                transition: 'all 0.15s',
               }}
             >
-              {running ? (
-                <><RefreshCw size={14} className="animate-spin" /> Analyzing…</>
-              ) : (
-                <><Play size={14} /> Run Risk Check</>
-              )}
+              {running ? <><RefreshCw size={13} style={{ animation: 'spin 0.8s linear infinite' }} /> Analyzing…</> : <><Play size={13} /> Run Risk Check</>}
             </button>
           </div>
 
-          {/* Results */}
+          {/* Right: Results */}
           <div>
-            {result ? (
-              <ResultsPanel result={result} ms={ms} />
-            ) : (
-              <EmptyResults />
-            )}
+            {result
+              ? <ResultsPanel result={result} ms={ms} isShadow={isShadow} eventId={eventId} />
+              : running
+                ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderRadius: 12, minHeight: 440, background: '#07111F', border: '1px solid #1E2D3D', gap: 12 }}>
+                    <RefreshCw size={22} style={{ color: '#16C784', animation: 'spin 0.8s linear infinite' }} />
+                    <p style={{ fontSize: 13, color: '#475569' }}>Analyzing signals…</p>
+                  </div>
+                )
+                : <EmptyState />
+            }
           </div>
         </div>
 
-        {/* ── Signal legend ──────────────────────────────────────── */}
-        <div className="mt-8 grid grid-cols-4 gap-3">
+        {/* Signal categories legend */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginTop: 20 }}>
           {[
-            { icon: <Mail size={13} />, title: 'Email signals', desc: 'Disposable domains, duplicate accounts, missing email.' },
-            { icon: <Globe size={13} />, title: 'IP & geo signals', desc: 'High-user IP, velocity, high-risk country of origin.' },
-            { icon: <Monitor size={13} />, title: 'Device signals', desc: 'Multi-account devices, prior blocks, missing fingerprint.' },
-            { icon: <Cpu size={13} />, title: 'Behavioral signals', desc: 'Automation UA, headless browser, request velocity.' },
-          ].map(({ icon, title, desc }) => (
-            <div
-              key={title}
-              className="rounded-xl px-4 py-3.5 flex items-start gap-3"
-              style={{ background: '#07111F', border: '1px solid #1E2D3D' }}
-            >
-              <span style={{ color: '#16C784', flexShrink: 0, marginTop: 1 }}>{icon}</span>
+            { icon: <Mail size={13} />,    cat: 'Email',      desc: 'Disposable domains, duplicate accounts, missing email.', color: '#F59E0B' },
+            { icon: <Globe size={13} />,   cat: 'IP & Geo',   desc: 'Multi-user IP, signup surge, high-risk country.', color: '#38BDF8' },
+            { icon: <Monitor size={13} />, cat: 'Device',     desc: 'Multi-account devices, prior blocks, missing fingerprint.', color: '#A78BFA' },
+            { icon: <Cpu size={13} />,     cat: 'Behavioral', desc: 'Headless browser, automation UA, request velocity.', color: '#F97316' },
+          ].map(({ icon, cat, desc, color }) => (
+            <div key={cat} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px 14px', borderRadius: 10, background: '#07111F', border: '1px solid #1E2D3D' }}>
+              <span style={{ color, flexShrink: 0, marginTop: 1 }}>{icon}</span>
               <div>
-                <p className="text-xs font-bold mb-1" style={{ color: '#94A3B8' }}>{title}</p>
-                <p className="text-[11px] leading-relaxed" style={{ color: '#2D4057' }}>{desc}</p>
+                <p style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', marginBottom: 3 }}>{cat} signals</p>
+                <p style={{ fontSize: 10, color: '#2D4057', lineHeight: 1.5 }}>{desc}</p>
               </div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* ── CTA ───────────────────────────────────────────────────── */}
-      <div style={{ borderTop: '1px solid #1E2D3D', marginTop: 64 }}>
-        <div className="max-w-3xl mx-auto px-8 py-20 text-center">
-          <div
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold mb-6"
-            style={{ background: 'rgba(22,199,132,0.08)', color: '#16C784', border: '1px solid rgba(22,199,132,0.2)' }}
-          >
+      {/* CTA */}
+      <div style={{ borderTop: '1px solid #1E2D3D' }}>
+        <div style={{ maxWidth: 700, margin: '0 auto', padding: '72px 32px', textAlign: 'center' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '5px 14px', borderRadius: 20, background: 'rgba(22,199,132,0.08)', color: '#16C784', border: '1px solid rgba(22,199,132,0.2)', fontSize: 11, fontWeight: 600, marginBottom: 20 }}>
             <Shield size={11} />
-            Free tier available — no credit card required
+            Free tier · No credit card required
           </div>
-          <h2 className="text-3xl font-black mb-4" style={{ color: '#E2E8F0' }}>
+          <h2 style={{ fontSize: 'clamp(1.75rem, 4vw, 2.5rem)', fontWeight: 900, color: '#E2E8F0', marginBottom: 12, lineHeight: 1.2, fontFamily: '"Syne", sans-serif' }}>
             Ready to protect your platform?
           </h2>
-          <p className="text-base mb-8 max-w-lg mx-auto" style={{ color: '#475569' }}>
-            Integrate in minutes with a single API call. Get trust scores, fraud signals,
-            and actionable decisions on every user event.
+          <p style={{ fontSize: 14, color: '#475569', marginBottom: 32, maxWidth: 480, margin: '0 auto 32px', lineHeight: 1.7 }}>
+            What you just ran lives in a single API call. Send user events and get back trust scores, fraud signals,
+            and actionable decisions — in under 200ms.
           </p>
-          <div className="flex items-center justify-center gap-3">
-            <Link
-              to="/register"
-              className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold no-underline"
-              style={{ background: '#16C784', color: '#050B14' }}
-            >
-              Start for free
-              <ArrowRight size={14} />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <Link to="/register" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '12px 24px', borderRadius: 10, background: '#16C784', color: '#050B14', fontSize: 14, fontWeight: 700, textDecoration: 'none' }}>
+              Get started — it's free
+              <ArrowRight size={15} />
             </Link>
-            <Link
-              to="/dashboard"
-              className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold no-underline"
-              style={{ background: '#07111F', color: '#94A3B8', border: '1px solid #1E2D3D' }}
-            >
-              Open dashboard
+            <Link to="/docs" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '12px 20px', borderRadius: 10, background: 'transparent', color: '#94A3B8', border: '1px solid #1E2D3D', fontSize: 13, fontWeight: 500, textDecoration: 'none' }}>
+              Read the docs
             </Link>
           </div>
-          <div className="flex items-center justify-center gap-6 mt-10">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 24, marginTop: 28, flexWrap: 'wrap' }}>
             {[
-              '&lt; 50ms average latency',
+              '< 50ms average latency',
               'Webhook signing with HMAC-SHA256',
               'Designed for GDPR-aware teams',
               'No data stored in demo',
             ].map(t => (
-              <span key={t} className="text-[11px] flex items-center gap-1.5" style={{ color: '#2D4057' }}>
+              <span key={t} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#2D4057' }}>
                 <CheckCircle2 size={10} style={{ color: '#16C784' }} />
-                <span dangerouslySetInnerHTML={{ __html: t }} />
+                {t}
               </span>
             ))}
           </div>
         </div>
       </div>
+
     </div>
   )
 }
