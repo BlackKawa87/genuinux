@@ -775,3 +775,41 @@ CREATE POLICY "feature_flags_write" ON feature_flags
     organization_id = current_org_id()
     AND current_user_role() IN ('owner', 'admin')
   );
+
+-- ============================================================
+-- Schema v9 — Controlled beta onboarding
+-- ============================================================
+-- Run each block separately in the Supabase SQL editor.
+
+-- ── 1. Beta invite codes ──────────────────────────────────────
+-- Codes are stored as plain uppercase text (not hashed) — the
+-- validate-invite endpoint uses the service role key so codes
+-- are never exposed to the browser.
+CREATE TABLE IF NOT EXISTS beta_invites (
+  id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  code       TEXT        NOT NULL UNIQUE,  -- e.g. 'BETA-ACME-2026' (uppercase)
+  email      TEXT,                         -- null = universal; non-null = single-use for that email
+  note       TEXT,                         -- internal note (who it was sent to, company name, etc.)
+  used_by    UUID        REFERENCES auth.users(id) ON DELETE SET NULL,
+  used_at    TIMESTAMPTZ,
+  expires_at TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '30 days'),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_beta_invites_code ON beta_invites (code);
+
+-- No RLS — service role key only. Anon key cannot access this table.
+
+-- ── 2. Organization: live mode approval + onboarding metadata ─
+ALTER TABLE organizations
+  ADD COLUMN IF NOT EXISTS live_mode_approved       BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS use_case                 TEXT,
+  ADD COLUMN IF NOT EXISTS estimated_monthly_events TEXT;
+
+-- ── 3. Helper: create an invite code ──────────────────────────
+-- Run this to issue a new invite. Adjust code and note as needed.
+-- INSERT INTO beta_invites (code, email, note)
+-- VALUES ('BETA-ACME-2026', 'founder@acme.io', 'Acme Corp — founder intro');
+--
+-- To approve live mode for an org after shadow review:
+-- UPDATE organizations SET live_mode_approved = true WHERE id = '<org-uuid>';

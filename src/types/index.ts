@@ -43,6 +43,9 @@ export interface Organization {
   plan: Plan
   owner_id: string
   shadow_mode: boolean
+  live_mode_approved: boolean
+  use_case: string | null
+  estimated_monthly_events: string | null
   created_at: string
 }
 

@@ -838,8 +838,8 @@ function TeamTab({ members, currentProfile, onMembersChange }: {
 
 // ─── Tab: Risk Preferences ────────────────────────────────────────────────────
 
-function RiskTab({ prefs, orgId, isOwner, shadowMode: initialShadowMode }: {
-  prefs: RiskPrefs; orgId: string; isOwner: boolean; shadowMode: boolean
+function RiskTab({ prefs, orgId, isOwner, shadowMode: initialShadowMode, liveApproved }: {
+  prefs: RiskPrefs; orgId: string; isOwner: boolean; shadowMode: boolean; liveApproved: boolean
 }) {
   const T = useT()
   const [local,           setLocal]           = useState<RiskPrefs>(prefs)
@@ -849,6 +849,7 @@ function RiskTab({ prefs, orgId, isOwner, shadowMode: initialShadowMode }: {
   const [errMsg,          setErrMsg]          = useState<string | null>(null)
   const [needsMigration,  setNeedsMigration]  = useState(false)
   const [showLiveConfirm, setShowLiveConfirm] = useState(false)
+  const [showLivePending, setShowLivePending] = useState(false)
 
   const set = <K extends keyof RiskPrefs>(key: K, val: RiskPrefs[K]) =>
     setLocal(p => ({ ...p, [key]: val }))
@@ -1001,7 +1002,11 @@ function RiskTab({ prefs, orgId, isOwner, shadowMode: initialShadowMode }: {
                 onClick={() => {
                   if (!isOwner) return
                   if (mode === false && shadowMode === true) {
-                    setShowLiveConfirm(true)
+                    if (!liveApproved) {
+                      setShowLivePending(true)
+                    } else {
+                      setShowLiveConfirm(true)
+                    }
                   } else {
                     setShadowMode(mode)
                   }
@@ -1047,6 +1052,66 @@ function RiskTab({ prefs, orgId, isOwner, shadowMode: initialShadowMode }: {
           </div>
         )}
       </SectionCard>
+
+      {/* Live Mode pending approval dialog */}
+      {showLivePending && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
+        >
+          <div
+            className="w-full max-w-md mx-4 p-6 rounded-xl space-y-4"
+            style={{ background: T.card, border: '1px solid rgba(56,189,248,0.3)' }}
+          >
+            <div className="flex items-center gap-3">
+              <div
+                className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
+                style={{ background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.25)' }}
+              >
+                <Eye size={18} style={{ color: '#38BDF8' }} />
+              </div>
+              <div>
+                <p className="text-sm font-semibold" style={{ color: T.text }}>Live Mode Pending Approval</p>
+                <p className="text-[11px] mt-0.5" style={{ color: T.textDim }}>
+                  Your account is in the controlled beta program.
+                </p>
+              </div>
+            </div>
+            <p className="text-xs leading-relaxed" style={{ color: T.textSec }}>
+              Live Mode activation requires a manual review by the Genuinux team.
+              We will check your shadow mode data, webhook setup, and event flow
+              before approving.
+            </p>
+            <div
+              className="px-3 py-2.5 rounded-lg text-xs space-y-1"
+              style={{ background: 'rgba(56,189,248,0.06)', border: '1px solid rgba(56,189,248,0.15)' }}
+            >
+              <p className="font-semibold" style={{ color: '#38BDF8' }}>To request activation:</p>
+              <p style={{ color: T.textSec }}>
+                Email{' '}
+                <a
+                  href="mailto:beta@genuinux.io"
+                  style={{ color: '#38BDF8', textDecoration: 'underline' }}
+                >
+                  beta@genuinux.io
+                </a>
+                {' '}with your organization name and a short summary of your use case.
+                We typically respond within 1–2 business days.
+              </p>
+            </div>
+            <div className="flex justify-end pt-1">
+              <button
+                type="button"
+                onClick={() => setShowLivePending(false)}
+                className="px-4 py-2 rounded-lg text-xs font-medium"
+                style={{ background: T.elevated, color: T.textSec, border: `1px solid ${T.border}` }}
+              >
+                Got it
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Live Mode confirmation dialog */}
       {showLiveConfirm && (
@@ -1831,7 +1896,13 @@ export default function SettingsPage() {
         <TeamTab members={members} currentProfile={profile} onMembersChange={setMembers} />
       )}
       {tab === 'risk' && (
-        <RiskTab prefs={riskPrefs} orgId={org.id} isOwner={isOwner} shadowMode={org.shadow_mode} />
+        <RiskTab
+          prefs={riskPrefs}
+          orgId={org.id}
+          isOwner={isOwner}
+          shadowMode={org.shadow_mode}
+          liveApproved={org.live_mode_approved ?? false}
+        />
       )}
       {tab === 'billing' && (
         <BillingTab plan={org.plan} orgId={org.id} billingSuccess={billingSuccess} />
