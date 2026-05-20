@@ -16,6 +16,7 @@
 import { createClient } from '@supabase/supabase-js'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { captureException, captureMessage } from '../_lib/monitoring'
+import { createSecurityEvent } from '../_lib/securityEvents'
 
 const DELIVERY_RETENTION_DAYS = 90
 
@@ -60,6 +61,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (cacheErr) {
       captureException(cacheErr, { context: 'maintenance: ai_summary_cache purge' })
       results.ai_cache_purge = { status: 'error', message: cacheErr.message }
+      void createSecurityEvent(supabase, {
+        event_type: 'infra.cron_failure',
+        metadata:   { task: 'ai_cache_purge', error: cacheErr.message.slice(0, 200) },
+      }, 'high')
     } else {
       results.ai_cache_purge = { status: 'ok', rows_deleted: cacheCount ?? 0 }
       captureMessage(
@@ -85,6 +90,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (wdErr) {
       captureException(wdErr, { context: 'maintenance: webhook_deliveries purge' })
       results.webhook_deliveries_purge = { status: 'error', message: wdErr.message }
+      void createSecurityEvent(supabase, {
+        event_type: 'infra.cron_failure',
+        metadata:   { task: 'webhook_deliveries_purge', error: wdErr.message.slice(0, 200) },
+      }, 'high')
     } else {
       results.webhook_deliveries_purge = { status: 'ok', rows_deleted: wdCount ?? 0 }
       captureMessage(

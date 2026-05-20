@@ -15,6 +15,9 @@ interface SecurityEvent {
   actor_user_id: string | null
   organization_id: string | null
   metadata: Record<string, unknown> | null
+  occurrence_count: number
+  first_seen_at: string
+  last_seen_at: string
   created_at: string
 }
 
@@ -34,7 +37,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const { data, error } = await sb
       .from('security_events')
-      .select('id, event_type, severity, actor_ip, actor_user_id, organization_id, metadata, created_at')
+      .select('id, event_type, severity, actor_ip, actor_user_id, organization_id, metadata, occurrence_count, first_seen_at, last_seen_at, created_at')
       .order('created_at', { ascending: false })
       .limit(200)
 
@@ -56,8 +59,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const by_type: Record<string, number> = {}
   events.forEach(e => {
-    by_type[e.event_type] = (by_type[e.event_type] ?? 0) + 1
+    by_type[e.event_type] = (by_type[e.event_type] ?? 0) + (e.occurrence_count ?? 1)
   })
+
+  // Health score: 100 base, deductions capped per severity tier
+  const healthScore = Math.max(0, Math.min(100,
+    100
+    - Math.min(by_severity.critical * 25, 60)
+    - Math.min(by_severity.high     * 10, 30)
+    - Math.min(by_severity.medium   *  3, 15)
+  ))
+
+  const healthLabel =
+    healthScore >= 80 ? 'healthy' :
+    healthScore >= 60 ? 'watch'   :
+    healthScore >= 40 ? 'risk'    :
+    'critical'
 
   const warnings: string[] = []
 
@@ -76,12 +93,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   return res.status(200).json({
     status,
+    health_score: healthScore,
+    health_label: healthLabel,
     table_available,
     total_events: events.length,
     events_last_24h: recent.length,
     by_severity,
     by_type,
-    recent_events: recent.slice(0, 10),
+    recent_events: events.slice(0, 50),
     warnings,
     checked_at: new Date().toISOString(),
   })

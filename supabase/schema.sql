@@ -865,3 +865,22 @@ CREATE POLICY "admins can update incidents" ON incidents
     organization_id = current_org_id()
     AND current_user_role() IN ('owner', 'admin')
   );
+
+-- ─── v11: security_events aggregation + incidents FK ─────────────────────────
+-- Adds occurrence tracking for event deduplication and severity escalation.
+-- Owners can insert shadow_mode.changed events from the Settings page (JWT path).
+
+ALTER TABLE security_events
+  ADD COLUMN IF NOT EXISTS occurrence_count INTEGER     NOT NULL DEFAULT 1,
+  ADD COLUMN IF NOT EXISTS first_seen_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  ADD COLUMN IF NOT EXISTS last_seen_at     TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+CREATE INDEX IF NOT EXISTS idx_security_events_agg
+  ON security_events (event_type, actor_ip, organization_id, created_at DESC);
+
+ALTER TABLE incidents
+  ADD COLUMN IF NOT EXISTS related_event_id UUID REFERENCES security_events(id) ON DELETE SET NULL;
+
+DROP POLICY IF EXISTS "security_events_insert" ON security_events;
+CREATE POLICY "security_events_insert" ON security_events
+  FOR INSERT WITH CHECK (current_user_role() = 'owner');

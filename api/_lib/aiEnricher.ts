@@ -16,6 +16,7 @@ import crypto from 'crypto'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { SummaryInput } from '../../src/lib/aiSummary'
 import { captureException, captureMessage } from './monitoring'
+import { createSecurityEvent } from './securityEvents'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -174,6 +175,11 @@ export async function enrichWithAiSummary(
         'warning',
         { orgId, eventId },
       )
+      void createSecurityEvent(supabase, {
+        event_type:      'ai.cap_exceeded',
+        organization_id: orgId,
+        metadata:        { calls_used: orgConfig.ai_calls_used, limit: orgConfig.ai_monthly_limit, event_id: eventId },
+      }, 'medium')
       return
     }
 

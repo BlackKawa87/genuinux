@@ -16,6 +16,7 @@
 import Stripe from 'stripe'
 import { createClient } from '@supabase/supabase-js'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { createSecurityEvent } from '../_lib/securityEvents'
 
 const SUPABASE_URL  = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? ''
 const SERVICE_KEY   = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
@@ -67,6 +68,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error'
     console.error('Stripe webhook signature verification failed:', msg)
+    const fwd = req.headers['x-forwarded-for']
+    const actorIp = typeof fwd === 'string' ? fwd.split(',')[0].trim() || null : null
+    void createSecurityEvent(supabaseAdmin, {
+      event_type: 'webhook.signature_invalid',
+      actor_ip:   actorIp,
+      metadata:   { source: 'stripe', error: msg.slice(0, 200) },
+    }, 'high')
     return res.status(400).json({ error: `Webhook error: ${msg}` })
   }
 

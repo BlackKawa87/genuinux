@@ -883,6 +883,14 @@ function RiskTab({ prefs, orgId, isOwner, shadowMode: initialShadowMode, liveApp
     }
     setSaved(true)
     setTimeout(() => setSaved(false), 3000)
+
+    // Write shadow_mode.changed event for audit trail (best-effort, INSERT RLS policy in v11)
+    void supabase.from('security_events').insert({
+      event_type:      'shadow_mode.changed',
+      severity:        'low',
+      organization_id: orgId,
+      metadata:        { shadow_mode: shadowMode, changed_at: shadowTimestamp },
+    })
   }
 
   const actionOpts: { value: string; label: string }[] = [

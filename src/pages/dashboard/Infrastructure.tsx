@@ -216,6 +216,8 @@ export default function Infrastructure() {
   const [savingIncident, setSavingIncident] = useState(false)
   const [showCreateIncident, setShowCreateIncident] = useState(false)
   const [expandedLogs, setExpandedLogs] = useState(false)
+  const [secFilter, setSecFilter] = useState<'all' | 'low' | 'medium' | 'high' | 'critical'>('all')
+  const [selectedSecEvent, setSelectedSecEvent] = useState<Record<string, unknown> | null>(null)
 
   const token = session?.access_token
 
@@ -633,59 +635,159 @@ export default function Infrastructure() {
       )}
 
       {/* ── SECURITY tab ─────────────────────────────────────────── */}
-      {activeTab === 'security' && securityData && (
-        <div>
-          <SectionCard title="SECURITY OVERVIEW">
-            <Row label="Status"           value={<StatusBadge status={securityData.status as string} />} />
-            <Row label="Table available"  value={securityData.table_available ? 'Yes' : 'No'} accent={securityData.table_available ? '#16C784' : '#F59E0B'} />
-            <Row label="Total events"     value={String(securityData.total_events)} />
-            <Row label="Last 24h"         value={String(securityData.events_last_24h)} />
-          </SectionCard>
+      {activeTab === 'security' && securityData && (() => {
+        const healthScore = (securityData.health_score as number) ?? 100
+        const healthLabel = (securityData.health_label as string) ?? 'healthy'
+        const healthColor =
+          healthScore >= 80 ? '#16C784' :
+          healthScore >= 60 ? '#F59E0B' :
+          healthScore >= 40 ? '#F97316' :
+          '#EF4444'
+        const allEvents = (securityData.recent_events as Array<Record<string, unknown>>) ?? []
+        const filteredEvents = secFilter === 'all' ? allEvents : allEvents.filter(e => e.severity === secFilter)
+        const sevColor = (s: string) =>
+          s === 'critical' ? '#EF4444' : s === 'high' ? '#F97316' : s === 'medium' ? '#F59E0B' : '#94A3B8'
 
-          <SectionCard title="BY SEVERITY">
-            {Object.entries((securityData.by_severity as Record<string, number>) ?? {}).map(([sev, count]) => (
-              <Row
-                key={sev}
-                label={sev.toUpperCase()}
-                value={String(count)}
-                accent={count > 0 && (sev === 'critical' || sev === 'high') ? '#EF4444' : undefined}
-              />
-            ))}
-          </SectionCard>
-
-          {(securityData.by_type as Record<string, number>) && Object.keys(securityData.by_type as Record<string, number>).length > 0 && (
-            <SectionCard title="BY EVENT TYPE">
-              {Object.entries(securityData.by_type as Record<string, number>).map(([type, count]) => (
-                <Row key={type} label={type} value={String(count)} />
-              ))}
-            </SectionCard>
-          )}
-
-          {(securityData.recent_events as unknown[])?.length > 0 && (
-            <SectionCard title="RECENT EVENTS (last 24h)">
-              {(securityData.recent_events as Array<{
-                id: string; event_type: string; severity: string;
-                actor_ip: string | null; created_at: string
-              }>).map(e => (
-                <div key={e.id} className="flex items-center justify-between py-1.5" style={{ borderBottom: `1px solid ${T.border}` }}>
-                  <div className="flex gap-3 text-xs">
-                    <span className="mono" style={{ color: T.textDim }}>{new Date(e.created_at).toLocaleString()}</span>
-                    <span style={{ color: T.text }}>{e.event_type}</span>
-                    {Boolean(e.actor_ip) && <span style={{ color: T.textSec }}>{e.actor_ip}</span>}
-                  </div>
-                  <StatusBadge size="sm" status={
-                    e.severity === 'critical' ? 'critical' :
-                    e.severity === 'high'     ? 'degraded' :
-                    'healthy'
-                  } />
+        return (
+          <div style={{ position: 'relative' }}>
+            {/* Health score card */}
+            <div className="g-card p-5 mb-4 flex items-center gap-6">
+              <div style={{ textAlign: 'center', minWidth: 80 }}>
+                <div style={{ fontSize: 48, fontWeight: 700, lineHeight: 1, color: healthColor }} className="mono">{healthScore}</div>
+                <div style={{ fontSize: 11, color: healthColor, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, marginTop: 4 }}>{healthLabel}</div>
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ height: 8, borderRadius: 4, background: T.border, overflow: 'hidden', marginBottom: 8 }}>
+                  <div style={{ height: '100%', width: `${healthScore}%`, background: healthColor, borderRadius: 4, transition: 'width 0.4s' }} />
                 </div>
+                <p style={{ fontSize: 13, color: T.textSec }}>Security health score — based on event severity distribution across all recorded security events.</p>
+              </div>
+            </div>
+
+            {/* Overview stats */}
+            <SectionCard title="OVERVIEW">
+              <Row label="Status"         value={<StatusBadge status={securityData.status as string} />} />
+              <Row label="Table"          value={securityData.table_available ? 'Available' : 'Missing'} accent={securityData.table_available ? '#16C784' : '#F59E0B'} />
+              <Row label="Total events"   value={String(securityData.total_events)} />
+              <Row label="Last 24h"       value={String(securityData.events_last_24h)} />
+            </SectionCard>
+
+            {/* By severity */}
+            <SectionCard title="BY SEVERITY">
+              {Object.entries((securityData.by_severity as Record<string, number>) ?? {}).map(([sev, count]) => (
+                <Row key={sev} label={sev.toUpperCase()} value={String(count)}
+                  accent={count > 0 ? sevColor(sev) : undefined} />
               ))}
             </SectionCard>
-          )}
 
-          <WarningList warnings={securityData.warnings as string[]} />
-        </div>
-      )}
+            {/* By event type */}
+            {(securityData.by_type as Record<string, number>) && Object.keys(securityData.by_type as Record<string, number>).length > 0 && (
+              <SectionCard title="BY EVENT TYPE (occurrence total)">
+                {Object.entries(securityData.by_type as Record<string, number>)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([type, count]) => (
+                    <Row key={type} label={type} value={String(count)} />
+                  ))}
+              </SectionCard>
+            )}
+
+            {/* Events list with severity filter */}
+            {allEvents.length > 0 && (
+              <SectionCard title={`SECURITY EVENTS (${filteredEvents.length}${secFilter !== 'all' ? ` ${secFilter}` : ''})`}>
+                {/* Filter pills */}
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {(['all', 'critical', 'high', 'medium', 'low'] as const).map(f => (
+                    <button
+                      key={f}
+                      onClick={() => setSecFilter(f)}
+                      style={{
+                        padding: '3px 10px',
+                        borderRadius: 20,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        border: `1px solid ${secFilter === f ? sevColor(f === 'all' ? 'low' : f) : T.border}`,
+                        background: secFilter === f ? (f === 'all' ? T.elevated : sevColor(f) + '22') : 'transparent',
+                        color: secFilter === f ? (f === 'all' ? T.text : sevColor(f)) : T.textSec,
+                        cursor: 'pointer',
+                        textTransform: 'uppercase',
+                        letterSpacing: 0.5,
+                      }}
+                    >{f}</button>
+                  ))}
+                </div>
+                {/* Event rows */}
+                {filteredEvents.map(e => (
+                  <div
+                    key={e.id as string}
+                    onClick={() => setSelectedSecEvent(e)}
+                    className="flex items-center justify-between py-2"
+                    style={{ borderBottom: `1px solid ${T.border}`, cursor: 'pointer', borderRadius: 4, padding: '6px 4px' }}
+                  >
+                    <div className="flex flex-col gap-0.5" style={{ flex: 1, minWidth: 0 }}>
+                      <div className="flex items-center gap-2">
+                        <span style={{ fontSize: 12, fontWeight: 600, color: sevColor(e.severity as string) }}>
+                          {(e.severity as string).toUpperCase()}
+                        </span>
+                        <span style={{ fontSize: 12, color: T.text }}>{e.event_type as string}</span>
+                        {(e.occurrence_count as number) > 1 && (
+                          <span style={{ fontSize: 11, color: T.textSec, background: T.elevated, padding: '1px 6px', borderRadius: 10 }}>
+                            ×{e.occurrence_count as number}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex gap-3" style={{ fontSize: 11, color: T.textDim }}>
+                        <span className="mono">{new Date(e.created_at as string).toLocaleString()}</span>
+                        {Boolean(e.actor_ip) && <span>{e.actor_ip as string}</span>}
+                      </div>
+                    </div>
+                    <ChevronDown size={14} style={{ color: T.textDim, flexShrink: 0, transform: 'rotate(-90deg)' }} />
+                  </div>
+                ))}
+              </SectionCard>
+            )}
+
+            <WarningList warnings={securityData.warnings as string[]} />
+
+            {/* Detail panel */}
+            {selectedSecEvent && (
+              <div
+                style={{
+                  position: 'fixed', right: 0, top: 52,
+                  height: 'calc(100vh - 52px)', width: 420,
+                  background: T.card, borderLeft: `1px solid ${T.border}`,
+                  overflowY: 'auto', zIndex: 50, padding: 24,
+                }}
+              >
+                <div className="flex items-center justify-between mb-5">
+                  <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text }}>Security Event</h3>
+                  <button
+                    onClick={() => setSelectedSecEvent(null)}
+                    style={{ fontSize: 18, color: T.textSec, background: 'none', border: 'none', cursor: 'pointer', lineHeight: 1 }}
+                  >×</button>
+                </div>
+
+                <div className="space-y-3 text-sm">
+                  <Row label="Event type"       value={selectedSecEvent.event_type as string} />
+                  <Row label="Severity"          value={(selectedSecEvent.severity as string).toUpperCase()} accent={sevColor(selectedSecEvent.severity as string)} />
+                  <Row label="Occurrences"       value={String(selectedSecEvent.occurrence_count ?? 1)} />
+                  <Row label="First seen"        value={selectedSecEvent.first_seen_at ? new Date(selectedSecEvent.first_seen_at as string).toLocaleString() : '—'} />
+                  <Row label="Last seen"         value={selectedSecEvent.last_seen_at  ? new Date(selectedSecEvent.last_seen_at  as string).toLocaleString() : '—'} />
+                  {Boolean(selectedSecEvent.actor_ip)  && <Row label="Actor IP"  value={selectedSecEvent.actor_ip as string} />}
+                  {Boolean(selectedSecEvent.organization_id) && <Row label="Org ID" value={selectedSecEvent.organization_id as string} />}
+                  {Boolean(selectedSecEvent.metadata) && Object.keys(selectedSecEvent.metadata as object).length > 0 && (
+                    <div>
+                      <div style={{ fontSize: 11, color: T.textDim, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Metadata</div>
+                      <pre style={{ fontSize: 11, color: T.codeText, background: T.codeBg, padding: 12, borderRadius: 6, overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                        {JSON.stringify(selectedSecEvent.metadata, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       {/* ── INCIDENTS tab ────────────────────────────────────────── */}
       {activeTab === 'incidents' && (

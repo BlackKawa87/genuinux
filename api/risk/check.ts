@@ -25,6 +25,7 @@ import type { SummaryInput } from '../../src/lib/aiSummary'
 import { enrichWithAiSummary } from '../_lib/aiEnricher'
 import { captureException } from '../_lib/monitoring'
 import { checkRateLimit } from '../_lib/rateLimit'
+import { createSecurityEvent } from '../_lib/securityEvents'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -104,6 +105,13 @@ function adminClient(): SupabaseClient {
 /** SHA-256 da API key em hex — deve bater com key_hash na tabela api_keys */
 function hashApiKey(raw: string): string {
   return crypto.createHash('sha256').update(raw).digest('hex')
+}
+
+function getRequestIp(req: VercelRequest): string | null {
+  const fwd = req.headers['x-forwarded-for']
+  if (typeof fwd === 'string') return fwd.split(',')[0].trim() || null
+  if (Array.isArray(fwd) && fwd.length > 0) return fwd[0].split(',')[0].trim() || null
+  return null
 }
 
 /** HMAC-SHA256 do payload para assinar requests de webhook */
@@ -771,6 +779,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const apiKey = await validateApiKey(supabase, rawKey)
 
   if (!apiKey) {
+    void createSecurityEvent(supabase, {
+      event_type: 'api_key.invalid',
+      actor_ip:   getRequestIp(req),
+      metadata:   { key_prefix: rawKey.slice(0, 12), route: '/api/risk/check' },
+    }, 'medium')
     return res.status(401).json({ error: 'Invalid or revoked API key' })
   }
 
@@ -789,6 +802,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // ── 1.4. Rate limiting (per API key, plan-aware sliding window) ──────
   const rateLimit = await checkRateLimit(apiKey.id, currentPlan)
   if (!rateLimit.allowed) {
+    void createSecurityEvent(supabase, {
+      event_type:      'rate_limit.exceeded',
+      organization_id: orgId,
+      actor_ip:        getRequestIp(req),
+      metadata:        { plan: currentPlan, key_id: apiKey.id },
+    }, 'low')
     const retryAfterSec = Math.max(1, Math.ceil((rateLimit.resetMs - Date.now()) / 1000))
     res.setHeader('Retry-After',           String(retryAfterSec))
     res.setHeader('X-RateLimit-Limit',     String(rateLimit.limit))
