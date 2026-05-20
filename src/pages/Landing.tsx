@@ -1131,17 +1131,23 @@ export default function Landing() {
             <p className="text-xs" style={{ color: '#475569' }}>© 2026 Genuinux. AI Trust Infrastructure.</p>
             <div className="flex items-center gap-6">
               {([
-                { label: 'Privacy',       href: 'mailto:legal@genuinux.io' },
-                { label: 'Terms',         href: 'mailto:legal@genuinux.io' },
-                { label: 'Security',      href: 'mailto:security@genuinux.io' },
-                { label: 'Cookie Policy', href: 'mailto:legal@genuinux.io' },
-              ] as { label: string; href: string }[]).map(l => (
-                <a key={l.label} href={l.href} className="text-xs transition-colors duration-150"
-                  style={{ color: '#475569' }}
-                  onMouseEnter={e => (e.currentTarget.style.color = '#94A3B8')}
-                  onMouseLeave={e => (e.currentTarget.style.color = '#475569')}>
-                  {l.label}
-                </a>
+                { label: 'Privacy',  to: '/privacy' },
+                { label: 'Terms',    to: '/terms' },
+                { label: 'Security', to: 'mailto:security@genuinux.io', external: true },
+              ] as { label: string; to: string; external?: boolean }[]).map(l => (
+                l.external
+                  ? <a key={l.label} href={l.to} className="text-xs transition-colors duration-150"
+                      style={{ color: '#475569' }}
+                      onMouseEnter={e => (e.currentTarget.style.color = '#94A3B8')}
+                      onMouseLeave={e => (e.currentTarget.style.color = '#475569')}>
+                      {l.label}
+                    </a>
+                  : <Link key={l.label} to={l.to} className="text-xs transition-colors duration-150"
+                      style={{ color: '#475569', textDecoration: 'none' }}
+                      onMouseEnter={e => (e.currentTarget.style.color = '#94A3B8')}
+                      onMouseLeave={e => (e.currentTarget.style.color = '#475569')}>
+                      {l.label}
+                    </Link>
               ))}
             </div>
           </div>

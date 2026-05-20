@@ -3,12 +3,13 @@
  *
  * Creates a Stripe Checkout session and returns the redirect URL.
  * Auth: Authorization: Bearer <supabase_access_token>
- * Body: { plan: 'starter' | 'pro' }
+ * Body: { plan: 'starter' | 'growth' }
  *
  * Env vars required:
  *   STRIPE_SECRET_KEY
- *   STRIPE_PRICE_STARTER   — Stripe Price ID for Starter plan
- *   STRIPE_PRICE_PRO       — Stripe Price ID for Pro plan
+ *   STRIPE_PRICE_STARTER   — Stripe Price ID for Starter plan (£99/mo)
+ *   STRIPE_PRICE_GROWTH    — Stripe Price ID for Growth plan (£499/mo)
+ *   STRIPE_PRICE_PRO       — Legacy alias for Growth; used if STRIPE_PRICE_GROWTH not set
  */
 
 import Stripe from 'stripe'
@@ -21,6 +22,7 @@ const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
 
 const PRICE_MAP: Record<string, string | undefined> = {
   starter: process.env.STRIPE_PRICE_STARTER,
+  growth:  process.env.STRIPE_PRICE_GROWTH ?? process.env.STRIPE_PRICE_PRO,
   pro:     process.env.STRIPE_PRICE_PRO,
 }
 
@@ -35,14 +37,24 @@ function userClient(token: string) {
   })
 }
 
-function cors(res: VercelResponse) {
-  res.setHeader('Access-Control-Allow-Origin', '*')
+const ALLOWED_ORIGINS = [
+  'https://www.genuinux.com',
+  'https://genuinux.vercel.app',
+  'http://localhost:5173',
+  'http://localhost:4173',
+]
+
+function cors(req: VercelRequest, res: VercelResponse) {
+  const origin = (req.headers.origin ?? '') as string
+  const allowed = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0]
+  res.setHeader('Access-Control-Allow-Origin', allowed)
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type')
+  res.setHeader('Vary', 'Origin')
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  cors(res)
+  cors(req, res)
   if (req.method === 'OPTIONS') return res.status(204).end()
   if (req.method !== 'POST')    return res.status(405).json({ error: 'Method not allowed' })
 
@@ -64,7 +76,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // ── 2. Validate plan ─────────────────────────────────────────────────────
   const { plan } = req.body as { plan?: string }
   if (!plan || !PRICE_MAP[plan]) {
-    return res.status(400).json({ error: 'plan must be "starter" or "pro".' })
+    return res.status(400).json({ error: 'plan must be "starter" or "growth".' })
   }
   const priceId = PRICE_MAP[plan]
   if (!priceId) {

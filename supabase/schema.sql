@@ -398,3 +398,46 @@ ALTER TYPE review_status ADD VALUE IF NOT EXISTS 'escalated';
 --    bypass RLS and still work regardless.
 CREATE POLICY "audit_logs_insert" ON audit_logs
   FOR INSERT WITH CHECK (organization_id = current_org_id());
+
+-- ============================================================
+-- Schema v5 Migration — run separately after v4
+-- ============================================================
+
+-- 1. Add 'growth' plan tier.
+--    The UI shows "Growth" at £499/mo but the DB ENUM only had 'pro'.
+--    ALTER TYPE ... ADD VALUE cannot run inside a transaction block —
+--    run this statement alone in the Supabase SQL editor.
+ALTER TYPE plan_tier ADD VALUE IF NOT EXISTS 'growth';
+
+-- 2. Add stripe_customer_id to organizations.
+--    Required by billing/checkout.ts and billing/webhook.ts.
+ALTER TABLE organizations
+  ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT;
+
+-- 3. pending_invites table.
+--    Required by api/team/invite.ts and the /join page.
+CREATE TABLE IF NOT EXISTS pending_invites (
+  id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID        NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  email           TEXT        NOT NULL,
+  role            member_role NOT NULL DEFAULT 'member',
+  created_by      UUID        REFERENCES auth.users(id) ON DELETE SET NULL,
+  accepted_at     TIMESTAMPTZ,
+  expires_at      TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '7 days'),
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_pending_invites_org_email
+  ON pending_invites (organization_id, email);
+
+ALTER TABLE pending_invites ENABLE ROW LEVEL SECURITY;
+
+-- Owners and admins can read/manage invites for their org.
+CREATE POLICY "pending_invites_select" ON pending_invites
+  FOR SELECT USING (organization_id = current_org_id());
+
+CREATE POLICY "pending_invites_write" ON pending_invites
+  FOR ALL USING (
+    organization_id = current_org_id()
+    AND current_user_role() IN ('owner', 'admin')
+  );

@@ -6,13 +6,16 @@ import Register from './pages/Register'
 import ForgotPassword from './pages/ForgotPassword'
 import ResetPassword from './pages/ResetPassword'
 import Join from './pages/Join'
+import NotFound from './pages/NotFound'
 import AppLayout from './components/layout/AppLayout'
 import ProtectedRoute from './components/ProtectedRoute'
 
 // Heavy pages — loaded on demand
-const Demo       = lazy(() => import('./pages/Demo'))
-const Docs       = lazy(() => import('./pages/Docs'))
-const BlogPost   = lazy(() => import('./pages/BlogPost'))
+const Demo          = lazy(() => import('./pages/Demo'))
+const Docs          = lazy(() => import('./pages/Docs'))
+const BlogPost      = lazy(() => import('./pages/BlogPost'))
+const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'))
+const TermsOfService = lazy(() => import('./pages/TermsOfService'))
 
 // Dashboard pages — split into separate chunks
 const Overview   = lazy(() => import('./pages/dashboard/Overview'))
@@ -53,6 +56,8 @@ export default function App() {
           <Route path="/blog/:slug" element={<BlogPost />} />
           <Route path="/demo" element={<Demo />} />
           <Route path="/docs" element={<Docs />} />
+          <Route path="/privacy" element={<PrivacyPolicy />} />
+          <Route path="/terms" element={<TermsOfService />} />
           <Route
             path="/dashboard"
             element={
@@ -71,6 +76,7 @@ export default function App() {
             <Route path="analytics" element={<Analytics />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>
     </BrowserRouter>

@@ -746,7 +746,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const orgId = apiKey.organization_id
 
-  // ── 1.5. Free plan — monthly event limit (10,000 / month) ───
+  // ── 1.5. Plan monthly event limits ──────────────────────────
   const { data: orgRow } = await supabase
     .from('organizations')
     .select('plan, shadow_mode')
@@ -755,7 +755,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const isShadowMode = Boolean((orgRow as { plan: string; shadow_mode?: boolean } | null)?.shadow_mode)
 
-  if ((orgRow as { plan: string } | null)?.plan === 'free') {
+  const PLAN_LIMITS: Record<string, number> = {
+    free:       10_000,
+    starter:    50_000,
+    growth:    500_000,
+    pro:       500_000,
+    enterprise: Infinity,
+  }
+
+  const currentPlan = (orgRow as { plan: string } | null)?.plan ?? 'free'
+  const monthlyLimit = PLAN_LIMITS[currentPlan] ?? 10_000
+
+  if (isFinite(monthlyLimit)) {
     const startOfMonth = new Date()
     startOfMonth.setDate(1)
     startOfMonth.setHours(0, 0, 0, 0)
@@ -766,12 +777,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .eq('organization_id', orgId)
       .gte('created_at', startOfMonth.toISOString())
 
-    if ((count ?? 0) >= 10_000) {
+    if ((count ?? 0) >= monthlyLimit) {
+      const planLabels: Record<string, string> = {
+        free:    'Free (10,000/mo)',
+        starter: 'Starter (50,000/mo)',
+        growth:  'Growth (500,000/mo)',
+        pro:     'Pro (500,000/mo)',
+      }
       return res.status(429).json({
-        error: 'Monthly event limit reached. Your free plan includes 10,000 events per month. Upgrade to Growth for more.',
-        code: 'PLAN_LIMIT_EXCEEDED',
-        plan: 'free',
-        limit: 10_000,
+        error: `Monthly event limit reached. Your ${planLabels[currentPlan] ?? currentPlan} plan limit has been reached. Upgrade to continue.`,
+        code:  'PLAN_LIMIT_EXCEEDED',
+        plan:  currentPlan,
+        limit: monthlyLimit,
       })
     }
   }

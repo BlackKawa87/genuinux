@@ -25,6 +25,7 @@ const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET ?? ''
 // Price ID → plan name mapping
 const PRICE_PLAN_MAP: Record<string, string> = {
   [process.env.STRIPE_PRICE_STARTER ?? '___']: 'starter',
+  [process.env.STRIPE_PRICE_GROWTH  ?? '___']: 'growth',
   [process.env.STRIPE_PRICE_PRO     ?? '___']: 'pro',
 }
 
