@@ -24,6 +24,7 @@ import { templateSummary } from '../../src/lib/aiSummary'
 import type { SummaryInput } from '../../src/lib/aiSummary'
 import { enrichWithAiSummary } from '../_lib/aiEnricher'
 import { captureException, captureMessage } from '../_lib/monitoring'
+import { checkRateLimit } from '../_lib/rateLimit'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -772,6 +773,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const orgId = apiKey.organization_id
+
+  // ── 1.3. Rate limiting (per API key, sliding window) ────────
+  const rateLimit = await checkRateLimit(apiKey.id)
+  if (!rateLimit.allowed) {
+    const retryAfterSec = Math.max(1, Math.ceil((rateLimit.resetMs - Date.now()) / 1000))
+    res.setHeader('Retry-After',           String(retryAfterSec))
+    res.setHeader('X-RateLimit-Limit',     String(rateLimit.limit))
+    res.setHeader('X-RateLimit-Remaining', '0')
+    res.setHeader('X-RateLimit-Reset',     String(rateLimit.resetMs))
+    return res.status(429).json({
+      error:          'Rate limit exceeded. Reduce request frequency and retry.',
+      code:           'RATE_LIMIT_EXCEEDED',
+      retry_after_ms: rateLimit.resetMs - Date.now(),
+    })
+  }
+  res.setHeader('X-RateLimit-Limit',     String(rateLimit.limit))
+  res.setHeader('X-RateLimit-Remaining', String(rateLimit.remaining))
 
   // ── 1.5. Plan monthly event limits ──────────────────────────
   const { data: orgRow } = await supabase
