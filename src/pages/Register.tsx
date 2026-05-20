@@ -64,9 +64,10 @@ export default function Register() {
 
     const code = inviteCode.trim().toUpperCase()
 
-    // ── Step 1: Validate invite code ────────────────────────────────────────────
+    // ── Step 1: Validate invite code (+ email ownership pre-flight) ────────────
     try {
-      const res = await fetch(`/api/beta/validate-invite?code=${encodeURIComponent(code)}`)
+      const params = new URLSearchParams({ code, email: email.trim().toLowerCase() })
+      const res = await fetch(`/api/beta/validate-invite?${params.toString()}`)
       const json = await res.json() as { valid: boolean; message?: string }
       if (!json.valid) {
         setError(json.message ?? 'Invalid invite code.')
@@ -107,7 +108,7 @@ export default function Register() {
         }
       }
 
-      // ── Step 4: Mark invite code as used ──────────────────────────────────────
+      // ── Step 4: Mark invite code as used (passes email for ownership gate) ────
       const { data: { session } } = await supabase.auth.getSession()
       if (session?.access_token) {
         fetch('/api/beta/use-invite', {
@@ -116,7 +117,7 @@ export default function Register() {
             'Content-Type':  'application/json',
             'Authorization': `Bearer ${session.access_token}`,
           },
-          body: JSON.stringify({ code }),
+          body: JSON.stringify({ code, email: email.trim() }),
         }).catch(() => {})  // fire-and-forget — non-critical
       }
     }

@@ -46,6 +46,7 @@ interface BetaInvite {
   code:       string
   email:      string | null
   note:       string | null
+  used_by:    string | null
   used_at:    string | null
   expires_at: string
   created_at: string
@@ -101,8 +102,9 @@ function BetaInvites({ token }: { token: string }) {
     setTimeout(() => setCopied(null), 2000)
   }
 
-  const activeInvites  = invites.filter(i => !i.used_at && new Date(i.expires_at) > new Date())
-  const usedOrExpired  = invites.filter(i => i.used_at || new Date(i.expires_at) <= new Date())
+  const isRevoked      = (i: BetaInvite) => i.note === '[revoked]'
+  const activeInvites  = invites.filter(i => !i.used_at && !isRevoked(i) && new Date(i.expires_at) > new Date())
+  const usedOrExpired  = invites.filter(i => i.used_at || isRevoked(i) || new Date(i.expires_at) <= new Date())
 
   return (
     <div className="mt-5 p-4 rounded-xl" style={{ background: T.card, border: `1px solid ${T.border}` }}>
@@ -195,13 +197,20 @@ function BetaInvites({ token }: { token: string }) {
                   : <Copy size={11} style={{ color: T.textDim }} />
                 }
               </button>
-              {inv.email && (
-                <span className="text-[10px] truncate flex-1" style={{ color: T.textSec }}>{inv.email}</span>
+              {/* Assigned email badge */}
+              {inv.email ? (
+                <span
+                  className="text-[10px] truncate flex-1 px-1.5 py-0.5 rounded"
+                  style={{ color: '#D97706', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)' }}
+                  title="Email-locked invite"
+                >
+                  🔒 {inv.email}
+                </span>
+              ) : (
+                <span className="text-[10px] truncate flex-1" style={{ color: T.textDim }}>
+                  {inv.note ?? 'Public invite'}
+                </span>
               )}
-              {inv.note && !inv.email && (
-                <span className="text-[10px] truncate flex-1" style={{ color: T.textDim }}>{inv.note}</span>
-              )}
-              {!inv.email && !inv.note && <span className="flex-1" />}
               <span className="text-[10px] mono flex-shrink-0" style={{ color: T.textDim }}>
                 exp {new Date(inv.expires_at).toLocaleDateString()}
               </span>
@@ -220,22 +229,37 @@ function BetaInvites({ token }: { token: string }) {
           {usedOrExpired.length > 0 && (
             <details className="mt-2">
               <summary className="text-[10px] cursor-pointer" style={{ color: T.textDim }}>
-                {usedOrExpired.length} used/expired codes
+                {usedOrExpired.length} used / expired / revoked
               </summary>
               <div className="mt-1.5 space-y-1">
-                {usedOrExpired.map(inv => (
-                  <div
-                    key={inv.id}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg opacity-50"
-                    style={{ background: T.deep, border: `1px solid ${T.border}` }}
-                  >
-                    <span className="mono text-xs line-through flex-shrink-0" style={{ color: T.textDim }}>{inv.code}</span>
-                    <span className="text-[10px] flex-1 truncate" style={{ color: T.textDim }}>
-                      {inv.used_at ? `used ${new Date(inv.used_at).toLocaleDateString()}` : 'expired'}
-                    </span>
-                    {inv.note && <span className="text-[10px]" style={{ color: T.textDim }}>{inv.note}</span>}
-                  </div>
-                ))}
+                {usedOrExpired.map(inv => {
+                  const revoked = isRevoked(inv)
+                  const expired = !inv.used_at && !revoked && new Date(inv.expires_at) <= new Date()
+                  const statusLabel = revoked ? 'revoked' : expired ? 'expired' : `used ${new Date(inv.used_at!).toLocaleDateString()}`
+                  const statusColor = revoked ? '#EF4444' : expired ? '#F59E0B' : T.textDim
+                  return (
+                    <div
+                      key={inv.id}
+                      className="flex flex-col gap-0.5 px-3 py-2 rounded-lg"
+                      style={{ background: T.deep, border: `1px solid ${T.border}`, opacity: 0.65 }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="mono text-[10px] line-through flex-shrink-0" style={{ color: T.textDim }}>{inv.code}</span>
+                        <span className="text-[10px] font-semibold flex-shrink-0" style={{ color: statusColor }}>{statusLabel}</span>
+                        {inv.email && (
+                          <span className="text-[10px] truncate flex-1" style={{ color: T.textDim }}>→ {inv.email}</span>
+                        )}
+                      </div>
+                      <div className="flex gap-3 text-[9px]" style={{ color: T.textDim }}>
+                        {inv.used_by && !revoked && (
+                          <span>by {inv.used_by.slice(0, 8)}…</span>
+                        )}
+                        <span>exp {new Date(inv.expires_at).toLocaleDateString()}</span>
+                        {inv.note && inv.note !== '[revoked]' && <span>{inv.note}</span>}
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             </details>
           )}

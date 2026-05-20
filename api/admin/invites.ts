@@ -64,7 +64,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'GET') {
     const { data, error } = await sb
       .from('beta_invites')
-      .select('id, code, email, note, used_at, expires_at, created_at')
+      .select('id, code, email, note, used_by, used_at, expires_at, created_at')
       .order('created_at', { ascending: false })
       .limit(200)
 
