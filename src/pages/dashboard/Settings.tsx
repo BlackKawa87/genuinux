@@ -842,12 +842,13 @@ function RiskTab({ prefs, orgId, isOwner, shadowMode: initialShadowMode }: {
   prefs: RiskPrefs; orgId: string; isOwner: boolean; shadowMode: boolean
 }) {
   const T = useT()
-  const [local,       setLocal]       = useState<RiskPrefs>(prefs)
-  const [shadowMode,  setShadowMode]  = useState(initialShadowMode)
-  const [saving,      setSaving]      = useState(false)
-  const [saved,       setSaved]       = useState(false)
-  const [errMsg,      setErrMsg]      = useState<string | null>(null)
-  const [needsMigration, setNeedsMigration] = useState(false)
+  const [local,           setLocal]           = useState<RiskPrefs>(prefs)
+  const [shadowMode,      setShadowMode]      = useState(initialShadowMode)
+  const [saving,          setSaving]          = useState(false)
+  const [saved,           setSaved]           = useState(false)
+  const [errMsg,          setErrMsg]          = useState<string | null>(null)
+  const [needsMigration,  setNeedsMigration]  = useState(false)
+  const [showLiveConfirm, setShowLiveConfirm] = useState(false)
 
   const set = <K extends keyof RiskPrefs>(key: K, val: RiskPrefs[K]) =>
     setLocal(p => ({ ...p, [key]: val }))
@@ -997,7 +998,14 @@ function RiskTab({ prefs, orgId, isOwner, shadowMode: initialShadowMode }: {
               <button
                 key={label}
                 type="button"
-                onClick={() => isOwner && setShadowMode(mode)}
+                onClick={() => {
+                  if (!isOwner) return
+                  if (mode === false && shadowMode === true) {
+                    setShowLiveConfirm(true)
+                  } else {
+                    setShadowMode(mode)
+                  }
+                }}
                 disabled={!isOwner}
                 className="text-left p-4 rounded-lg transition-all"
                 style={{
@@ -1039,6 +1047,67 @@ function RiskTab({ prefs, orgId, isOwner, shadowMode: initialShadowMode }: {
           </div>
         )}
       </SectionCard>
+
+      {/* Live Mode confirmation dialog */}
+      {showLiveConfirm && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
+        >
+          <div
+            className="w-full max-w-md mx-4 p-6 rounded-xl space-y-4"
+            style={{ background: T.card, border: '1px solid rgba(239,68,68,0.3)' }}
+          >
+            <div className="flex items-center gap-3">
+              <div
+                className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
+                style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)' }}
+              >
+                <ShieldCheck size={18} style={{ color: '#EF4444' }} />
+              </div>
+              <div>
+                <p className="text-sm font-semibold" style={{ color: T.text }}>Enable Live Mode?</p>
+                <p className="text-[11px] mt-0.5" style={{ color: T.textDim }}>
+                  This will enforce real decisions immediately.
+                </p>
+              </div>
+            </div>
+            <div
+              className="px-3 py-2.5 rounded-lg text-xs space-y-1"
+              style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)' }}
+            >
+              <p style={{ color: '#EF4444' }} className="font-semibold">Production consequences:</p>
+              <ul className="space-y-0.5 list-disc list-inside" style={{ color: T.textSec }}>
+                <li>Block decisions will reject real users in real time</li>
+                <li>Review decisions will queue real users for manual review</li>
+                <li>Webhooks will fire with live outcomes</li>
+              </ul>
+            </div>
+            <p className="text-xs" style={{ color: T.textSec }}>
+              Only switch to Live Mode when you have validated your rules and thresholds
+              using Shadow Mode data. You can revert at any time from this Settings page.
+            </p>
+            <div className="flex gap-3 justify-end pt-1">
+              <button
+                type="button"
+                onClick={() => setShowLiveConfirm(false)}
+                className="px-4 py-2 rounded-lg text-xs font-medium"
+                style={{ background: T.elevated, color: T.textSec, border: `1px solid ${T.border}` }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => { setShadowMode(false); setShowLiveConfirm(false) }}
+                className="px-4 py-2 rounded-lg text-xs font-semibold"
+                style={{ background: '#EF4444', color: '#FFFFFF', border: 'none' }}
+              >
+                Yes, enable Live Mode
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {needsMigration && (
         <div className="g-card p-5 space-y-3"

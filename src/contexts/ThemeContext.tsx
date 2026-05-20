@@ -21,7 +21,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
-    try { localStorage.setItem('gnx-theme', theme) } catch {}
+    try { localStorage.setItem('gnx-theme', theme) } catch { /* storage unavailable */ }
   }, [theme])
 
   const toggle = () => setTheme(t => t === 'light' ? 'dark' : 'light')

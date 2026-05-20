@@ -7,6 +7,7 @@
  * Tasks (in order):
  *   1. Purge expired ai_summary_cache rows (expires_at < NOW())
  *   2. Purge stale webhook_deliveries rows older than 90 days
+ *   3. Write run summary to maintenance_logs (requires v8 schema migration)
  *
  * Auth: Authorization: Bearer <CRON_SECRET>  OR  x-vercel-cron: 1 header
  *       If CRON_SECRET is not set, the endpoint is open — set it in production.
@@ -95,6 +96,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (err) {
     captureException(err, { context: 'maintenance: webhook_deliveries purge (exception)' })
     results.webhook_deliveries_purge = { status: 'error', message: String(err) }
+  }
+
+  // ── Task 3: Write run to maintenance_logs (v8 migration required) ───────────
+  try {
+    await supabase.from('maintenance_logs').insert({
+      ran_at:  now,
+      tasks:   results,
+    })
+  } catch {
+    // maintenance_logs table is optional — silently skip if not yet migrated
   }
 
   return res.status(200).json(results)

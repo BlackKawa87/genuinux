@@ -31,6 +31,7 @@ export interface FeedbackContext {
  *   Phase 5 — Network intelligence (opt-in):
  *     Anonymized fraud patterns shared across organizations at the email-domain / IP level
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function applyFeedbackSignals(_ctx: FeedbackContext): Promise<void> {
   // Phase 1: foundation only — data stored, no real-time adaptation yet.
   //

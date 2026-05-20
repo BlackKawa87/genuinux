@@ -27,8 +27,9 @@ export default function AppLayout() {
   const { user, profile, signOut } = useAuth()
   const { theme, toggle } = useTheme()
 
-  const [orgName, setOrgName] = useState<string>('')
-  const [plan,    setPlan]    = useState<string>('')
+  const [orgName,     setOrgName]     = useState<string>('')
+  const [plan,        setPlan]        = useState<string>('')
+  const [shadowMode,  setShadowMode]  = useState<boolean>(true)
 
   const role    = profile?.role ?? null
   const roleMeta = ROLE_META[role ?? ''] ?? null
@@ -41,13 +42,14 @@ export default function AppLayout() {
     if (!profile?.organization_id) return
     void supabase
       .from('organizations')
-      .select('name, plan')
+      .select('name, plan, shadow_mode')
       .eq('id', profile.organization_id)
       .single()
       .then(({ data: org }) => {
         if (org) {
           setOrgName(org.name as string)
           setPlan(org.plan as string)
+          setShadowMode(Boolean((org as { shadow_mode?: boolean }).shadow_mode))
         }
       })
   }, [profile?.organization_id])
@@ -101,9 +103,9 @@ export default function AppLayout() {
             alt="Genuinux"
             style={{ height: '44px', display: 'block', filter: S.logoFilter }}
           />
-          <p className="text-[10px] mono flex items-center gap-1" style={{ color: S.liveColor }}>
+          <p className="text-[10px] mono flex items-center gap-1" style={{ color: shadowMode ? '#38BDF8' : S.liveColor }}>
             <span className="pulse-dot inline-block w-1.5 h-1.5 rounded-full bg-current" />
-            Live
+            {shadowMode ? 'Shadow' : 'Live'}
           </p>
         </div>
 
@@ -253,9 +255,23 @@ export default function AppLayout() {
 
             <div className="w-px h-3.5 flex-shrink-0" style={{ background: S.divider }} />
 
-            <span className="flex items-center gap-1.5 text-xs mono" style={{ color: S.liveColor }}>
+            {/* Beta badge */}
+            <span
+              className="text-[9px] mono px-1.5 py-0.5 rounded font-semibold"
+              style={{
+                background: 'rgba(245,158,11,0.08)',
+                color: '#F59E0B',
+                border: '1px solid rgba(245,158,11,0.2)',
+              }}
+            >
+              CONTROLLED BETA
+            </span>
+
+            <div className="w-px h-3.5 flex-shrink-0" style={{ background: S.divider }} />
+
+            <span className="flex items-center gap-1.5 text-xs mono" style={{ color: shadowMode ? '#38BDF8' : S.liveColor }}>
               <span className="pulse-dot inline-block w-1.5 h-1.5 rounded-full bg-current" />
-              Live
+              {shadowMode ? 'Shadow' : 'Live'}
             </span>
 
             <div className="w-px h-3.5 flex-shrink-0" style={{ background: S.divider }} />

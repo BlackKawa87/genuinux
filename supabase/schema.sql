@@ -694,3 +694,84 @@ CREATE POLICY "review_queue_write" ON review_queue
 -- index were added in v6. The cron deletes rows where
 -- expires_at < NOW() and logs the count via captureMessage.
 -- ────────────────────────────────────────────────────────────
+
+-- ============================================================
+-- Schema v8 — Operational hardening (beta launch)
+-- ============================================================
+-- Run each block separately in the Supabase SQL editor.
+-- All statements are idempotent (IF NOT EXISTS / IF NOT EXISTS).
+
+-- ── 1. shadow_mode audit timestamps on organizations ─────────
+ALTER TABLE organizations
+  ADD COLUMN IF NOT EXISTS shadow_mode_enabled_at  timestamptz,
+  ADD COLUMN IF NOT EXISTS shadow_mode_disabled_at timestamptz;
+
+-- ── 2. security_events — auth anomalies, suspicious API usage ─
+CREATE TABLE IF NOT EXISTS security_events (
+  id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID        REFERENCES organizations(id) ON DELETE CASCADE,
+  event_type      TEXT        NOT NULL,  -- e.g. 'api_key.invalid', 'rate_limit.exceeded', 'auth.failed'
+  severity        TEXT        NOT NULL DEFAULT 'info',  -- info | warning | critical
+  actor_ip        INET,
+  actor_user_id   UUID,
+  metadata        JSONB,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_security_events_org_created
+  ON security_events (organization_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_security_events_type_created
+  ON security_events (event_type, created_at DESC);
+
+-- RLS
+ALTER TABLE security_events ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "security_events_read" ON security_events;
+CREATE POLICY "security_events_read" ON security_events
+  FOR SELECT USING (
+    organization_id = current_org_id()
+    AND current_user_role() IN ('owner', 'admin')
+  );
+
+-- ── 3. maintenance_logs — cron run history ────────────────────
+CREATE TABLE IF NOT EXISTS maintenance_logs (
+  id       UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  ran_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  tasks    JSONB       NOT NULL DEFAULT '{}'
+);
+
+-- Retain only the last 90 days of logs (cron itself purges nothing older)
+CREATE INDEX IF NOT EXISTS idx_maintenance_logs_ran_at
+  ON maintenance_logs (ran_at DESC);
+
+-- No RLS needed — service role only, never exposed via anon key.
+
+-- ── 4. feature_flags — per-org toggles (schema only, no UI yet) ─
+CREATE TABLE IF NOT EXISTS feature_flags (
+  id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID        REFERENCES organizations(id) ON DELETE CASCADE,
+  flag_key        TEXT        NOT NULL,
+  enabled         BOOLEAN     NOT NULL DEFAULT false,
+  metadata        JSONB,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (organization_id, flag_key)
+);
+
+ALTER TABLE feature_flags ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "feature_flags_read" ON feature_flags;
+CREATE POLICY "feature_flags_read" ON feature_flags
+  FOR SELECT USING (organization_id = current_org_id());
+
+DROP POLICY IF EXISTS "feature_flags_write" ON feature_flags;
+CREATE POLICY "feature_flags_write" ON feature_flags
+  FOR ALL USING (
+    organization_id = current_org_id()
+    AND current_user_role() IN ('owner', 'admin')
+  )
+  WITH CHECK (
+    organization_id = current_org_id()
+    AND current_user_role() IN ('owner', 'admin')
+  );

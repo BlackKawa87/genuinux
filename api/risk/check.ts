@@ -23,7 +23,7 @@ import type { RiskEngineContext, RiskEngineInput } from '../../src/lib/riskEngin
 import { templateSummary } from '../../src/lib/aiSummary'
 import type { SummaryInput } from '../../src/lib/aiSummary'
 import { enrichWithAiSummary } from '../_lib/aiEnricher'
-import { captureException, captureMessage } from '../_lib/monitoring'
+import { captureException } from '../_lib/monitoring'
 import { checkRateLimit } from '../_lib/rateLimit'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
@@ -774,8 +774,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const orgId = apiKey.organization_id
 
-  // ── 1.3. Rate limiting (per API key, sliding window) ────────
-  const rateLimit = await checkRateLimit(apiKey.id)
+  // ── 1.3. Fetch org config (plan needed for plan-aware rate limit) ───
+  const { data: orgRow } = await supabase
+    .from('organizations')
+    .select('plan, shadow_mode, ai_enabled, ai_monthly_limit, ai_calls_used, ai_reset_at')
+    .eq('id', orgId)
+    .single()
+
+  const currentPlan  = (orgRow as { plan: string } | null)?.plan ?? 'free'
+  const isShadowMode = Boolean((orgRow as { plan: string; shadow_mode?: boolean } | null)?.shadow_mode)
+
+  // ── 1.4. Rate limiting (per API key, plan-aware sliding window) ──────
+  const rateLimit = await checkRateLimit(apiKey.id, currentPlan)
   if (!rateLimit.allowed) {
     const retryAfterSec = Math.max(1, Math.ceil((rateLimit.resetMs - Date.now()) / 1000))
     res.setHeader('Retry-After',           String(retryAfterSec))
@@ -791,25 +801,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('X-RateLimit-Limit',     String(rateLimit.limit))
   res.setHeader('X-RateLimit-Remaining', String(rateLimit.remaining))
 
-  // ── 1.5. Plan monthly event limits ──────────────────────────
-  const { data: orgRow } = await supabase
-    .from('organizations')
-    .select('plan, shadow_mode, ai_enabled, ai_monthly_limit, ai_calls_used, ai_reset_at')
-    .eq('id', orgId)
-    .single()
-
-  const isShadowMode = Boolean((orgRow as { plan: string; shadow_mode?: boolean } | null)?.shadow_mode)
-
+  // ── 1.5. Plan monthly event limits (beta safety caps) ────────────────
+  // Temporary beta safety limits — increase after load testing confirms stability.
   const PLAN_LIMITS: Record<string, number> = {
-    free:       10_000,
-    starter:    50_000,
-    growth:    500_000,
-    pro:       500_000,
-    enterprise: Infinity,
+    free:        1_000,
+    starter:    10_000,
+    growth:     50_000,
+    pro:        50_000,
+    enterprise: 500_000,
   }
 
-  const currentPlan = (orgRow as { plan: string } | null)?.plan ?? 'free'
-  const monthlyLimit = PLAN_LIMITS[currentPlan] ?? 10_000
+  const monthlyLimit = PLAN_LIMITS[currentPlan] ?? 1_000
 
   if (isFinite(monthlyLimit)) {
     const startOfMonth = new Date()
@@ -824,10 +826,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if ((count ?? 0) >= monthlyLimit) {
       const planLabels: Record<string, string> = {
-        free:    'Free (10,000/mo)',
-        starter: 'Starter (50,000/mo)',
-        growth:  'Growth (500,000/mo)',
-        pro:     'Pro (500,000/mo)',
+        free:       'Free (1,000/mo beta limit)',
+        starter:    'Starter (10,000/mo beta limit)',
+        growth:     'Growth (50,000/mo beta limit)',
+        pro:        'Pro (50,000/mo beta limit)',
+        enterprise: 'Enterprise (500,000/mo beta limit)',
       }
       return res.status(429).json({
         error: `Monthly event limit reached. Your ${planLabels[currentPlan] ?? currentPlan} plan limit has been reached. Upgrade to continue.`,
@@ -907,7 +910,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (!eventId) {
     captureException(new Error('risk_event insert failed — eventId null'), { orgId })
-  } else {
+  } else if (process.env.DISABLE_AI_DURING_LOAD_TEST !== '1') {
     const orgAi = orgRow as {
       ai_enabled?: boolean; ai_monthly_limit?: number
       ai_calls_used?: number; ai_reset_at?: string
@@ -926,7 +929,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   // ── 8. Webhooks (fire-and-forget) ───────────────────────────
-  if (eventId) {
+  if (eventId && process.env.DISABLE_WEBHOOKS_DURING_LOAD_TEST !== '1') {
     dispatchWebhooks(
       supabase, orgId, eventId, payload, effectiveResult, ruleMatch,
       isShadowMode, isShadowMode ? suggestedDecision : null,

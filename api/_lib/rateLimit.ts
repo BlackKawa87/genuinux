@@ -1,17 +1,15 @@
 /**
- * Per-API-key sliding window rate limiter — Priority 4 (security/reliability).
+ * Per-API-key sliding window rate limiter — plan-aware.
  *
- * Uses Upstash Redis via @upstash/ratelimit.
- * Fail-open: if UPSTASH env vars are missing, all requests pass through.
- * This means rate limiting is opt-in — the API works identically without Redis.
+ * Limits vary by plan tier:
+ *   free: 30 req/10s · starter: 60 · growth/pro: 100 · enterprise: 200
  *
- * Limit: 100 requests per 10 seconds per API key ID.
+ * Fail-open: if UPSTASH env vars are missing all requests pass through,
+ * and a startup warning is printed to the Vercel function logs.
  *
  * Required env vars (set in Vercel dashboard):
  *   UPSTASH_REDIS_REST_URL   — from Upstash console
  *   UPSTASH_REDIS_REST_TOKEN — from Upstash console
- *
- * To enable: add both env vars. To disable: remove either var.
  */
 
 import { Redis } from '@upstash/redis'
@@ -24,30 +22,62 @@ export interface RateLimitResult {
   resetMs:   number
 }
 
-let ratelimit: Ratelimit | null = null
+// requests per 10-second sliding window, per plan tier
+const PLAN_WINDOWS: Record<string, number> = {
+  free:        30,
+  starter:     60,
+  growth:     100,
+  pro:        100,
+  enterprise: 200,
+}
 
-function getLimiter(): Ratelimit | null {
-  if (ratelimit) return ratelimit
+// one Ratelimit instance per plan tier — initialized lazily
+const limiters = new Map<string, Ratelimit>()
 
+// undefined = not yet checked; null = unavailable
+let redisClient: Redis | null | undefined = undefined
+
+function initRedis(): Redis | null {
   const url   = process.env.UPSTASH_REDIS_REST_URL
   const token = process.env.UPSTASH_REDIS_REST_TOKEN
 
-  if (!url || !token) return null
+  if (!url || !token) {
+    console.warn(
+      '[rateLimit] UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN not set — ' +
+      'rate limiting is disabled (fail-open). Set both vars to enable it.',
+    )
+    return null
+  }
 
-  ratelimit = new Ratelimit({
-    redis:   new Redis({ url, token }),
-    limiter: Ratelimit.slidingWindow(100, '10 s'),
-    prefix:  'gnx:rl',
-  })
-
-  return ratelimit
+  return new Redis({ url, token })
 }
 
-export async function checkRateLimit(apiKeyId: string): Promise<RateLimitResult> {
-  const limiter = getLimiter()
+function getLimiter(plan: string): Ratelimit | null {
+  if (redisClient === undefined) redisClient = initRedis()
+  if (!redisClient) return null
+
+  const tier = plan in PLAN_WINDOWS ? plan : 'free'
+
+  if (!limiters.has(tier)) {
+    limiters.set(tier, new Ratelimit({
+      redis:   redisClient,
+      limiter: Ratelimit.slidingWindow(PLAN_WINDOWS[tier] ?? 30, '10 s'),
+      prefix:  `gnx:rl:${tier}`,
+    }))
+  }
+
+  return limiters.get(tier)!
+}
+
+export async function checkRateLimit(
+  apiKeyId: string,
+  plan = 'free',
+): Promise<RateLimitResult> {
+  const limiter  = getLimiter(plan)
+  const limitVal = PLAN_WINDOWS[plan] ?? 30
 
   if (!limiter) {
-    return { allowed: true, limit: 100, remaining: 100, resetMs: 0 }
+    return { allowed: true, limit: limitVal, remaining: limitVal, resetMs: 0 }
   }
 
   const { success, limit, remaining, reset } = await limiter.limit(apiKeyId)
