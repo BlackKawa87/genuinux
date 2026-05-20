@@ -3,7 +3,7 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Key, Activity, ListChecks,
   Users, Settings, LogOut, Globe, GitBranch, BookOpen,
-  ChevronRight, BarChart2, Sun, Moon,
+  ChevronRight, BarChart2, Sun, Moon, AlertTriangle, ShieldCheck,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
@@ -27,9 +27,11 @@ export default function AppLayout() {
   const { user, profile, signOut } = useAuth()
   const { theme, toggle } = useTheme()
 
-  const [orgName,     setOrgName]     = useState<string>('')
-  const [plan,        setPlan]        = useState<string>('')
-  const [shadowMode,  setShadowMode]  = useState<boolean>(true)
+  const [orgName,       setOrgName]       = useState<string>('')
+  const [plan,          setPlan]          = useState<string>('')
+  const [shadowMode,    setShadowMode]    = useState<boolean>(true)
+  const [monthlyUsed,   setMonthlyUsed]   = useState<number>(0)
+  const [monthlyLimit,  setMonthlyLimit]  = useState<number>(Infinity)
 
   const role    = profile?.role ?? null
   const roleMeta = ROLE_META[role ?? ''] ?? null
@@ -38,20 +40,48 @@ export default function AppLayout() {
     item.permission === null || can(role, item.permission as Parameters<typeof can>[1])
   )
 
+  // Beta plan limits (mirrors api/risk/check.ts — temporary caps)
+  const BETA_LIMITS: Record<string, number> = {
+    free:        1_000,
+    starter:    10_000,
+    growth:     50_000,
+    pro:        50_000,
+    enterprise: 500_000,
+  }
+
   useEffect(() => {
     if (!profile?.organization_id) return
+    const orgId = profile.organization_id
+
     void supabase
       .from('organizations')
       .select('name, plan, shadow_mode')
-      .eq('id', profile.organization_id)
+      .eq('id', orgId)
       .single()
       .then(({ data: org }) => {
         if (org) {
+          const p = org.plan as string
           setOrgName(org.name as string)
-          setPlan(org.plan as string)
+          setPlan(p)
           setShadowMode(Boolean((org as { shadow_mode?: boolean }).shadow_mode))
+
+          // Fetch this month's event count for limit warnings
+          const limit = BETA_LIMITS[p] ?? Infinity
+          setMonthlyLimit(limit)
+          if (isFinite(limit)) {
+            const startOfMonth = new Date()
+            startOfMonth.setDate(1)
+            startOfMonth.setHours(0, 0, 0, 0)
+            void supabase
+              .from('risk_events')
+              .select('id', { count: 'exact', head: true })
+              .eq('organization_id', orgId)
+              .gte('created_at', startOfMonth.toISOString())
+              .then(({ count }) => setMonthlyUsed(count ?? 0))
+          }
         }
       })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.organization_id])
 
   const isActive = (path: string) =>
@@ -287,6 +317,85 @@ export default function AppLayout() {
             </button>
           </div>
         </header>
+
+        {/* Safety warning banners */}
+        {(() => {
+          const usagePct  = isFinite(monthlyLimit) && monthlyLimit > 0
+            ? monthlyUsed / monthlyLimit
+            : 0
+          const nearLimit = usagePct >= 0.8 && usagePct < 1
+          const atLimit   = usagePct >= 1
+
+          return (
+            <>
+              {/* Live mode active — not a warning, but a reminder */}
+              {!shadowMode && (
+                <div
+                  className="flex items-center gap-2 px-7 py-2 text-xs"
+                  style={{
+                    background: 'rgba(22,199,132,0.06)',
+                    borderBottom: '1px solid rgba(22,199,132,0.15)',
+                    color: '#16C784',
+                  }}
+                >
+                  <ShieldCheck size={11} />
+                  <span>
+                    <strong>Live Mode active</strong> — block and review decisions are enforced in real time.
+                    Switch to Shadow Mode in{' '}
+                    <Link to="/dashboard/settings?tab=risk" style={{ color: '#16C784', textDecoration: 'underline' }}>
+                      Settings → Risk
+                    </Link>{' '}
+                    to pause enforcement.
+                  </span>
+                </div>
+              )}
+
+              {/* Near limit warning */}
+              {nearLimit && (
+                <div
+                  className="flex items-center gap-2 px-7 py-2 text-xs"
+                  style={{
+                    background: 'rgba(245,158,11,0.07)',
+                    borderBottom: '1px solid rgba(245,158,11,0.2)',
+                    color: '#B45309',
+                  }}
+                >
+                  <AlertTriangle size={11} />
+                  <span>
+                    <strong>{Math.round(usagePct * 100)}% of your monthly event limit used</strong>{' '}
+                    ({monthlyUsed.toLocaleString()} / {monthlyLimit.toLocaleString()}).
+                    Upgrade your plan in{' '}
+                    <Link to="/dashboard/settings?tab=billing" style={{ color: '#D97706', textDecoration: 'underline' }}>
+                      Settings → Billing
+                    </Link>{' '}
+                    to avoid interruption.
+                  </span>
+                </div>
+              )}
+
+              {/* At/over limit */}
+              {atLimit && (
+                <div
+                  className="flex items-center gap-2 px-7 py-2 text-xs"
+                  style={{
+                    background: 'rgba(239,68,68,0.07)',
+                    borderBottom: '1px solid rgba(239,68,68,0.2)',
+                    color: '#DC2626',
+                  }}
+                >
+                  <AlertTriangle size={11} />
+                  <span>
+                    <strong>Monthly event limit reached.</strong>{' '}
+                    The API is returning 429 for new events. Upgrade now in{' '}
+                    <Link to="/dashboard/settings?tab=billing" style={{ color: '#DC2626', textDecoration: 'underline' }}>
+                      Settings → Billing
+                    </Link>.
+                  </span>
+                </div>
+              )}
+            </>
+          )
+        })()}
 
         {/* Content */}
         <main className="flex-1 overflow-x-hidden">
