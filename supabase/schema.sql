@@ -572,3 +572,125 @@ CREATE TABLE IF NOT EXISTS ai_summary_cache (
 --   '0 0 1 * *',
 --   $$UPDATE organizations SET ai_calls_used = 0, ai_reset_at = NOW()$$
 -- );
+
+-- ============================================================
+-- Schema v7 Migration — run after v6
+-- ============================================================
+-- Fixes production blockers: rules schema gaps, RBAC analyst gap.
+-- Sections marked [RUN ALONE] contain ALTER TYPE / DO blocks that
+-- cannot be run inside a transaction — execute each in its own
+-- Supabase SQL editor run.
+-- ────────────────────────────────────────────────────────────
+
+-- ────────────────────────────────────────────────────────────
+-- P0a: Add missing columns to rules table
+-- Safe to run inside a transaction.
+-- ────────────────────────────────────────────────────────────
+
+-- condition_group: group-based rule conditions (new format, optional)
+--   Nullable — NULL means legacy single-condition format still applies.
+--   applyCustomRules() checks condition_group first, falls back to
+--   condition_type/condition_value if condition_group is NULL.
+ALTER TABLE rules
+  ADD COLUMN IF NOT EXISTS condition_group jsonb,
+  ADD COLUMN IF NOT EXISTS priority        integer     NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS description     text,
+  ADD COLUMN IF NOT EXISTS updated_at      timestamptz NOT NULL DEFAULT now();
+
+-- Performance indexes for applyCustomRules() queries in check.ts
+-- (selects active rules ordered by priority DESC then created_at ASC)
+CREATE INDEX IF NOT EXISTS idx_rules_org_status_priority
+  ON rules (organization_id, status, priority DESC, created_at ASC);
+
+CREATE INDEX IF NOT EXISTS idx_rules_org_created
+  ON rules (organization_id, created_at DESC);
+
+-- ────────────────────────────────────────────────────────────
+-- P0b: Migrate rules.action from decision ENUM → text
+-- [RUN ALONE] — DO block cannot run inside a transaction.
+--
+-- Motivation: the decision ENUM only allows 'allow'|'review'|'block'.
+-- The code (applyCustomRules) already supports 'require_verification'
+-- as a valid rule action, mapping it to 'review' in the final decision.
+-- Storing it requires a text column.
+--
+-- Strategy (idempotent — safe to re-run):
+--   1. Only executes if rules.action is still a USER-DEFINED (enum) type.
+--   2. Adds a staging text column.
+--   3. Copies enum values as text strings.
+--   4. Enforces NOT NULL + CHECK constraint.
+--   5. Drops the old enum column.
+--   6. Renames staging column to action.
+--   7. Sets default to 'review' for new rules.
+-- ────────────────────────────────────────────────────────────
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM   information_schema.columns
+    WHERE  table_schema = 'public'
+      AND  table_name   = 'rules'
+      AND  column_name  = 'action'
+      AND  data_type    = 'USER-DEFINED'
+  ) THEN
+    -- Step 1: staging column
+    ALTER TABLE rules ADD COLUMN action_new text;
+
+    -- Step 2: copy existing enum values
+    UPDATE rules SET action_new = action::text;
+
+    -- Step 3: enforce NOT NULL
+    ALTER TABLE rules ALTER COLUMN action_new SET NOT NULL;
+
+    -- Step 4: add CHECK constraint
+    ALTER TABLE rules
+      ADD CONSTRAINT rules_action_check
+      CHECK (action_new IN ('allow', 'review', 'block', 'require_verification'));
+
+    -- Step 5: drop old ENUM column
+    ALTER TABLE rules DROP COLUMN action;
+
+    -- Step 6: rename staging column
+    ALTER TABLE rules RENAME COLUMN action_new TO action;
+
+    -- Step 7: set default for new rules
+    ALTER TABLE rules ALTER COLUMN action SET DEFAULT 'review';
+  END IF;
+END;
+$$;
+
+-- ────────────────────────────────────────────────────────────
+-- P1: Fix analyst RBAC on review_queue
+-- [RUN ALONE] — DROP + CREATE policy pair should run outside a
+-- transaction block to avoid lock contention.
+--
+-- Problem: review_queue_write only allowed 'owner' | 'admin'.
+-- Analyst role has act_queue permission in permissions.ts but the
+-- DB rejected UPDATE silently.
+--
+-- Fix: extend UPDATE policy to include 'analyst'.
+-- SELECT remains open to all org members via review_queue_select.
+-- INSERT is handled by the API (service role bypasses RLS).
+-- Analyst still cannot manage billing, API keys, webhooks, or org settings.
+-- ────────────────────────────────────────────────────────────
+DROP POLICY IF EXISTS "review_queue_write" ON review_queue;
+
+CREATE POLICY "review_queue_write" ON review_queue
+  FOR UPDATE
+  USING (
+    organization_id = current_org_id()
+    AND current_user_role() IN ('owner', 'admin', 'analyst')
+  )
+  WITH CHECK (
+    organization_id = current_org_id()
+    AND current_user_role() IN ('owner', 'admin', 'analyst')
+  );
+
+-- ────────────────────────────────────────────────────────────
+-- P2: AI summary cache purge
+-- Handled by api/cron/maintenance.ts (POST /api/cron/maintenance)
+-- which runs daily at 03:00 UTC via Vercel Cron.
+-- No schema change required — ai_summary_cache and its expires_at
+-- index were added in v6. The cron deletes rows where
+-- expires_at < NOW() and logs the count via captureMessage.
+-- ────────────────────────────────────────────────────────────
