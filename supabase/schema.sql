@@ -745,7 +745,8 @@ CREATE TABLE IF NOT EXISTS maintenance_logs (
 CREATE INDEX IF NOT EXISTS idx_maintenance_logs_ran_at
   ON maintenance_logs (ran_at DESC);
 
--- No RLS needed — service role only, never exposed via anon key.
+-- RLS enabled with no policies → anon key denied. Service role bypasses RLS.
+ALTER TABLE maintenance_logs ENABLE ROW LEVEL SECURITY;
 
 -- ── 4. feature_flags — per-org toggles (schema only, no UI yet) ─
 CREATE TABLE IF NOT EXISTS feature_flags (
@@ -798,7 +799,9 @@ CREATE TABLE IF NOT EXISTS beta_invites (
 
 CREATE INDEX IF NOT EXISTS idx_beta_invites_code ON beta_invites (code);
 
--- No RLS — service role key only. Anon key cannot access this table.
+-- RLS enabled with no SELECT/INSERT policies → anon key is denied by default.
+-- All access goes through service role key in serverless functions.
+ALTER TABLE beta_invites ENABLE ROW LEVEL SECURITY;
 
 -- ── 2. Organization: live mode approval + onboarding metadata ─
 ALTER TABLE organizations

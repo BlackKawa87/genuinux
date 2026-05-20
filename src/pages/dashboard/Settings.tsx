@@ -859,9 +859,17 @@ function RiskTab({ prefs, orgId, isOwner, shadowMode: initialShadowMode, liveApp
     if (!isOwner) return
     setSaving(true); setErrMsg(null); setNeedsMigration(false)
 
+    const shadowTimestamp = new Date().toISOString()
+    const shadowUpdate: Record<string, unknown> = {
+      settings_json: local,
+      shadow_mode: shadowMode,
+    }
+    if (shadowMode)  shadowUpdate.shadow_mode_enabled_at  = shadowTimestamp
+    if (!shadowMode) shadowUpdate.shadow_mode_disabled_at = shadowTimestamp
+
     const { error } = await supabase
       .from('organizations')
-      .update({ settings_json: local, shadow_mode: shadowMode } as Record<string, unknown>)
+      .update(shadowUpdate)
       .eq('id', orgId)
 
     setSaving(false)

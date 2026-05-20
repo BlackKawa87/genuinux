@@ -11,8 +11,8 @@ interface SecurityEvent {
   id: string
   event_type: string
   severity: string
-  ip_address: string | null
-  user_id: string | null
+  actor_ip: string | null
+  actor_user_id: string | null
   organization_id: string | null
   metadata: Record<string, unknown> | null
   created_at: string
@@ -34,7 +34,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const { data, error } = await sb
       .from('security_events')
-      .select('id, event_type, severity, ip_address, user_id, organization_id, metadata, created_at')
+      .select('id, event_type, severity, actor_ip, actor_user_id, organization_id, metadata, created_at')
       .order('created_at', { ascending: false })
       .limit(200)
 

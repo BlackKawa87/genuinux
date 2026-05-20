@@ -1,20 +1,39 @@
 /**
  * GET /api/admin/cron-health
  * Cron infrastructure monitor — owner only.
- * Queries maintenance_logs table for recent cron run history.
+ * Parses maintenance_logs.tasks JSONB to report per-task history.
+ *
+ * maintenance_logs schema (v8): { id, ran_at, tasks JSONB }
+ * tasks format (written by api/cron/maintenance.ts):
+ *   {
+ *     ran_at: string,
+ *     ai_cache_purge:           { status: 'ok'|'error', rows_deleted?: number, message?: string },
+ *     webhook_deliveries_purge: { status: 'ok'|'error', rows_deleted?: number, message?: string }
+ *   }
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { adminSb, verifyOwnerJwt, CORS } from '../_lib/adminAuth'
 
-interface MaintenanceLog {
+interface MaintenanceRow {
   id: string
-  task: string
-  status: string
-  rows_affected: number | null
-  duration_ms: number | null
-  error_message: string | null
   ran_at: string
+  tasks: Record<string, unknown>
+}
+
+interface TaskStatus {
+  task: string
+  last_run: string | null
+  status: string
+  hours_since: number | null
+  rows_deleted?: number | null
+  error_message?: string | null
+}
+
+// Matches the task keys written by api/cron/maintenance.ts
+const EXPECTED_TASK_KEYS: Record<string, string> = {
+  ai_cache_purge:           'purge_ai_cache',
+  webhook_deliveries_purge: 'purge_webhook_deliveries',
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -27,44 +46,47 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const sb = adminSb()
 
-  let logs: MaintenanceLog[] = []
+  let rows: MaintenanceRow[] = []
   let table_available = false
 
   try {
     const { data, error } = await sb
       .from('maintenance_logs')
-      .select('id, task, status, rows_affected, duration_ms, error_message, ran_at')
+      .select('id, ran_at, tasks')
       .order('ran_at', { ascending: false })
       .limit(50)
 
     if (!error) {
       table_available = true
-      logs = (data ?? []) as MaintenanceLog[]
+      rows = (data ?? []) as MaintenanceRow[]
     }
   } catch { /* table may not exist */ }
 
-  // Expected cron tasks
-  const EXPECTED_TASKS = [
-    'purge_expired_events',
-    'purge_expired_cache',
-    'log_maintenance_run',
-  ]
+  // Latest row for each expected task key
+  const task_status: TaskStatus[] = Object.entries(EXPECTED_TASK_KEYS).map(([taskKey, displayName]) => {
+    // Find most recent row that has this task key
+    const row = rows.find(r => r.tasks && typeof r.tasks === 'object' && taskKey in r.tasks)
 
-  // Find last run of each expected task
-  const task_status = EXPECTED_TASKS.map(task => {
-    const last = logs.find(l => l.task === task)
-    if (!last) return { task, last_run: null, status: 'never_run', hours_since: null }
+    if (!row) {
+      return { task: displayName, last_run: null, status: 'never_run', hours_since: null }
+    }
 
-    const hoursAgo = (Date.now() - new Date(last.ran_at).getTime()) / 3_600_000
+    const taskData = (row.tasks as Record<string, Record<string, unknown>>)[taskKey] ?? {}
+    const hoursAgo = (Date.now() - new Date(row.ran_at).getTime()) / 3_600_000
+
     return {
-      task,
-      last_run:    last.ran_at,
-      status:      last.status,
-      hours_since: Math.round(hoursAgo * 10) / 10,
-      duration_ms: last.duration_ms,
-      rows_affected: last.rows_affected,
+      task:          displayName,
+      last_run:      row.ran_at,
+      status:        (taskData.status as string | undefined) ?? 'unknown',
+      hours_since:   Math.round(hoursAgo * 10) / 10,
+      rows_deleted:  (taskData.rows_deleted as number | undefined) ?? null,
+      error_message: (taskData.message as string | undefined) ?? null,
     }
   })
+
+  // Cron schedule summary (from vercel.json)
+  const cron_schedule = '0 3 * * *'  // 03:00 UTC daily
+  const cron_configured = process.env.CRON_SECRET !== undefined
 
   const warnings: string[] = []
 
@@ -80,23 +102,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       warnings.push(`Cron task '${t.task}' last run reported an error`)
   })
 
-  const recent_errors = logs.filter(l => l.status === 'error').slice(0, 5)
+  if (!cron_configured)
+    warnings.push('CRON_SECRET not set — cron endpoint is open to unauthenticated calls')
 
-  const all_recent_ok = table_available && task_status.every(
-    t => t.status !== 'never_run' && (t.hours_since ?? 99) < 26
+  const recent_runs = rows.map(r => ({
+    id:      r.id,
+    ran_at:  r.ran_at,
+    tasks:   r.tasks,
+  }))
+
+  const all_ok = table_available && task_status.every(
+    t => t.status !== 'never_run' && t.status !== 'error' && (t.hours_since ?? 99) < 26
   )
 
   const status =
     !table_available                    ? 'missing'  :
-    recent_errors.length > 0 || !all_recent_ok ? 'degraded' :
+    !all_ok || warnings.length > 0      ? 'degraded' :
     'healthy'
 
   return res.status(200).json({
     status,
     table_available,
+    cron_schedule,
+    cron_configured,
     task_status,
-    recent_errors,
-    last_50_runs: logs,
+    recent_runs: recent_runs.slice(0, 10),
     warnings,
     checked_at: new Date().toISOString(),
   })

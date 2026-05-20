@@ -665,13 +665,13 @@ export default function Infrastructure() {
             <SectionCard title="RECENT EVENTS (last 24h)">
               {(securityData.recent_events as Array<{
                 id: string; event_type: string; severity: string;
-                ip_address: string | null; created_at: string
+                actor_ip: string | null; created_at: string
               }>).map(e => (
                 <div key={e.id} className="flex items-center justify-between py-1.5" style={{ borderBottom: `1px solid ${T.border}` }}>
                   <div className="flex gap-3 text-xs">
                     <span className="mono" style={{ color: T.textDim }}>{new Date(e.created_at).toLocaleString()}</span>
                     <span style={{ color: T.text }}>{e.event_type}</span>
-                    {e.ip_address && <span style={{ color: T.textSec }}>{e.ip_address}</span>}
+                    {Boolean(e.actor_ip) && <span style={{ color: T.textSec }}>{e.actor_ip}</span>}
                   </div>
                   <StatusBadge size="sm" status={
                     e.severity === 'critical' ? 'critical' :
