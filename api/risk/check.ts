@@ -67,6 +67,7 @@ interface CheckResponse {
   applied_rules: Array<{ id: string; name: string }>
   summary: string
   metadata: {
+    api_version: string
     engine_version: string
     processed_at: string
     processing_time_ms: number
@@ -745,6 +746,7 @@ async function applyCustomRules(
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   setCorsHeaders(res)
+  res.setHeader('X-Genuinux-API-Version', 'v1')
 
   // Preflight CORS
   if (req.method === 'OPTIONS') {
@@ -961,6 +963,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                           : [],
     summary:            effectiveResult.ai_summary,
     metadata: {
+      api_version:        'v1',
       engine_version:     'risk-engine-v1',
       processed_at:       processedAt,
       processing_time_ms: effectiveResult.processing_time_ms,

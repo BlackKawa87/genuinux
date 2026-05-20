@@ -813,3 +813,52 @@ ALTER TABLE organizations
 --
 -- To approve live mode for an org after shadow review:
 -- UPDATE organizations SET live_mode_approved = true WHERE id = '<org-uuid>';
+
+-- ============================================================
+-- v10: incidents table
+-- Run in Supabase SQL editor.
+-- ============================================================
+
+CREATE TYPE incident_severity AS ENUM ('low', 'medium', 'high', 'critical');
+CREATE TYPE incident_status   AS ENUM ('open', 'investigating', 'resolved', 'ignored');
+
+CREATE TABLE IF NOT EXISTS incidents (
+  id               UUID             PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id  UUID             REFERENCES organizations(id) ON DELETE CASCADE,
+  severity         incident_severity NOT NULL DEFAULT 'medium',
+  status           incident_status   NOT NULL DEFAULT 'open',
+  title            TEXT             NOT NULL,
+  description      TEXT,
+  affected_system  TEXT,              -- e.g. 'risk_engine', 'webhooks', 'database', 'rate_limiter'
+  started_at       TIMESTAMPTZ      NOT NULL DEFAULT NOW(),
+  resolved_at      TIMESTAMPTZ,
+  created_by       UUID             REFERENCES auth.users(id) ON DELETE SET NULL,
+  metadata_json    JSONB,
+  created_at       TIMESTAMPTZ      NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_incidents_org_status   ON incidents (organization_id, status);
+CREATE INDEX IF NOT EXISTS idx_incidents_severity      ON incidents (severity);
+CREATE INDEX IF NOT EXISTS idx_incidents_created_at   ON incidents (created_at DESC);
+
+-- RLS: owners and admins of the org can view/create incidents.
+-- Global incidents (organization_id IS NULL) are owner-only via service role.
+ALTER TABLE incidents ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "org members can view incidents" ON incidents
+  FOR SELECT USING (
+    organization_id IS NULL  -- global/infra incidents (service role access only)
+    OR organization_id = current_org_id()
+  );
+
+CREATE POLICY "admins can insert incidents" ON incidents
+  FOR INSERT WITH CHECK (
+    organization_id = current_org_id()
+    AND current_user_role() IN ('owner', 'admin')
+  );
+
+CREATE POLICY "admins can update incidents" ON incidents
+  FOR UPDATE USING (
+    organization_id = current_org_id()
+    AND current_user_role() IN ('owner', 'admin')
+  );

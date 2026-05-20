@@ -21,12 +21,14 @@ export type Permission =
   | 'act_queue'
   | 'submit_feedback'
   | 'view_events'
+  | 'owner_only'
 
 const PERM_LEVEL: Record<Permission, number> = {
   manage_billing:   4,
   manage_api_keys:  4,
   manage_members:   4,
   manage_settings:  4,
+  owner_only:       4,
   manage_rules:     3,
   manage_webhooks:  3,
   review_events:    3,

@@ -27,7 +27,8 @@ const Webhooks   = lazy(() => import('./pages/dashboard/Webhooks'))
 const UsersPage  = lazy(() => import('./pages/dashboard/Users'))
 const SettingsPage  = lazy(() => import('./pages/dashboard/Settings'))
 const Analytics     = lazy(() => import('./pages/dashboard/Analytics'))
-const OpsPage       = lazy(() => import('./pages/dashboard/Ops'))
+const OpsPage            = lazy(() => import('./pages/dashboard/Ops'))
+const InfrastructurePage = lazy(() => import('./pages/dashboard/Infrastructure'))
 
 function PageSpinner() {
   return (
@@ -77,6 +78,7 @@ export default function App() {
             <Route path="analytics" element={<Analytics />} />
             <Route path="settings" element={<SettingsPage />} />
             <Route path="ops" element={<OpsPage />} />
+            <Route path="infrastructure" element={<InfrastructurePage />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
