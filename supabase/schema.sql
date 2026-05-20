@@ -441,3 +441,134 @@ CREATE POLICY "pending_invites_write" ON pending_invites
     organization_id = current_org_id()
     AND current_user_role() IN ('owner', 'admin')
   );
+
+-- ============================================================
+-- Schema v6 Migration — run after v5
+-- ============================================================
+-- Split into multiple Supabase SQL editor runs as noted below.
+-- ALTER TYPE ... ADD VALUE cannot run inside a transaction block.
+
+-- ────────────────────────────────────────────────────────────
+-- P1: Performance indexes
+-- Run this block first — it is safe to run inside a transaction.
+-- ────────────────────────────────────────────────────────────
+
+-- risk_events: IP-based context queries (fetchContext queries 2 & 3 in check.ts)
+CREATE INDEX IF NOT EXISTS idx_risk_events_org_ip_created
+  ON risk_events (organization_id, ip_address, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_risk_events_org_ip_type_created
+  ON risk_events (organization_id, ip_address, event_type, created_at DESC);
+
+-- risk_events: device-based context queries (fetchContext queries 4 & 5)
+CREATE INDEX IF NOT EXISTS idx_risk_events_org_device_created
+  ON risk_events (organization_id, device_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_risk_events_org_device_decision
+  ON risk_events (organization_id, device_id, decision, created_at DESC);
+
+-- risk_events: user velocity query (fetchContext query 1) — more specific composite
+CREATE INDEX IF NOT EXISTS idx_risk_events_org_user_created
+  ON risk_events (organization_id, external_user_id, created_at DESC);
+
+-- risk_events: dashboard filter queries
+CREATE INDEX IF NOT EXISTS idx_risk_events_org_risk_level
+  ON risk_events (organization_id, risk_level, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_risk_events_org_event_type
+  ON risk_events (organization_id, event_type, created_at DESC);
+
+-- users_checked: email lookup (fetchContext query 6)
+CREATE INDEX IF NOT EXISTS idx_users_checked_org_email
+  ON users_checked (organization_id, email);
+
+CREATE INDEX IF NOT EXISTS idx_users_checked_org_device
+  ON users_checked (organization_id, device_id);
+
+CREATE INDEX IF NOT EXISTS idx_users_checked_org_ip
+  ON users_checked (organization_id, ip_address);
+
+CREATE INDEX IF NOT EXISTS idx_users_checked_org_user
+  ON users_checked (organization_id, external_user_id);
+
+-- ai_summary_cache: expiry scan
+CREATE INDEX IF NOT EXISTS idx_ai_cache_expires
+  ON ai_summary_cache (expires_at);
+
+-- ────────────────────────────────────────────────────────────
+-- P2: Missing columns (schema consolidation)
+-- Columns referenced by the API that are missing from base schema.
+-- Safe to run in a transaction.
+-- ────────────────────────────────────────────────────────────
+
+-- risk_events: all columns used by insertRiskEvent() in check.ts
+ALTER TABLE risk_events
+  ADD COLUMN IF NOT EXISTS suggested_decision   text,
+  ADD COLUMN IF NOT EXISTS applied_rule_id      uuid REFERENCES rules(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS applied_rule_name    text,
+  ADD COLUMN IF NOT EXISTS risk_reasons_json    jsonb NOT NULL DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS confidence_level     text,
+  ADD COLUMN IF NOT EXISTS recommended_action   text,
+  ADD COLUMN IF NOT EXISTS shadow_mode          boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS engine_version       text NOT NULL DEFAULT 'risk-engine-v1',
+  ADD COLUMN IF NOT EXISTS processed_at         timestamptz;
+
+-- webhooks: columns written by dispatchWebhooks() and webhooks/test.ts
+ALTER TABLE webhooks
+  ADD COLUMN IF NOT EXISTS events_subscribed    text[] NOT NULL DEFAULT array['risk.check.completed'],
+  ADD COLUMN IF NOT EXISTS last_delivery_status text,
+  ADD COLUMN IF NOT EXISTS last_delivery_at     timestamptz;
+
+-- webhook_deliveries: payload and status columns missing from base schema
+ALTER TABLE webhook_deliveries
+  ADD COLUMN IF NOT EXISTS payload_json     jsonb,
+  ADD COLUMN IF NOT EXISTS delivery_status  text NOT NULL DEFAULT 'delivered',
+  ADD COLUMN IF NOT EXISTS attempt_count    integer NOT NULL DEFAULT 1,
+  ADD COLUMN IF NOT EXISTS max_attempts     integer NOT NULL DEFAULT 3,
+  ADD COLUMN IF NOT EXISTS next_retry_at    timestamptz;
+
+CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_retry
+  ON webhook_deliveries (delivery_status, next_retry_at)
+  WHERE delivery_status = 'retrying';
+
+-- organizations: AI budget + shadow mode columns
+ALTER TABLE organizations
+  ADD COLUMN IF NOT EXISTS shadow_mode      boolean NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS ai_enabled       boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS ai_monthly_limit integer NOT NULL DEFAULT 1000,
+  ADD COLUMN IF NOT EXISTS ai_calls_used    integer NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS ai_reset_at      timestamptz NOT NULL DEFAULT now();
+
+-- ────────────────────────────────────────────────────────────
+-- P3: RBAC — analyst and viewer roles
+-- Run each ALTER TYPE separately — cannot be inside a transaction.
+-- ────────────────────────────────────────────────────────────
+
+ALTER TYPE member_role ADD VALUE IF NOT EXISTS 'analyst';
+ALTER TYPE member_role ADD VALUE IF NOT EXISTS 'viewer';
+
+-- ────────────────────────────────────────────────────────────
+-- P5: AI summary cache table
+-- ────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS ai_summary_cache (
+  id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  cache_key  TEXT        NOT NULL UNIQUE,
+  summary    TEXT        NOT NULL,
+  hit_count  INTEGER     NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '24 hours')
+);
+
+-- ai_summary_cache is internal infrastructure — no RLS needed.
+-- All access is via SUPABASE_SERVICE_ROLE_KEY from serverless functions.
+
+-- ────────────────────────────────────────────────────────────
+-- P5: Reset AI counters monthly (pg_cron — enable if available)
+-- ────────────────────────────────────────────────────────────
+-- Uncomment if Supabase pg_cron extension is enabled in your project:
+-- SELECT cron.schedule(
+--   'reset-ai-counters',
+--   '0 0 1 * *',
+--   $$UPDATE organizations SET ai_calls_used = 0, ai_reset_at = NOW()$$
+-- );

@@ -20,7 +20,10 @@ import crypto from 'crypto'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { analyze, SIGNAL_CATEGORY } from '../../src/lib/riskEngine'
 import type { RiskEngineContext, RiskEngineInput } from '../../src/lib/riskEngine'
-import { generateSummary } from '../../src/lib/aiSummary'
+import { templateSummary } from '../../src/lib/aiSummary'
+import type { SummaryInput } from '../../src/lib/aiSummary'
+import { enrichWithAiSummary } from '../_lib/aiEnricher'
+import { captureException, captureMessage } from '../_lib/monitoring'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -515,22 +518,43 @@ async function dispatchWebhooks(
         })
           .then(r => {
             const duration = Date.now() - start
-            const status   = r.ok ? 'success' : 'failed'
             if (!r.ok) console.warn(`[webhook] ${wh.endpoint_url} responded ${r.status}`)
-            void supabase.from('webhook_deliveries').insert({
-              webhook_id:      wh.id,
-              organization_id: orgId,
-              event_type:      eventType,
-              payload_json:    payloadObj,
-              response_status: r.status,
-              duration_ms:     duration,
-              delivery_status: status,
-              success:         r.ok,
-            })
-            void supabase.from('webhooks').update({
-              last_delivery_status: status,
-              last_delivery_at:     new Date().toISOString(),
-            }).eq('id', wh.id)
+            if (r.ok) {
+              void supabase.from('webhook_deliveries').insert({
+                webhook_id:      wh.id,
+                organization_id: orgId,
+                event_type:      eventType,
+                payload_json:    payloadObj,
+                response_status: r.status,
+                duration_ms:     duration,
+                delivery_status: 'delivered',
+                success:         true,
+                attempt_count:   1,
+                max_attempts:    3,
+              })
+              void supabase.from('webhooks').update({
+                last_delivery_status: 'success',
+                last_delivery_at:     new Date().toISOString(),
+              }).eq('id', wh.id)
+            } else {
+              void supabase.from('webhook_deliveries').insert({
+                webhook_id:      wh.id,
+                organization_id: orgId,
+                event_type:      eventType,
+                payload_json:    payloadObj,
+                response_status: r.status,
+                duration_ms:     duration,
+                delivery_status: 'retrying',
+                success:         false,
+                attempt_count:   1,
+                max_attempts:    3,
+                next_retry_at:   new Date(Date.now() + 60_000).toISOString(),
+              })
+              void supabase.from('webhooks').update({
+                last_delivery_status: 'failed',
+                last_delivery_at:     new Date().toISOString(),
+              }).eq('id', wh.id)
+            }
           })
           .catch((err: Error) => {
             const duration = Date.now() - start
@@ -540,10 +564,13 @@ async function dispatchWebhooks(
               organization_id: orgId,
               event_type:      eventType,
               payload_json:    payloadObj,
-              response_body:   err.message,
+              response_body:   err.message.slice(0, 500),
               duration_ms:     duration,
-              delivery_status: 'failed',
+              delivery_status: 'retrying',
               success:         false,
+              attempt_count:   1,
+              max_attempts:    3,
+              next_retry_at:   new Date(Date.now() + 60_000).toISOString(),
             })
             void supabase.from('webhooks').update({
               last_delivery_status: 'failed',
@@ -749,7 +776,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // ── 1.5. Plan monthly event limits ──────────────────────────
   const { data: orgRow } = await supabase
     .from('organizations')
-    .select('plan, shadow_mode')
+    .select('plan, shadow_mode, ai_enabled, ai_monthly_limit, ai_calls_used, ai_reset_at')
     .eq('id', orgId)
     .single()
 
@@ -838,10 +865,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // In shadow mode the live outcome is always 'allow' — engine still runs fully.
   const liveDecision      = isShadowMode ? 'allow' : suggestedDecision
 
-  // ── 4.6. AI Summary ────────────────────────────────────────
-  // Generates a human-readable summary using the template engine (default)
-  // or OpenAI GPT-4o-mini when OPENAI_API_KEY is set.
-  const ai_summary = await generateSummary({
+  // ── 4.6. AI Summary (sync template — async GPT enrichment fires after response) ──
+  const summaryInput: SummaryInput = {
     event_type:  payload.event_type,
     trust_score: result.trust_score,
     fraud_score: result.fraud_score,
@@ -849,7 +874,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     decision:    liveDecision,
     signals:     result.signals,
     metadata:    payload.metadata,
-  })
+  }
+  const ai_summary = templateSummary(summaryInput)
 
   const effectiveResult = { ...result, decision: liveDecision, ai_summary }
 
@@ -860,6 +886,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     supabase, orgId, payload, effectiveResult, ruleMatch,
     isShadowMode, isShadowMode ? suggestedDecision : null,
   )
+
+  if (!eventId) {
+    captureException(new Error('risk_event insert failed — eventId null'), { orgId })
+  } else {
+    const orgAi = orgRow as {
+      ai_enabled?: boolean; ai_monthly_limit?: number
+      ai_calls_used?: number; ai_reset_at?: string
+    } | null
+    void enrichWithAiSummary(supabase, orgId, eventId, summaryInput, {
+      ai_enabled:       Boolean(orgAi?.ai_enabled),
+      ai_monthly_limit: orgAi?.ai_monthly_limit ?? 1000,
+      ai_calls_used:    orgAi?.ai_calls_used    ?? 0,
+      ai_reset_at:      orgAi?.ai_reset_at      ?? new Date().toISOString(),
+    })
+  }
 
   // ── 7. Review queue (skipped in shadow mode) ────────────────
   if (effectiveResult.decision === 'review' && eventId) {

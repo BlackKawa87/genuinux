@@ -1,4 +1,5 @@
 {
+  "crons": [{ "path": "/api/webhooks/retry-due", "schedule": "* * * * *" }],
   "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }],
   "headers": [
     {
