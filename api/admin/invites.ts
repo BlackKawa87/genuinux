@@ -11,6 +11,7 @@
 import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { sendInviteEmail } from '../_lib/email'
 
 function adminClient() {
   const url = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL
@@ -89,7 +90,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .single()
 
     if (error) return res.status(500).json({ error: error.message })
-    return res.status(201).json({ invite: data })
+
+    const invite = data as { id: string; code: string; email: string | null; note: string | null; expires_at: string; created_at: string }
+
+    // ── Audit log: invite created ─────────────────────────────────────────────
+    void sb.from('audit_logs').insert({
+      action:   'beta_invite.created',
+      metadata: { invite_id: invite.id, code: invite.code, email: invite.email ?? null },
+    })
+
+    // ── Send email if invite is email-locked ──────────────────────────────────
+    let email_sent = false
+    let email_warning: string | undefined
+
+    if (invite.email) {
+      const result = await sendInviteEmail({
+        to:         invite.email,
+        inviteCode: invite.code,
+        expiresAt:  invite.expires_at,
+        note:       invite.note,
+      })
+      email_sent = result.sent
+
+      void sb.from('audit_logs').insert({
+        action:   email_sent ? 'beta_invite.email_sent' : 'beta_invite.email_failed',
+        metadata: {
+          invite_id: invite.id,
+          to:        invite.email,
+          ...(result.error ? { error: result.error } : {}),
+        },
+      })
+
+      if (!email_sent) email_warning = result.error
+    }
+
+    return res.status(201).json({
+      invite,
+      email_sent,
+      ...(email_warning ? { warning: email_warning } : {}),
+    })
   }
 
   // ── DELETE: revoke invite (mark as used with sentinel date) ──────────────────

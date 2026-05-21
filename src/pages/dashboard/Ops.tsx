@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { RefreshCw, Server, Database, GitBranch, Clock, AlertTriangle, Activity, Cpu, Mail, Plus, Trash2, Copy, Check } from 'lucide-react'
+import { RefreshCw, Server, Database, GitBranch, Clock, AlertTriangle, Activity, Cpu, Mail, Plus, Trash2, Copy, Check, Send, ExternalLink } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useT } from '../../lib/themeTokens'
 import { supabase } from '../../lib/supabase'
@@ -54,16 +54,19 @@ interface BetaInvite {
 
 function BetaInvites({ token }: { token: string }) {
   const T = useT()
-  const [invites,    setInvites]    = useState<BetaInvite[]>([])
-  const [loading,    setLoading]    = useState(true)
-  const [creating,   setCreating]   = useState(false)
-  const [newEmail,   setNewEmail]   = useState('')
-  const [newNote,    setNewNote]    = useState('')
-  const [newDays,    setNewDays]    = useState('30')
-  const [showCreate, setShowCreate] = useState(false)
-  const [copied,     setCopied]     = useState<string | null>(null)
+  const [invites,     setInvites]     = useState<BetaInvite[]>([])
+  const [loading,     setLoading]     = useState(true)
+  const [creating,    setCreating]    = useState(false)
+  const [newEmail,    setNewEmail]    = useState('')
+  const [newNote,     setNewNote]     = useState('')
+  const [newDays,     setNewDays]     = useState('30')
+  const [showCreate,  setShowCreate]  = useState(false)
+  const [copied,      setCopied]      = useState<string | null>(null)
+  const [emailStatus, setEmailStatus] = useState<Record<string, boolean>>({})
+  const [resending,   setResending]   = useState<string | null>(null)
 
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+  const appUrl  = window.location.origin
 
   const loadInvites = async () => {
     setLoading(true)
@@ -85,6 +88,10 @@ function BetaInvites({ token }: { token: string }) {
       body: JSON.stringify({ email: newEmail || undefined, note: newNote || undefined, expires_days: parseInt(newDays) || 30 }),
     })
     if (res.ok) {
+      const json = await res.json() as { invite: BetaInvite; email_sent?: boolean }
+      if (json.invite?.id && json.email_sent !== undefined) {
+        setEmailStatus(prev => ({ ...prev, [json.invite.id]: json.email_sent! }))
+      }
       setNewEmail(''); setNewNote(''); setNewDays('30'); setShowCreate(false)
       await loadInvites()
     }
@@ -96,9 +103,30 @@ function BetaInvites({ token }: { token: string }) {
     await loadInvites()
   }
 
+  const resendInvite = async (inviteId: string) => {
+    setResending(inviteId)
+    const res = await fetch('/api/admin/invite-resend', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ invite_id: inviteId }),
+    })
+    const json = await res.json() as { email_sent?: boolean }
+    if (json.email_sent) {
+      setEmailStatus(prev => ({ ...prev, [inviteId]: true }))
+    }
+    setResending(null)
+  }
+
   const copyCode = (code: string) => {
     void navigator.clipboard.writeText(code)
     setCopied(code)
+    setTimeout(() => setCopied(null), 2000)
+  }
+
+  const copyLink = (code: string) => {
+    const link = `${appUrl}/register`
+    void navigator.clipboard.writeText(`${link}?code=${code}`)
+    setCopied(`link-${code}`)
     setTimeout(() => setCopied(null), 2000)
   }
 
@@ -185,42 +213,82 @@ function BetaInvites({ token }: { token: string }) {
           {activeInvites.map(inv => (
             <div
               key={inv.id}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg"
+              className="flex flex-col gap-1.5 px-3 py-2.5 rounded-lg"
               style={{ background: T.deep, border: `1px solid ${T.border}` }}
             >
-              <span className="mono text-xs font-semibold flex-shrink-0" style={{ color: '#16C784' }}>
-                {inv.code}
-              </span>
-              <button onClick={() => copyCode(inv.code)} className="flex-shrink-0" title="Copy code">
-                {copied === inv.code
-                  ? <Check size={11} style={{ color: '#16C784' }} />
-                  : <Copy size={11} style={{ color: T.textDim }} />
-                }
-              </button>
-              {/* Assigned email badge */}
-              {inv.email ? (
-                <span
-                  className="text-[10px] truncate flex-1 px-1.5 py-0.5 rounded"
-                  style={{ color: '#D97706', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)' }}
-                  title="Email-locked invite"
+              <div className="flex items-center gap-2">
+                <span className="mono text-xs font-semibold flex-shrink-0" style={{ color: '#16C784' }}>
+                  {inv.code}
+                </span>
+                {/* Copy code */}
+                <button onClick={() => copyCode(inv.code)} className="flex-shrink-0" title="Copy code">
+                  {copied === inv.code
+                    ? <Check size={11} style={{ color: '#16C784' }} />
+                    : <Copy size={11} style={{ color: T.textDim }} />
+                  }
+                </button>
+                {/* Copy invite link */}
+                <button onClick={() => copyLink(inv.code)} className="flex-shrink-0" title="Copy invite link">
+                  {copied === `link-${inv.code}`
+                    ? <Check size={11} style={{ color: '#16C784' }} />
+                    : <ExternalLink size={11} style={{ color: T.textDim }} />
+                  }
+                </button>
+                {/* Email badge or note */}
+                {inv.email ? (
+                  <span
+                    className="text-[10px] truncate flex-1 px-1.5 py-0.5 rounded"
+                    style={{ color: '#D97706', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)' }}
+                    title="Email-locked invite"
+                  >
+                    🔒 {inv.email}
+                  </span>
+                ) : (
+                  <span className="text-[10px] truncate flex-1" style={{ color: T.textDim }}>
+                    {inv.note ?? 'Public invite'}
+                  </span>
+                )}
+                <span className="text-[10px] mono flex-shrink-0" style={{ color: T.textDim }}>
+                  exp {new Date(inv.expires_at).toLocaleDateString()}
+                </span>
+                <button
+                  onClick={() => void revokeInvite(inv.id)}
+                  title="Revoke"
+                  className="flex-shrink-0 opacity-40 hover:opacity-100 transition-opacity"
                 >
-                  🔒 {inv.email}
-                </span>
-              ) : (
-                <span className="text-[10px] truncate flex-1" style={{ color: T.textDim }}>
-                  {inv.note ?? 'Public invite'}
-                </span>
+                  <Trash2 size={11} style={{ color: '#EF4444' }} />
+                </button>
+              </div>
+              {/* Email sent row — only for email-locked invites */}
+              {inv.email && (
+                <div className="flex items-center gap-2">
+                  {emailStatus[inv.id] === true ? (
+                    <span className="flex items-center gap-1 text-[10px]" style={{ color: '#16C784' }}>
+                      <Check size={9} /> Email sent
+                    </span>
+                  ) : emailStatus[inv.id] === false ? (
+                    <span className="text-[10px]" style={{ color: '#EF4444' }}>Email failed</span>
+                  ) : null}
+                  <button
+                    onClick={() => void resendInvite(inv.id)}
+                    disabled={resending === inv.id}
+                    className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded"
+                    style={{
+                      background: T.elevated,
+                      border: `1px solid ${T.border}`,
+                      color: T.textSec,
+                      opacity: resending === inv.id ? 0.5 : 1,
+                    }}
+                    title="Resend invite email"
+                  >
+                    {resending === inv.id
+                      ? <RefreshCw size={9} className="animate-spin" />
+                      : <Send size={9} />
+                    }
+                    Resend email
+                  </button>
+                </div>
               )}
-              <span className="text-[10px] mono flex-shrink-0" style={{ color: T.textDim }}>
-                exp {new Date(inv.expires_at).toLocaleDateString()}
-              </span>
-              <button
-                onClick={() => void revokeInvite(inv.id)}
-                title="Revoke"
-                className="flex-shrink-0 opacity-40 hover:opacity-100 transition-opacity"
-              >
-                <Trash2 size={11} style={{ color: '#EF4444' }} />
-              </button>
             </div>
           ))}
           {activeInvites.length === 0 && (
