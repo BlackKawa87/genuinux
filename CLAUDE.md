@@ -21,6 +21,7 @@ No test framework is configured.
 - **Tailwind CSS v4** via `@tailwindcss/vite` plugin — no `tailwind.config.js`, all config lives in `vite.config.ts`
 - **Supabase** for auth + PostgreSQL database (`@supabase/supabase-js`)
 - **lucide-react** for all icons
+- **Resend** (`resend`) for transactional email — beta invite delivery
 - **Vercel** deployment — `vercel.json` rewrites non-API paths to `/index.html`
 
 ## Environment Variables
@@ -32,9 +33,15 @@ VITE_SUPABASE_ANON_KEY=...     # exposed to browser
 SUPABASE_SERVICE_ROLE_KEY=...  # server-side only — never expose to frontend
 # SUPABASE_URL=...             # optional; API functions prefer this over VITE_SUPABASE_URL
 # OPENAI_API_KEY=...           # optional; enables GPT-4o-mini AI summaries
+# RESEND_API_KEY=re_...        # optional; enables beta invite email delivery
+# RESEND_FROM_EMAIL=...        # sender shown in invite emails (must be verified in Resend)
+# BETA_REPLY_TO_EMAIL=...      # reply-to for invite emails
+# APP_URL=https://genuinux.com # base URL used in invite email signup links
 ```
 
 `SUPABASE_SERVICE_ROLE_KEY` is required by Vercel serverless functions. It bypasses RLS — never expose it to the frontend.
+
+`RESEND_API_KEY` is optional — invite creation still works without it, email is simply skipped (graceful degradation). Never expose it to the frontend.
 
 API functions (`api/risk/check.ts`, `api/webhooks/test.ts`) resolve the Supabase URL via: `process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL`.
 
@@ -86,7 +93,7 @@ RLS helpers: `current_org_id()` and `current_user_role()` (SECURITY DEFINER func
 
 Role matrix: owner > admin > member. Only owners can manage API keys and webhooks.
 
-Audit logs: Written by the frontend for key actions — `api_key.created`, `api_key.revoked`, `rule.created`, `rule.updated`, `rule.deleted`, `webhook.created`, `webhook.updated`, `webhook.deleted`, `org.updated`, `review.*`. Requires the v4 `audit_logs_insert` RLS policy to be in place.
+Audit logs: Written by the frontend for key actions — `api_key.created`, `api_key.revoked`, `rule.created`, `rule.updated`, `rule.deleted`, `webhook.created`, `webhook.updated`, `webhook.deleted`, `org.updated`, `review.*`. Backend writes `beta_invite.created`, `beta_invite.email_sent`, `beta_invite.email_failed`, `beta_invite.resent`, `beta_invite.used`. Requires the v4 `audit_logs_insert` RLS policy to be in place.
 
 ### Types (`src/types/index.ts`)
 Mirrors DB schema. Key types: `RiskEvent`, `ApiKey`, `Organization`, `Profile`, `Rule`, `ReviewQueueItem`, `Webhook`, `WebhookDelivery`, `AuditLog`, `DashboardMetrics`.
@@ -151,6 +158,14 @@ Valid `event_type` values: `signup`, `login`, `transaction`, `withdrawal`, `refe
 
 **`POST /api/analyze`** — **DEPRECATED** — Returns HTTP 410 Gone with a migration message. Use `/api/risk/check` instead.
 
+**`GET /api/admin/invites`** / **`POST /api/admin/invites`** / **`DELETE /api/admin/invites?id=`** — Beta invite CRUD. Owner-only. POST auto-generates a `BETA-XXXX-XXXX` code, optionally sends an email via Resend if `email` is provided, writes audit logs. Returns `{ invite, email_sent, warning? }`.
+
+**`POST /api/admin/invite-resend`** — Resend the invite email for an existing active invite. Owner-only. Body: `{ invite_id }`. Rejects if invite is revoked, already used, or has no email. Writes `beta_invite.resent` audit log.
+
+**`GET /api/beta/validate-invite?code=&email=`** — Pre-flight invite check (no auth). Validates: exists, not revoked, not used, not expired, email match if locked. Fires `beta_invite.email_mismatch` security event on mismatch.
+
+**`POST /api/beta/use-invite`** — Authoritative invite gate called after signup. Requires user JWT + `{ code, email }`. Same validation as validate-invite plus marks `used_by`/`used_at`, writes audit log.
+
 ### Dashboard Pages
 
 **`Overview.tsx`** — Real-time metrics for last 24h. Subscribes to `postgres_changes` on `risk_events`. Charts: events over time (area), decisions (donut), fraud score distribution (histogram), risk level bars, top signals, top countries. Recent events table.
@@ -186,6 +201,12 @@ Valid `event_type` values: `signup`, `login`, `transaction`, `withdrawal`, `refe
   - **Devices** — distinct device IDs with event counts
   - **Recurring signals** — signals in 2+ events, sorted by frequency, with severity badge and `×N` count
 
+**`Ops.tsx`** — Owner-only operations dashboard. Shows service health, DB metrics, cron schedule, load-test flags, and beta invite management. Beta invites section: create form, active invite rows with copy-code / copy-invite-link / resend-email buttons and email-sent badge, used/expired/revoked archive.
+
+### Email (`api/_lib/`)
+- `email.ts` — `sendInviteEmail({ to, inviteCode, expiresAt, note? })` — wraps Resend SDK. Returns `{ sent, error? }`, never throws. Gracefully skips if `RESEND_API_KEY` is not set.
+- `emailTemplates.ts` — `betaInviteHtml()` + `betaInviteText()` — inline-styled HTML email + plain text fallback. Params: `{ to, inviteCode, expiresAt, signupUrl, note? }`.
+
 ### Components
 - `src/components/layout/AppLayout.tsx` — fixed 220px sidebar + sticky 52px top header with breadcrumb and org/plan badge. NAV_TOP has 7 items: Overview, Risk Events, Users, Review Queue, Rules, API Keys, Webhooks.
 - `src/components/ProtectedRoute.tsx` — auth guard, shows spinner while loading
@@ -201,7 +222,7 @@ Valid `event_type` values: `signup`, `login`, `transaction`, `withdrawal`, `refe
 
 ### Logo Assets (`public/`)
 Three logo files served statically from `/public/`:
-- `logo-horizontal.png` — icon + "GENUINUX" text (horizontal layout, transparent bg). **Primary logo** used in navbar, sidebar, auth pages.
+- `logo-horizontal.png` — G-icon + "GENUINUX" text, horizontal layout, transparent background. **Primary logo** — used in navbar, sidebar, auth pages, error boundary, 404. Updated 2026-05-21 with new branding (teal G-icon, dark GENUINUX wordmark).
 - `logo-full.png` — circular icon + "GENUINUX" text (vertical/stacked layout). Legacy; still used in footer.
 - `logo-icon.png` — circular icon only. Reserved for icon-only contexts.
 
