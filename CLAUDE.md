@@ -208,7 +208,9 @@ Valid `event_type` values: `signup`, `login`, `transaction`, `withdrawal`, `refe
   - **Devices** — distinct device IDs with event counts
   - **Recurring signals** — signals in 2+ events, sorted by frequency, with severity badge and `×N` count
 
-**`Ops.tsx`** — Owner-only operations dashboard. Shows service health, DB metrics, cron schedule, load-test flags, and beta invite management. Beta invites section: create form, active invite rows with copy-code / copy-invite-link / resend-email buttons and email-sent badge, used/expired/revoked archive.
+**`Ops.tsx`** — Owner-only operations dashboard. Shows service health, DB metrics, cron schedule, load-test flags, API Test Sandbox, and beta invite management.
+- **API Test Sandbox** — interactive form to send real risk events without a terminal. Includes 4 presets (Normal user, Suspicious, Bot/Headless, Withdrawal), editable fields (user ID, email, IP, event type, country, device ID, user agent), API key input (password-masked), and inline response showing trust score, fraud score, decision badge, and detected signals. Events sent here are real — they appear in Risk Events and Overview.
+- Beta invites section: create form, active invite rows with copy-code / copy-invite-link / resend-email buttons and email-sent badge, used/expired/revoked archive.
 
 ### Email (`api/_lib/`)
 - `email.ts` — `sendInviteEmail({ to, inviteCode, expiresAt, note? })` — wraps Resend SDK. Returns `{ sent, error? }`, never throws. Gracefully skips if `RESEND_API_KEY` is not set.
