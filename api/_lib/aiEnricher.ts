@@ -14,7 +14,7 @@
 
 import crypto from 'crypto'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { SummaryInput } from '../../src/lib/aiSummary'
+import type { SummaryInput } from './aiSummary.js'
 import { captureException, captureMessage } from './monitoring.js'
 import { createSecurityEvent } from './securityEvents.js'
 
