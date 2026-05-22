@@ -328,7 +328,7 @@ export default function Landing() {
         }}>
         <div className="flex items-center justify-between px-6 py-4 max-w-7xl mx-auto">
           <Link to="/">
-            <img src="/logo-horizontal.png" alt="Genuinux" style={{ height: '88px', display: 'block' }} />
+            <img src="/logo-horizontal.png" alt="Genuinux" style={{ height: '112px', display: 'block' }} />
           </Link>
 
           <div className="hidden md:flex items-center gap-8">
@@ -1073,14 +1073,14 @@ export default function Landing() {
       </section>
 
       {/* ── Footer ───────────────────────────────────────────── */}
-      <footer style={{ background: C.dark, borderTop: '1px solid #1E293B' }}>
+      <footer style={{ background: C.bg, borderTop: `1px solid ${C.border}` }}>
         <div className="max-w-6xl mx-auto px-6 py-14">
           <div className="grid md:grid-cols-4 gap-10 mb-10">
             <div>
               <div className="mb-4">
-                <img src="/logo-full.png" alt="Genuinux" style={{ height: '96px', display: 'block', filter: 'brightness(0) invert(1)' }} />
+                <img src="/logo-color.png" alt="Genuinux" style={{ height: '112px', display: 'block' }} />
               </div>
-              <p className="text-xs leading-relaxed" style={{ color: '#475569' }}>
+              <p className="text-xs leading-relaxed" style={{ color: C.textSec }}>
                 AI Trust Infrastructure. Block fraud without blocking customers.
               </p>
             </div>
@@ -1107,16 +1107,16 @@ export default function Landing() {
               ]},
             ] as { title: string; links: { label: string; href: string }[] }[]).map((col, i) => (
               <div key={i}>
-                <p className="text-xs font-semibold uppercase tracking-wider mb-4" style={{ color: '#64748B' }}>
+                <p className="text-xs font-semibold uppercase tracking-wider mb-4" style={{ color: C.textSec }}>
                   {col.title}
                 </p>
                 <ul className="space-y-2.5">
                   {col.links.map(l => (
                     <li key={l.label}>
                       <a href={l.href} className="text-xs transition-colors duration-150"
-                        style={{ color: '#475569' }}
-                        onMouseEnter={e => (e.currentTarget.style.color = '#94A3B8')}
-                        onMouseLeave={e => (e.currentTarget.style.color = '#475569')}>
+                        style={{ color: C.textSec }}
+                        onMouseEnter={e => (e.currentTarget.style.color = C.text)}
+                        onMouseLeave={e => (e.currentTarget.style.color = C.textSec)}>
                         {l.label}
                       </a>
                     </li>
@@ -1127,8 +1127,8 @@ export default function Landing() {
           </div>
 
           <div className="flex flex-col md:flex-row items-center justify-between gap-4 pt-8"
-            style={{ borderTop: '1px solid #1E293B' }}>
-            <p className="text-xs" style={{ color: '#475569' }}>© 2026 Genuinux. AI Trust Infrastructure.</p>
+            style={{ borderTop: `1px solid ${C.border}` }}>
+            <p className="text-xs" style={{ color: C.textSec }}>© 2026 Genuinux. AI Trust Infrastructure.</p>
             <div className="flex items-center gap-6">
               {([
                 { label: 'Privacy',  to: '/privacy' },
@@ -1137,15 +1137,15 @@ export default function Landing() {
               ] as { label: string; to: string; external?: boolean }[]).map(l => (
                 l.external
                   ? <a key={l.label} href={l.to} className="text-xs transition-colors duration-150"
-                      style={{ color: '#475569' }}
-                      onMouseEnter={e => (e.currentTarget.style.color = '#94A3B8')}
-                      onMouseLeave={e => (e.currentTarget.style.color = '#475569')}>
+                      style={{ color: C.textSec }}
+                      onMouseEnter={e => (e.currentTarget.style.color = C.text)}
+                      onMouseLeave={e => (e.currentTarget.style.color = C.textSec)}>
                       {l.label}
                     </a>
                   : <Link key={l.label} to={l.to} className="text-xs transition-colors duration-150"
-                      style={{ color: '#475569', textDecoration: 'none' }}
-                      onMouseEnter={e => (e.currentTarget.style.color = '#94A3B8')}
-                      onMouseLeave={e => (e.currentTarget.style.color = '#475569')}>
+                      style={{ color: C.textSec, textDecoration: 'none' }}
+                      onMouseEnter={e => (e.currentTarget.style.color = C.text)}
+                      onMouseLeave={e => (e.currentTarget.style.color = C.textSec)}>
                       {l.label}
                     </Link>
               ))}
