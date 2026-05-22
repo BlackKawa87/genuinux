@@ -408,7 +408,7 @@ export default function Landing() {
       </nav>
 
       {/* ── Hero ────────────────────────────────────────────── */}
-      <section className="relative pt-32 pb-24 px-6 flex flex-col items-center text-center overflow-hidden"
+      <section className="relative pt-48 pb-24 px-6 flex flex-col items-center text-center overflow-hidden"
         style={{ background: `radial-gradient(ellipse 80% 50% at 50% -10%, rgba(22,199,132,0.07) 0%, transparent 65%), ${C.bg}` }}>
         <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold mb-7 anim-0"
           style={{ background: C.trustBg, border: `1px solid ${C.trustBd}`, color: C.trustT }}>
