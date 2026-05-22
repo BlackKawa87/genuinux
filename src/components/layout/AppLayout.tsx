@@ -133,7 +133,7 @@ export default function AppLayout() {
           <img
             src="/logo-horizontal.png"
             alt="Genuinux"
-            style={{ height: '44px', display: 'block', filter: S.logoFilter }}
+            style={{ height: '72px', display: 'block', filter: S.logoFilter }}
           />
           <p className="text-[10px] mono flex items-center gap-1" style={{ color: shadowMode ? '#38BDF8' : S.liveColor }}>
             <span className="pulse-dot inline-block w-1.5 h-1.5 rounded-full bg-current" />
