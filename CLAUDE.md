@@ -22,26 +22,31 @@ No test framework is configured.
 - **Supabase** for auth + PostgreSQL database (`@supabase/supabase-js`)
 - **lucide-react** for all icons
 - **Resend** (`resend`) for transactional email — beta invite delivery
+- **Upstash Redis** (`@upstash/redis` + `@upstash/ratelimit`) — per-API-key sliding window rate limiting
 - **Vercel** deployment — `vercel.json` rewrites non-API paths to `/index.html`
 
 ## Environment Variables
 
 Copy `.env.example` → `.env.local`:
 ```
-VITE_SUPABASE_URL=...          # exposed to browser (Vite prefix required)
-VITE_SUPABASE_ANON_KEY=...     # exposed to browser
-SUPABASE_SERVICE_ROLE_KEY=...  # server-side only — never expose to frontend
-# SUPABASE_URL=...             # optional; API functions prefer this over VITE_SUPABASE_URL
-# OPENAI_API_KEY=...           # optional; enables GPT-4o-mini AI summaries
-# RESEND_API_KEY=re_...        # optional; enables beta invite email delivery
-# RESEND_FROM_EMAIL=...        # sender shown in invite emails (must be verified in Resend)
-# BETA_REPLY_TO_EMAIL=...      # reply-to for invite emails
-# APP_URL=https://genuinux.com # base URL used in invite email signup links
+VITE_SUPABASE_URL=...           # exposed to browser (Vite prefix required)
+VITE_SUPABASE_ANON_KEY=...      # exposed to browser
+SUPABASE_SERVICE_ROLE_KEY=...   # server-side only — never expose to frontend
+# SUPABASE_URL=...              # optional; API functions prefer this over VITE_SUPABASE_URL
+# OPENAI_API_KEY=...            # optional; enables GPT-4o-mini AI summaries
+# RESEND_API_KEY=re_...         # optional; enables beta invite email delivery
+# RESEND_FROM_EMAIL=...         # sender shown in invite emails (must be verified in Resend)
+# BETA_REPLY_TO_EMAIL=...       # reply-to for invite emails
+# APP_URL=https://genuinux.com  # base URL used in invite email signup links
+# UPSTASH_REDIS_REST_URL=...    # required for rate limiting (Upstash console)
+# UPSTASH_REDIS_REST_TOKEN=...  # required for rate limiting (Upstash console)
 ```
 
 `SUPABASE_SERVICE_ROLE_KEY` is required by Vercel serverless functions. It bypasses RLS — never expose it to the frontend.
 
 `RESEND_API_KEY` is optional — invite creation still works without it, email is simply skipped (graceful degradation). Never expose it to the frontend.
+
+`UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` are required for rate limiting in `api/_lib/rateLimit.ts`. Without them the rate limiter is bypassed (requests always pass through).
 
 API functions (`api/risk/check.ts`, `api/webhooks/test.ts`) resolve the Supabase URL via: `process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL`.
 
@@ -88,6 +93,8 @@ Single exported `supabase` client. Credentials from `VITE_SUPABASE_URL` / `VITE_
 | `webhook_deliveries` | One row per webhook attempt — v2 migration |
 
 **v4 migration** (required): Updates `handle_new_user` trigger to auto-create an organization for every new registrant (fixes "No organization" error for new users). Also adds `'escalated'` to `review_status` ENUM, adds `audit_logs INSERT` policy, and backfills existing profileless users.
+
+**v6 migration** (required): `ALTER TABLE organizations ADD COLUMN IF NOT EXISTS shadow_mode boolean NOT NULL DEFAULT true;` — adds the shadow_mode flag shown in the sidebar and header. Also requires the `handle_new_user` trigger to have `SET search_path = public` in the function definition (SECURITY DEFINER functions don't inherit search path — omitting this causes `relation "organizations" does not exist` errors at registration time).
 
 RLS helpers: `current_org_id()` and `current_user_role()` (SECURITY DEFINER functions).
 
@@ -208,7 +215,7 @@ Valid `event_type` values: `signup`, `login`, `transaction`, `withdrawal`, `refe
 - `emailTemplates.ts` — `betaInviteHtml()` + `betaInviteText()` — inline-styled HTML email + plain text fallback. Params: `{ to, inviteCode, expiresAt, signupUrl, note? }`.
 
 ### Components
-- `src/components/layout/AppLayout.tsx` — fixed 220px sidebar + sticky 52px top header with breadcrumb and org/plan badge. NAV_TOP has 7 items: Overview, Risk Events, Users, Review Queue, Rules, API Keys, Webhooks.
+- `src/components/layout/AppLayout.tsx` — fixed 220px sidebar + sticky 52px top header with breadcrumb and org/plan badge. NAV_ALL has 10 items: Overview, Risk Events, Users, Review Queue, Analytics, Rules, API Keys, Webhooks, Infrastructure, Beta Ops. Bottom section has Documentation + Settings links. Items are filtered by role permission — `owner_only` items (Infrastructure, Beta Ops) only show to owners.
 - `src/components/ProtectedRoute.tsx` — auth guard, shows spinner while loading
 
 ### GitHub & Deployment
@@ -221,17 +228,19 @@ Valid `event_type` values: `signup`, `login`, `transaction`, `withdrawal`, `refe
 - `/docs` — `Docs.tsx` — Full API reference with 12 sections, code blocks, copy buttons. No auth required.
 
 ### Logo Assets (`public/`)
-Three logo files served statically from `/public/`:
+Four logo files served statically from `/public/`:
 - `logo-horizontal.png` — G-icon + "GENUINUX" text, horizontal layout, transparent background. **Primary logo** — used in navbar, sidebar, auth pages, error boundary, 404. Updated 2026-05-21 with new branding (teal G-icon, dark GENUINUX wordmark).
-- `logo-full.png` — circular icon + "GENUINUX" text (vertical/stacked layout). Legacy; still used in footer.
+- `logo-color.png` — colored variant, used in Landing page footer (light background, no filter needed).
+- `logo-full.png` — circular icon + "GENUINUX" text (vertical/stacked layout). Used in Demo page and Docs sidebar.
 - `logo-icon.png` — circular icon only. Reserved for icon-only contexts.
 
 Usage pattern:
 - **Light backgrounds**: `<img src="/logo-horizontal.png" style={{ height: 'Xpx' }} />` — no filter needed
 - **Dark backgrounds**: `<img src="/logo-horizontal.png" style={{ height: 'Xpx', filter: 'brightness(0) invert(1)' }} />`
-- **AppLayout sidebar**: filter is applied conditionally via `S.logoFilter` (theme-aware)
+- **AppLayout sidebar**: filter applied conditionally via `S.logoFilter` (theme-aware)
+- **Landing footer**: `<img src="/logo-color.png" style={{ height: '112px' }} />` — no filter
 
-Current heights: Landing navbar 88px (logo-horizontal), Login/Register 72px (logo-horizontal), AppLayout sidebar 44px (logo-horizontal), Demo 80px (logo-full), Docs sidebar 88px (logo-full).
+Current heights: Landing navbar **112px** (logo-horizontal), Login/Register **112px** (logo-horizontal), PrivacyPolicy/ToS/NotFound/ErrorBoundary **112px** (logo-horizontal), AppLayout sidebar **44px** (logo-horizontal), Demo 80px (logo-full), Docs sidebar 88px (logo-full), Landing footer 112px (logo-color).
 
 ### Landing Page (`src/pages/Landing.tsx`)
 Full redesign — always light mode (`#F8FAFC` bg). Key sections with anchor IDs:
@@ -242,12 +251,14 @@ Full redesign — always light mode (`#F8FAFC` bg). Key sections with anchor IDs
 
 Nav links use smooth scroll via `document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })`. Mobile hamburger menu included. Theme toggle (Sun/Moon) in desktop navbar via `useTheme()`.
 
-Hero headline: `clamp(2.25rem, 5vw, 4rem)`, `font-bold`.
+Hero headline: `clamp(2.25rem, 5vw, 4rem)`, `font-bold`. Hero section has `pt-48` top padding (navbar is ~144px tall due to 112px logo).
 
 No fake metrics — "Built for scale" strip uses only real product claims: `< 50ms` latency, `300+` signals, `7` event types, `1 API call`.
 
+Footer uses **light background** (`#F8FAFC`), `logo-color.png` at 112px. CTA text sitewide is **"Start 7-Day Trial"** (not "Start for free").
+
 ### Login (`src/pages/Login.tsx`) & Register (`src/pages/Register.tsx`)
-Both in **light mode** (`#F8FAFC` bg, `#FFFFFF` card with soft shadow). Include "← Back to home" link above the card. Logo: `logo-horizontal.png` at 72px height.
+Both in **light mode** (`#F8FAFC` bg, `#FFFFFF` card with soft shadow). Include "← Back to home" link above the card. Logo: `logo-horizontal.png` at **112px** height.
 
 Register adds **company name** and **website** fields. On successful sign-up, calls `supabase.auth.getUser()` to get the new user ID, then updates the org `name` (and `website` if provided) that was auto-created by the DB trigger.
 
@@ -278,6 +289,15 @@ Register adds **company name** and **website** fields. On successful sign-up, ca
 ## TypeScript Config
 
 Strict mode + `noUnusedLocals` + `noUnusedParameters` — unused imports cause build failures.
+
+## ESM / API Function Import Rules
+
+`package.json` has `"type": "module"` (ESM). Vercel's `@vercel/node` runtime compiles TypeScript to ESM JavaScript. Node.js ESM **requires explicit `.js` extensions on all relative imports** at runtime.
+
+- Functions that import from `../../src/lib/` (e.g. `api/risk/check.ts`) get bundled by esbuild — extensions are resolved at build time, so missing `.js` is safe there.
+- Functions with only `api/`-internal relative imports run as raw ESM and **will crash** with `ERR_MODULE_NOT_FOUND` if `.js` is missing.
+
+**Rule**: always write `from '../_lib/foo.js'` (not `'../\_lib/foo'`) for any relative import inside `api/`. This applies to both top-level `api/*.ts` and `api/_lib/*.ts` files importing siblings.
 
 ## Theme System
 
