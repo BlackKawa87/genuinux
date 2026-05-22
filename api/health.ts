@@ -35,7 +35,7 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY
     if (url && key) {
       const sb = createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } })
-      const { error } = await sb.from('organizations').select('id', { head: true, count: 'exact' }).limit(1)
+      const { error } = await sb.from('organizations').select('id').limit(1)
       database = error ? 'degraded' : 'ok'
     }
   } catch {
