@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { RefreshCw, Server, Database, GitBranch, Clock, AlertTriangle, Activity, Cpu, Mail, Plus, Trash2, Copy, Check, Send, ExternalLink } from 'lucide-react'
+import { RefreshCw, Server, Database, GitBranch, Clock, AlertTriangle, Activity, Cpu, Mail, Plus, Trash2, Copy, Check, Send, ExternalLink, FlaskConical, ChevronDown, ChevronUp } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useT } from '../../lib/themeTokens'
 import { supabase } from '../../lib/supabase'
@@ -337,6 +337,333 @@ function BetaInvites({ token }: { token: string }) {
   )
 }
 
+// ─── Risk Event Tester ───────────────────────────────────────────────────────
+
+interface TestPreset {
+  label:  string
+  color:  string
+  fields: Partial<TestFields>
+}
+
+interface TestFields {
+  external_user_id: string
+  email:            string
+  ip_address:       string
+  event_type:       string
+  user_agent:       string
+  country:          string
+  device_id:        string
+}
+
+interface TestResult {
+  trust_score: number
+  fraud_score: number
+  risk_level:  string
+  decision:    string
+  signals:     { name: string; severity: string }[]
+  summary?:    string
+}
+
+const PRESETS: TestPreset[] = [
+  {
+    label: 'Normal user',
+    color: '#16C784',
+    fields: {
+      external_user_id: 'user_normal_001',
+      email:            'joao.silva@gmail.com',
+      ip_address:       '85.241.10.32',
+      event_type:       'signup',
+      user_agent:       'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/124.0',
+      country:          'PT',
+      device_id:        'dev_abc123',
+    },
+  },
+  {
+    label: 'Suspicious',
+    color: '#F59E0B',
+    fields: {
+      external_user_id: 'user_susp_002',
+      email:            'test@tempmail.org',
+      ip_address:       '1.2.3.4',
+      event_type:       'transaction',
+      user_agent:       'Mozilla/5.0 Chrome/120',
+      country:          'NG',
+      device_id:        'dev_shared_99',
+    },
+  },
+  {
+    label: 'Bot / Headless',
+    color: '#EF4444',
+    fields: {
+      external_user_id: 'bot_scraper_003',
+      email:            'bot@disposable.email',
+      ip_address:       '192.168.1.1',
+      event_type:       'login',
+      user_agent:       'HeadlessChrome/120.0.6099.109',
+      country:          'CN',
+      device_id:        'dev_bot_x7',
+    },
+  },
+  {
+    label: 'Withdrawal',
+    color: '#8B5CF6',
+    fields: {
+      external_user_id: 'user_withdraw_004',
+      email:            'user@protonmail.com',
+      ip_address:       '10.0.0.1',
+      event_type:       'withdrawal',
+      user_agent:       'Mozilla/5.0 (Windows NT 10.0) Chrome/120',
+      country:          'RU',
+      device_id:        'dev_new_444',
+    },
+  },
+]
+
+const DECISION_COLOR: Record<string, string> = {
+  approve: '#16C784',
+  allow:   '#16C784',
+  review:  '#F59E0B',
+  block:   '#EF4444',
+}
+
+const RISK_COLOR: Record<string, string> = {
+  low:      '#16C784',
+  medium:   '#F59E0B',
+  high:     '#EF4444',
+  critical: '#DC2626',
+}
+
+function RiskEventTester() {
+  const T = useT()
+  const [apiKey,   setApiKey]   = useState('')
+  const [open,     setOpen]     = useState(true)
+  const [sending,  setSending]  = useState(false)
+  const [result,   setResult]   = useState<TestResult | null>(null)
+  const [rawError, setRawError] = useState<string | null>(null)
+  const [fields,   setFields]   = useState<TestFields>({
+    external_user_id: 'user_test_001',
+    email:            'user@example.com',
+    ip_address:       '85.241.10.32',
+    event_type:       'signup',
+    user_agent:       'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/124.0',
+    country:          'PT',
+    device_id:        'dev_test_001',
+  })
+
+  const applyPreset = (p: TestPreset) => setFields(f => ({ ...f, ...p.fields }))
+
+  const sendEvent = async () => {
+    if (!apiKey.trim()) { setRawError('Paste your API key first (generate one in API Keys)'); return }
+    setSending(true)
+    setResult(null)
+    setRawError(null)
+    try {
+      const res = await fetch('/api/risk/check', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${apiKey.trim()}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          external_user_id: fields.external_user_id || undefined,
+          email:            fields.email            || undefined,
+          ip_address:       fields.ip_address       || undefined,
+          event_type:       fields.event_type       || 'signup',
+          user_agent:       fields.user_agent       || undefined,
+          country:          fields.country          || undefined,
+          device_id:        fields.device_id        || undefined,
+        }),
+      })
+      const json = await res.json() as TestResult & { error?: string }
+      if (!res.ok) { setRawError(json.error ?? `HTTP ${res.status}`); return }
+      setResult(json)
+    } catch (err) {
+      setRawError(err instanceof Error ? err.message : 'Network error')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const field = (key: keyof TestFields, label: string, placeholder?: string) => (
+    <div className="flex flex-col gap-1">
+      <label className="text-[10px] font-medium" style={{ color: T.textSec }}>{label}</label>
+      <input
+        className="g-input text-xs"
+        value={fields[key]}
+        placeholder={placeholder}
+        onChange={e => setFields(f => ({ ...f, [key]: e.target.value }))}
+      />
+    </div>
+  )
+
+  return (
+    <div className="mt-5 rounded-xl" style={{ background: T.card, border: `1px solid ${T.border}` }}>
+      {/* Header */}
+      <button
+        className="w-full flex items-center gap-2 px-4 py-3.5 text-left"
+        onClick={() => setOpen(o => !o)}
+      >
+        <FlaskConical size={13} style={{ color: T.textSec }} />
+        <p className="text-xs font-semibold flex-1" style={{ color: T.text }}>API Test Sandbox</p>
+        <span className="text-[10px] mr-2" style={{ color: T.textDim }}>Send real events without code</span>
+        {open ? <ChevronUp size={13} style={{ color: T.textDim }} /> : <ChevronDown size={13} style={{ color: T.textDim }} />}
+      </button>
+
+      {open && (
+        <div className="px-4 pb-4 space-y-4" style={{ borderTop: `1px solid ${T.border}` }}>
+
+          {/* API Key input */}
+          <div className="pt-4">
+            <label className="text-[10px] font-medium block mb-1" style={{ color: T.textSec }}>
+              API Key <span style={{ color: T.textDim }}>(generate one in API Keys → copy it here)</span>
+            </label>
+            <input
+              className="g-input text-xs w-full font-mono"
+              type="password"
+              placeholder="gnx_••••••••••••••••"
+              value={apiKey}
+              onChange={e => setApiKey(e.target.value)}
+            />
+          </div>
+
+          {/* Presets */}
+          <div>
+            <p className="text-[10px] font-medium mb-2" style={{ color: T.textSec }}>Presets</p>
+            <div className="flex flex-wrap gap-2">
+              {PRESETS.map(p => (
+                <button
+                  key={p.label}
+                  onClick={() => applyPreset(p)}
+                  className="text-[10px] px-2.5 py-1.5 rounded-lg font-medium transition-opacity hover:opacity-80"
+                  style={{
+                    background: `${p.color}14`,
+                    border:     `1px solid ${p.color}33`,
+                    color:      p.color,
+                  }}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Fields grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {field('external_user_id', 'User ID')}
+            {field('email',            'Email')}
+            {field('ip_address',       'IP Address')}
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-medium" style={{ color: T.textSec }}>Event Type</label>
+              <select
+                className="g-input text-xs"
+                value={fields.event_type}
+                onChange={e => setFields(f => ({ ...f, event_type: e.target.value }))}
+              >
+                {['signup','login','transaction','withdrawal','referral','checkout','custom'].map(t => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
+            {field('country',   'Country (ISO)', 'PT')}
+            {field('device_id', 'Device ID')}
+          </div>
+          <div>
+            {field('user_agent', 'User Agent')}
+          </div>
+
+          {/* Send button */}
+          <button
+            onClick={() => void sendEvent()}
+            disabled={sending}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-opacity"
+            style={{ background: '#16C784', color: '#fff', border: 'none', opacity: sending ? 0.6 : 1 }}
+          >
+            {sending ? <RefreshCw size={12} className="animate-spin" /> : <Send size={12} />}
+            {sending ? 'Sending…' : 'Send Event'}
+          </button>
+
+          {/* Error */}
+          {rawError && (
+            <div
+              className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-xs"
+              style={{ background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.2)', color: '#EF4444' }}
+            >
+              <AlertTriangle size={11} />
+              {rawError}
+            </div>
+          )}
+
+          {/* Result */}
+          {result && (
+            <div
+              className="p-4 rounded-xl space-y-3"
+              style={{ background: T.deep, border: `1px solid ${T.border}` }}
+            >
+              {/* Score row */}
+              <div className="flex items-center gap-4">
+                <div className="flex flex-col items-center gap-0.5">
+                  <span className="text-[10px]" style={{ color: T.textSec }}>Trust</span>
+                  <span className="text-2xl font-bold mono" style={{ color: '#16C784' }}>{result.trust_score}</span>
+                </div>
+                <div className="flex flex-col items-center gap-0.5">
+                  <span className="text-[10px]" style={{ color: T.textSec }}>Fraud</span>
+                  <span className="text-2xl font-bold mono" style={{ color: result.fraud_score >= 70 ? '#EF4444' : result.fraud_score >= 40 ? '#F59E0B' : '#16C784' }}>
+                    {result.fraud_score}
+                  </span>
+                </div>
+                <div className="ml-auto flex flex-col items-end gap-1.5">
+                  <span
+                    className="text-xs font-bold px-2.5 py-1 rounded-lg uppercase"
+                    style={{ background: `${DECISION_COLOR[result.decision] ?? '#94A3B8'}18`, color: DECISION_COLOR[result.decision] ?? '#94A3B8' }}
+                  >
+                    {result.decision}
+                  </span>
+                  <span
+                    className="text-[10px] mono px-1.5 py-0.5 rounded"
+                    style={{ color: RISK_COLOR[result.risk_level] ?? T.textSec }}
+                  >
+                    {result.risk_level} risk
+                  </span>
+                </div>
+              </div>
+
+              {/* Signals */}
+              {result.signals.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-medium mb-1.5" style={{ color: T.textSec }}>Signals detected</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {result.signals.map((s, i) => {
+                      const c = s.severity === 'high' || s.severity === 'critical' ? '#EF4444'
+                              : s.severity === 'medium' ? '#F59E0B' : '#94A3B8'
+                      return (
+                        <span
+                          key={i}
+                          className="text-[10px] mono px-2 py-0.5 rounded"
+                          style={{ background: `${c}12`, border: `1px solid ${c}30`, color: c }}
+                        >
+                          {s.name}
+                        </span>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+              {result.signals.length === 0 && (
+                <p className="text-[10px]" style={{ color: T.textDim }}>No signals detected — clean profile.</p>
+              )}
+
+              {result.summary && (
+                <p className="text-[10px] italic" style={{ color: T.textSec }}>"{result.summary}"</p>
+              )}
+
+              <p className="text-[9px]" style={{ color: T.textDim }}>
+                Event saved → visible in Risk Events and Overview in real time.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function StatusDot({ status }: { status: string }) {
   const color = status === 'ok' ? '#16C784' : status === 'degraded' ? '#F59E0B' : '#EF4444'
   return <span className="inline-block w-2 h-2 rounded-full" style={{ background: color }} />
@@ -638,6 +965,9 @@ export default function Ops() {
           ))}
         </div>
       </div>
+
+      {/* API test sandbox */}
+      <RiskEventTester />
 
       {/* Beta invite management */}
       {session?.access_token && (
