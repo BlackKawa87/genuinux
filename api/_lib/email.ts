@@ -37,7 +37,7 @@ export async function sendInviteEmail(params: SendInviteEmailParams): Promise<Se
     const { error } = await resend.emails.send({
       from,
       to:       [params.to],
-      reply_to: replyTo,
+      replyTo,
       subject:  `Your Genuinux Beta invite — ${params.inviteCode}`,
       html:     betaInviteHtml(emailParams),
       text:     betaInviteText(emailParams),

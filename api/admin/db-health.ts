@@ -26,7 +26,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const queries = await Promise.allSettled([
     sb.from('organizations').select('id',    { count: 'exact', head: true }),
-    sb.from('profiles').select('user_id',    { count: 'exact', head: true }),
+    sb.from('profiles').select('*',           { count: 'exact', head: true }),
     sb.from('risk_events').select('id',      { count: 'exact', head: true }),
     sb.from('api_keys').select('id',         { count: 'exact', head: true }),
     sb.from('review_queue').select('id',     { count: 'exact', head: true })
@@ -40,9 +40,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const response_ms = Date.now() - t0
 
-  function cnt(r: typeof queries[0]): number {
+  function cnt(r: PromiseSettledResult<{ count: number | null; data: unknown; error: unknown }>): number {
     if (r.status === 'rejected') return -1
-    return (r.value as { count: number | null }).count ?? 0
+    return r.value.count ?? 0
   }
 
   const orgs       = cnt(queries[0])

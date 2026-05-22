@@ -49,7 +49,7 @@ async function getRawBody(req: VercelRequest): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = []
     req.on('data', (chunk: Buffer) => chunks.push(chunk))
-    req.on('end',  () => resolve(Buffer.concat(chunks)))
+    req.on('end',  () => resolve(Buffer.concat(chunks as unknown as Uint8Array[])))
     req.on('error', reject)
   })
 }
@@ -64,7 +64,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let event: Stripe.Event
   try {
     const stripe = new Stripe(STRIPE_KEY)
-    event = stripe.webhooks.constructEvent(rawBody, sig ?? '', WEBHOOK_SECRET)
+    event = stripe.webhooks.constructEvent(rawBody as unknown as string, sig ?? '', WEBHOOK_SECRET)
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error'
     console.error('Stripe webhook signature verification failed:', msg)
