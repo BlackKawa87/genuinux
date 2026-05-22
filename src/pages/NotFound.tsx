@@ -13,7 +13,7 @@ export default function NotFound() {
       padding: '2rem',
       textAlign: 'center',
     }}>
-      <img src="/logo-horizontal.png" alt="Genuinux" style={{ height: 48, marginBottom: '2.5rem' }} />
+      <img src="/logo-horizontal.png" alt="Genuinux" style={{ height: 112, marginBottom: '2.5rem' }} />
 
       <p style={{ fontSize: '0.875rem', fontWeight: 600, color: '#16C784', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '1rem' }}>
         404

@@ -18,7 +18,7 @@ export default function TermsOfService() {
       <nav style={{ borderBottom: `1px solid ${C.border}`, background: C.card, padding: '0 1.5rem' }}>
         <div style={{ maxWidth: 800, margin: '0 auto', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Link to="/">
-            <img src="/logo-horizontal.png" alt="Genuinux" style={{ height: 40 }} />
+            <img src="/logo-horizontal.png" alt="Genuinux" style={{ height: 112 }} />
           </Link>
           <Link to="/" style={{ fontSize: '0.875rem', color: C.textSec, textDecoration: 'none' }}>← Back to home</Link>
         </div>

@@ -40,7 +40,7 @@ export default function Login() {
 
         {/* Logo */}
         <Link to="/" className="flex justify-center mb-8">
-          <img src="/logo-horizontal.png" alt="Genuinux" style={{ height: '72px', display: 'block' }} />
+          <img src="/logo-horizontal.png" alt="Genuinux" style={{ height: '112px', display: 'block' }} />
         </Link>
 
         {/* Card */}
