@@ -18,14 +18,14 @@
 
 import crypto from 'crypto'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { analyze, SIGNAL_CATEGORY } from '../../src/lib/riskEngine'
-import type { RiskEngineContext, RiskEngineInput } from '../../src/lib/riskEngine'
-import { templateSummary } from '../../src/lib/aiSummary'
-import type { SummaryInput } from '../../src/lib/aiSummary'
-import { enrichWithAiSummary } from '../_lib/aiEnricher'
-import { captureException } from '../_lib/monitoring'
-import { checkRateLimit } from '../_lib/rateLimit'
-import { createSecurityEvent } from '../_lib/securityEvents'
+import { analyze, SIGNAL_CATEGORY } from '../../src/lib/riskEngine.js'
+import type { RiskEngineContext, RiskEngineInput } from '../../src/lib/riskEngine.js'
+import { templateSummary } from '../../src/lib/aiSummary.js'
+import type { SummaryInput } from '../../src/lib/aiSummary.js'
+import { enrichWithAiSummary } from '../_lib/aiEnricher.js'
+import { captureException } from '../_lib/monitoring.js'
+import { checkRateLimit } from '../_lib/rateLimit.js'
+import { createSecurityEvent } from '../_lib/securityEvents.js'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
 // ─────────────────────────────────────────────────────────────────────────────

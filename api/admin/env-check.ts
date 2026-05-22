@@ -5,7 +5,7 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { adminSb, verifyOwnerJwt, CORS } from '../_lib/adminAuth'
+import { adminSb, verifyOwnerJwt, CORS } from '../_lib/adminAuth.js'
 
 interface EnvVar {
   key: string

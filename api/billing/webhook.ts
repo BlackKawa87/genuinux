@@ -16,7 +16,7 @@
 import Stripe from 'stripe'
 import { createClient } from '@supabase/supabase-js'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { createSecurityEvent } from '../_lib/securityEvents'
+import { createSecurityEvent } from '../_lib/securityEvents.js'
 
 const SUPABASE_URL  = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? ''
 const SERVICE_KEY   = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''

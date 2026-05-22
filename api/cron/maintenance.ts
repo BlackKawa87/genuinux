@@ -15,8 +15,8 @@
 
 import { createClient } from '@supabase/supabase-js'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { captureException, captureMessage } from '../_lib/monitoring'
-import { createSecurityEvent } from '../_lib/securityEvents'
+import { captureException, captureMessage } from '../_lib/monitoring.js'
+import { createSecurityEvent } from '../_lib/securityEvents.js'
 
 const DELIVERY_RETENTION_DAYS = 90
 

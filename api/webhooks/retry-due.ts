@@ -18,7 +18,7 @@
 import crypto from 'crypto'
 import { createClient } from '@supabase/supabase-js'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { captureException } from '../_lib/monitoring'
+import { captureException } from '../_lib/monitoring.js'
 
 // Delay before each retry attempt (attempt_count is 1-indexed: 1 = first try already done)
 const RETRY_DELAYS_MS: Record<number, number> = {

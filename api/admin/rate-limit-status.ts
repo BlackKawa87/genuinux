@@ -5,7 +5,7 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { verifyOwnerJwt, CORS } from '../_lib/adminAuth'
+import { verifyOwnerJwt, CORS } from '../_lib/adminAuth.js'
 
 const PLAN_WINDOWS: Record<string, number> = {
   free:       30,

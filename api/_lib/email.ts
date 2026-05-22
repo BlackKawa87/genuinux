@@ -1,5 +1,5 @@
 import { Resend } from 'resend'
-import { betaInviteHtml, betaInviteText } from './emailTemplates'
+import { betaInviteHtml, betaInviteText } from './emailTemplates.js'
 
 interface SendInviteEmailParams {
   to: string

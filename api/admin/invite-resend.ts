@@ -10,7 +10,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { sendInviteEmail } from '../_lib/email'
+import { sendInviteEmail } from '../_lib/email.js'
 
 function adminClient() {
   const url = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL
