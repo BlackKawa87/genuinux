@@ -3,7 +3,7 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Key, Activity, ListChecks,
   Users, Settings, LogOut, Globe, GitBranch, BookOpen,
-  ChevronRight, BarChart2, Sun, Moon, AlertTriangle, ShieldCheck, Server,
+  ChevronRight, BarChart2, Sun, Moon, AlertTriangle, ShieldCheck, Server, FlaskConical,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
@@ -19,7 +19,8 @@ const NAV_ALL = [
   { to: '/dashboard/rules',      icon: GitBranch,       label: 'Rules',         permission: 'manage_rules'     },
   { to: '/dashboard/api-keys',   icon: Key,             label: 'API Keys',      permission: 'manage_api_keys'  },
   { to: '/dashboard/webhooks',      icon: Globe,    label: 'Webhooks',      permission: 'manage_webhooks'  },
-  { to: '/dashboard/infrastructure',icon: Server,  label: 'Infrastructure',permission: 'owner_only'       },
+  { to: '/dashboard/infrastructure',icon: Server,        label: 'Infrastructure',permission: 'owner_only' },
+  { to: '/dashboard/ops',           icon: FlaskConical,  label: 'Beta Ops',      permission: 'owner_only' },
 ] as const
 
 export default function AppLayout() {
