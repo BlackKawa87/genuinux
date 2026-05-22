@@ -434,7 +434,7 @@ export default function Landing() {
 
         <div className="flex flex-col sm:flex-row items-center gap-3 mb-16 anim-3">
           <Link to="/register" className="btn-trust px-6 py-3 text-sm gap-2 rounded-lg">
-            Start for free <ArrowRight size={15} />
+            Start 7-Day Trial <ArrowRight size={15} />
           </Link>
           <Link to="/demo"
             className="px-6 py-3 text-sm flex items-center gap-2 rounded-lg transition-colors duration-150"
@@ -588,7 +588,7 @@ export default function Landing() {
               </div>
               <div className="mt-8 flex gap-3">
                 <Link to="/register" className="btn-trust px-5 py-2.5 text-sm gap-2 rounded-lg">
-                  Start for free <ArrowRight size={14} />
+                  Start 7-Day Trial <ArrowRight size={14} />
                 </Link>
                 <Link to="/docs"
                   className="px-5 py-2.5 text-sm flex items-center gap-2 rounded-lg transition-colors duration-150"
@@ -1056,7 +1056,7 @@ export default function Landing() {
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link to="/register" className="btn-trust px-8 py-4 text-base gap-2 rounded-xl inline-flex">
-              Start for free <ArrowRight size={18} />
+              Start 7-Day Trial <ArrowRight size={18} />
             </Link>
             <Link to="/demo"
               className="px-8 py-4 text-base flex items-center gap-2 rounded-xl transition-all duration-150"

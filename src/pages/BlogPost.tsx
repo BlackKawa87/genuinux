@@ -452,7 +452,7 @@ export default function BlogPost() {
           </p>
           <div className="flex items-center justify-center gap-3">
             <Link to="/register" className="btn-trust px-6 py-2.5 text-sm gap-2 rounded-xl inline-flex">
-              Start for free
+              Start 7-Day Trial
             </Link>
             <Link to="/docs"
               className="px-6 py-2.5 text-sm rounded-xl transition-colors"
