@@ -28,7 +28,6 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
 
   // ── Database ping ────────────────────────────────────────────────────────────
   let database: 'ok' | 'degraded' | 'unavailable' = 'unavailable'
-  let dbError: string | null = null
   const dbStart = Date.now()
 
   try {
@@ -37,16 +36,10 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
     if (url && key) {
       const sb = createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } })
       const { error } = await sb.from('organizations').select('id').limit(1)
-      if (error) {
-        database = 'degraded'
-        dbError = error.message
-      } else {
-        database = 'ok'
-      }
+      database = error ? 'degraded' : 'ok'
     }
-  } catch (e) {
+  } catch {
     database = 'degraded'
-    dbError = e instanceof Error ? e.message : String(e)
   }
 
   const dbMs = Date.now() - dbStart
@@ -63,7 +56,7 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
 
   return res.status(status === 'ok' ? 200 : 503).json({
     status,
-    database: { status: database, response_ms: dbMs, ...(dbError ? { error: dbError } : {}) },
+    database: { status: database, response_ms: dbMs },
     redis:    { status: redis },
     openai:   { status: openai },
     stripe:   { status: stripe },
