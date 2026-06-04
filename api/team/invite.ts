@@ -78,8 +78,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return res.status(400).json({ error: 'Invalid email address.' })
   }
-  if (!role || !['admin', 'member'].includes(role)) {
-    return res.status(400).json({ error: 'Role must be "admin" or "member".' })
+  if (!role || !['admin', 'analyst', 'viewer'].includes(role)) {
+    return res.status(400).json({ error: 'Role must be "admin", "analyst", or "viewer".' })
   }
 
   const orgId = profile.organization_id as string

@@ -41,11 +41,17 @@ function signPayload(secret: string, body: string): string {
 }
 
 function isAuthorized(req: VercelRequest): boolean {
-  // Vercel Cron requests carry this header automatically
+  // Vercel Cron requests carry x-vercel-cron: 1 automatically — always trusted.
   if (req.headers['x-vercel-cron'] === '1') return true
 
   const cronSecret = process.env.CRON_SECRET
-  if (!cronSecret) return true // No secret configured — allow all; set CRON_SECRET in production
+  if (!cronSecret) {
+    // No secret configured — reject manual triggers.
+    // Vercel cron calls still work via x-vercel-cron header above.
+    // Set CRON_SECRET in Vercel environment variables to allow manual triggers.
+    console.warn('[retry-due] CRON_SECRET not set — unauthenticated manual trigger rejected')
+    return false
+  }
 
   const auth  = (req.headers['authorization'] ?? '') as string
   const token = auth.replace(/^Bearer\s+/i, '').trim()

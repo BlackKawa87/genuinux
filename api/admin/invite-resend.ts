@@ -29,12 +29,27 @@ function userClient(accessToken: string) {
   })
 }
 
-async function verifyOwner(token: string): Promise<boolean> {
+interface OwnerContext {
+  userId: string
+  orgId:  string
+}
+
+async function verifyOwner(token: string): Promise<OwnerContext | null> {
   const sb = userClient(token)
   const { data: { user } } = await sb.auth.getUser()
-  if (!user) return false
-  const { data } = await sb.from('profiles').select('role').eq('user_id', user.id).single()
-  return (data as { role?: string } | null)?.role === 'owner'
+  if (!user) return null
+
+  const { data } = await sb
+    .from('profiles')
+    .select('role, organization_id')
+    .eq('user_id', user.id)
+    .single()
+
+  const profile = data as { role?: string; organization_id?: string | null } | null
+  if (profile?.role !== 'owner') return null
+  if (!profile.organization_id) return null
+
+  return { userId: user.id, orgId: profile.organization_id }
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -47,7 +62,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const token = ((req.headers['authorization'] ?? '') as string).replace(/^Bearer\s+/i, '').trim()
   if (!token) return res.status(401).json({ error: 'Authorization required' })
-  if (!(await verifyOwner(token))) return res.status(403).json({ error: 'Owner role required' })
+
+  const owner = await verifyOwner(token)
+  if (!owner) return res.status(403).json({ error: 'Owner role required' })
 
   const { invite_id } = (req.body ?? {}) as { invite_id?: string }
   if (!invite_id?.trim()) return res.status(400).json({ error: 'invite_id required' })
@@ -84,9 +101,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     note:       invite.note,
   })
 
+  // Audit log — includes organization_id (NOT NULL), user_id, and metadata_json
   void sb.from('audit_logs').insert({
-    action:   'beta_invite.resent',
-    metadata: {
+    organization_id: owner.orgId,
+    user_id:         owner.userId,
+    action:          'beta_invite.resent',
+    metadata_json:   {
       invite_id: invite.id,
       to:        invite.email,
       success:   result.sent,

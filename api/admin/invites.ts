@@ -1,11 +1,11 @@
 /**
  * GET  /api/admin/invites  — list all beta invite codes
  * POST /api/admin/invites  — create a new invite code
+ * DELETE /api/admin/invites?id=  — revoke an invite
  *
  * Auth: Authorization: Bearer <supabase_access_token> (role must be owner)
  *
  * POST body: { email?: string, note?: string, expires_days?: number }
- * Codes are auto-generated uppercase alphanumeric strings.
  */
 
 import { createClient } from '@supabase/supabase-js'
@@ -31,8 +31,7 @@ function userClient(accessToken: string) {
 }
 
 function generateCode(): string {
-  // Format: BETA-XXXX-XXXX (12 chars of random uppercase alphanumeric)
-  const chars  = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'  // no I/O/0/1 to avoid confusion
+  const chars   = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
   const segment = (n: number) =>
     Array.from(crypto.randomBytes(n))
       .map(b => chars[b % chars.length])
@@ -40,12 +39,29 @@ function generateCode(): string {
   return `BETA-${segment(4)}-${segment(4)}`
 }
 
-async function verifyOwner(token: string): Promise<boolean> {
+interface OwnerContext {
+  userId: string
+  orgId:  string
+}
+
+/** Verifies that the token belongs to an owner and returns their IDs.
+ *  Returns null if the token is invalid or the user is not an owner. */
+async function verifyOwner(token: string): Promise<OwnerContext | null> {
   const sb = userClient(token)
   const { data: { user } } = await sb.auth.getUser()
-  if (!user) return false
-  const { data } = await sb.from('profiles').select('role').eq('user_id', user.id).single()
-  return (data as { role?: string } | null)?.role === 'owner'
+  if (!user) return null
+
+  const { data } = await sb
+    .from('profiles')
+    .select('role, organization_id')
+    .eq('user_id', user.id)
+    .single()
+
+  const profile = data as { role?: string; organization_id?: string | null } | null
+  if (profile?.role !== 'owner') return null
+  if (!profile.organization_id) return null
+
+  return { userId: user.id, orgId: profile.organization_id }
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -57,7 +73,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const token = ((req.headers['authorization'] ?? '') as string).replace(/^Bearer\s+/i, '').trim()
   if (!token) return res.status(401).json({ error: 'Authorization required' })
-  if (!(await verifyOwner(token))) return res.status(403).json({ error: 'Owner role required' })
+
+  const owner = await verifyOwner(token)
+  if (!owner) return res.status(403).json({ error: 'Owner role required' })
 
   const sb = adminClient()
 
@@ -91,16 +109,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (error) return res.status(500).json({ error: error.message })
 
-    const invite = data as { id: string; code: string; email: string | null; note: string | null; expires_at: string; created_at: string }
+    const invite = data as {
+      id: string; code: string; email: string | null
+      note: string | null; expires_at: string; created_at: string
+    }
 
-    // ── Audit log: invite created ─────────────────────────────────────────────
+    // Audit log — includes organization_id (NOT NULL), user_id, and metadata_json
     void sb.from('audit_logs').insert({
-      action:   'beta_invite.created',
-      metadata: { invite_id: invite.id, code: invite.code, email: invite.email ?? null },
+      organization_id: owner.orgId,
+      user_id:         owner.userId,
+      action:          'beta_invite.created',
+      metadata_json:   { invite_id: invite.id, code: invite.code, email: invite.email ?? null },
     })
 
-    // ── Send email if invite is email-locked ──────────────────────────────────
-    let email_sent = false
+    // Send email if invite is email-locked
+    let email_sent    = false
     let email_warning: string | undefined
 
     if (invite.email) {
@@ -113,8 +136,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       email_sent = result.sent
 
       void sb.from('audit_logs').insert({
-        action:   email_sent ? 'beta_invite.email_sent' : 'beta_invite.email_failed',
-        metadata: {
+        organization_id: owner.orgId,
+        user_id:         owner.userId,
+        action:          email_sent ? 'beta_invite.email_sent' : 'beta_invite.email_failed',
+        metadata_json:   {
           invite_id: invite.id,
           to:        invite.email,
           ...(result.error ? { error: result.error } : {}),
@@ -131,7 +156,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     })
   }
 
-  // ── DELETE: revoke invite (mark as used with sentinel date) ──────────────────
+  // ── DELETE: revoke invite ────────────────────────────────────────────────────
   if (req.method === 'DELETE') {
     const id = (req.query.id ?? '') as string
     if (!id) return res.status(400).json({ error: 'id query param required' })
@@ -143,6 +168,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .is('used_at', null)
 
     if (error) return res.status(500).json({ error: error.message })
+
+    void sb.from('audit_logs').insert({
+      organization_id: owner.orgId,
+      user_id:         owner.userId,
+      action:          'beta_invite.revoked',
+      metadata_json:   { invite_id: id },
+    })
+
     return res.status(200).json({ ok: true })
   }
 
