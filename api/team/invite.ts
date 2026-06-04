@@ -3,7 +3,7 @@
  *
  * Sends a team invite email and creates a pending_invites row.
  * Auth: Authorization: Bearer <supabase_access_token>
- * Body: { email: string, role: 'admin' | 'member' }
+ * Body: { email: string, role: 'admin' | 'analyst' | 'viewer' }
  *
  * Requires pending_invites table — see migration SQL in Settings → Team tab.
  */
