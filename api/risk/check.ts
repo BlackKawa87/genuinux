@@ -26,6 +26,7 @@ import { enrichWithAiSummary } from '../_lib/aiEnricher.js'
 import { captureException } from '../_lib/monitoring.js'
 import { checkRateLimit } from '../_lib/rateLimit.js'
 import { createSecurityEvent } from '../_lib/securityEvents.js'
+import { getMonthlyUsage, incrementMonthlyUsage } from '../_lib/monthlyUsage.js'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -229,6 +230,7 @@ async function fetchContext(
   const m10ago = new Date(now - 10 * 60_000).toISOString()
   const h1ago  = new Date(now - 60 * 60_000).toISOString()
   const h24ago = new Date(now - 24 * 60 * 60_000).toISOString()
+  const d90ago = new Date(now - 90 * 24 * 60 * 60_000).toISOString()
 
   // Wrap each builder with Promise.resolve() — Supabase builders are PromiseLike
   // (have .then but not .catch/.finally), which TypeScript 5.9+ rejects as Promise<unknown>.
@@ -268,14 +270,16 @@ async function fetchContext(
         )
       : Promise.resolve({ count: 0 }),
 
-    // Usuários distintos neste device
+    // Usuários distintos neste device — last 90 days for performance and relevance.
+    // Device reuse context is evaluated over the last 90 days for performance and relevance.
     payload.device_id
       ? Promise.resolve(
           supabase
             .from('risk_events')
             .select('external_user_id')
             .eq('organization_id', orgId)
-            .eq('device_id', payload.device_id),
+            .eq('device_id', payload.device_id)
+            .gte('created_at', d90ago),
         )
       : Promise.resolve({ data: [] }),
 
@@ -835,17 +839,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const monthlyLimit = PLAN_LIMITS[currentPlan] ?? 1_000
 
   if (isFinite(monthlyLimit)) {
-    const startOfMonth = new Date()
-    startOfMonth.setDate(1)
-    startOfMonth.setHours(0, 0, 0, 0)
+    // Redis-backed counter (O(1)). Falls back to Supabase COUNT(*) on miss/unavailability.
+    const usedThisMonth = await getMonthlyUsage(orgId, supabase)
 
-    const { count } = await supabase
-      .from('risk_events')
-      .select('id', { count: 'exact', head: true })
-      .eq('organization_id', orgId)
-      .gte('created_at', startOfMonth.toISOString())
-
-    if ((count ?? 0) >= monthlyLimit) {
+    if (usedThisMonth >= monthlyLimit) {
       const planLabels: Record<string, string> = {
         free:       'Free (1,000/mo beta limit)',
         starter:    'Starter (10,000/mo beta limit)',
@@ -931,17 +928,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (!eventId) {
     captureException(new Error('risk_event insert failed — eventId null'), { orgId })
-  } else if (process.env.DISABLE_AI_DURING_LOAD_TEST !== '1') {
-    const orgAi = orgRow as {
-      ai_enabled?: boolean; ai_monthly_limit?: number
-      ai_calls_used?: number; ai_reset_at?: string
-    } | null
-    void enrichWithAiSummary(supabase, orgId, eventId, summaryInput, {
-      ai_enabled:       Boolean(orgAi?.ai_enabled),
-      ai_monthly_limit: orgAi?.ai_monthly_limit ?? 1000,
-      ai_calls_used:    orgAi?.ai_calls_used    ?? 0,
-      ai_reset_at:      orgAi?.ai_reset_at      ?? new Date().toISOString(),
-    })
+  } else {
+    // Increment Redis monthly counter (fire-and-forget — never blocks response)
+    void incrementMonthlyUsage(orgId)
+
+    if (process.env.DISABLE_AI_DURING_LOAD_TEST !== '1') {
+      const orgAi = orgRow as {
+        ai_enabled?: boolean; ai_monthly_limit?: number
+        ai_calls_used?: number; ai_reset_at?: string
+      } | null
+      void enrichWithAiSummary(supabase, orgId, eventId, summaryInput, {
+        ai_enabled:       Boolean(orgAi?.ai_enabled),
+        ai_monthly_limit: orgAi?.ai_monthly_limit ?? 1000,
+        ai_calls_used:    orgAi?.ai_calls_used    ?? 0,
+        ai_reset_at:      orgAi?.ai_reset_at      ?? new Date().toISOString(),
+      })
+    }
   }
 
   // ── 7. Review queue (skipped in shadow mode) ────────────────
