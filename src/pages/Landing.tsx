@@ -213,12 +213,13 @@ function DashboardMockup() {
             </span>
           </div>
 
-          {/* Metric cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 5, marginBottom: 8 }}>
+          {/* 4 Metric cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 5, marginBottom: 8 }}>
             {[
               { label: 'Total Checks', val: '2.4M',   color: '#E8F0FA' },
               { label: 'Blocked',      val: '18,293',  color: '#EF4444' },
-              { label: 'Avg Trust',    val: '94.2',    color: '#16C784' },
+              { label: 'In Review',    val: '358',     color: '#F59E0B' },
+              { label: 'Avg Trust',    val: '74.4',    color: '#16C784' },
             ].map(m => (
               <div key={m.label} style={{
                 background: '#0B1016',
@@ -227,58 +228,95 @@ function DashboardMockup() {
                 padding: '6px 8px',
               }}>
                 <p style={{ fontSize: 7, color: '#3D5270', marginBottom: 2, fontFamily: "'DM Sans', sans-serif" }}>{m.label}</p>
-                <p style={{ fontSize: 14, fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace", color: m.color, lineHeight: 1 }}>{m.val}</p>
+                <p style={{ fontSize: 13, fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace", color: m.color, lineHeight: 1 }}>{m.val}</p>
               </div>
             ))}
           </div>
 
-          {/* Chart */}
-          <div style={{
-            background: '#0B1016',
-            border: '1px solid rgba(255,255,255,0.05)',
-            borderRadius: 7,
-            padding: '6px 9px',
-            marginBottom: 6,
-          }}>
-            <p style={{ fontSize: 7, color: '#3D5270', marginBottom: 5, fontFamily: "'DM Sans', sans-serif" }}>Events over time · 24h</p>
-            <MiniChart />
-          </div>
+          {/* Two-column: chart left, feed right */}
+          <div style={{ display: 'grid', gridTemplateColumns: '58% 42%', gap: 6 }}>
 
-          {/* Events feed */}
-          <div style={{
-            background: '#0B1016',
-            border: '1px solid rgba(255,255,255,0.05)',
-            borderRadius: 7,
-            overflow: 'hidden',
-          }}>
-            <div style={{ padding: '5px 9px', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', gap: 3 }}>
-              <span className="pulse-dot" style={{ width: 4, height: 4, borderRadius: '50%', background: '#16C784', display: 'inline-block' }} />
-              <p style={{ fontSize: 7, color: '#3D5270', fontFamily: "'DM Sans', sans-serif" }}>Live Risk Feed</p>
+            {/* Chart */}
+            <div style={{
+              background: '#0B1016',
+              border: '1px solid rgba(255,255,255,0.05)',
+              borderRadius: 7,
+              padding: '7px 10px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
+                <p style={{ fontSize: 7, color: '#3D5270', fontFamily: "'DM Sans', sans-serif" }}>Events over time</p>
+                <p style={{ fontSize: 7, color: '#253345', fontFamily: "'DM Sans', sans-serif" }}>24h</p>
+              </div>
+              <MiniChart />
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+                {['24h ago', '18h', '12h', '6h', 'now'].map(l => (
+                  <span key={l} style={{ fontSize: 6, color: '#253345', fontFamily: "'IBM Plex Mono', monospace" }}>{l}</span>
+                ))}
+              </div>
+              {/* Decision breakdown bars */}
+              <div style={{ marginTop: 8, paddingTop: 7, borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+                <p style={{ fontSize: 7, color: '#3D5270', marginBottom: 5, fontFamily: "'DM Sans', sans-serif" }}>Decision breakdown</p>
+                {[
+                  { label: 'Approved', pct: 82, color: '#16C784' },
+                  { label: 'Review',   pct: 11, color: '#F59E0B' },
+                  { label: 'Blocked',  pct: 7,  color: '#EF4444' },
+                ].map(b => (
+                  <div key={b.label} style={{ marginBottom: 4 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+                      <span style={{ fontSize: 7, color: '#3D5270', fontFamily: "'DM Sans', sans-serif" }}>{b.label}</span>
+                      <span style={{ fontSize: 7, fontFamily: "'IBM Plex Mono', monospace", color: b.color }}>{b.pct}%</span>
+                    </div>
+                    <div style={{ height: 3, background: 'rgba(255,255,255,0.04)', borderRadius: 2, overflow: 'hidden' }}>
+                      <div style={{ width: `${b.pct}%`, height: '100%', background: b.color, borderRadius: 2 }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-            {EVENTS.map((r, i) => (
-              <div key={r.id} style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '4.5px 9px',
-                borderBottom: i < EVENTS.length - 1 ? '1px solid rgba(255,255,255,0.03)' : 'none',
-              }}>
-                <span style={{ width: 4, height: 4, borderRadius: '50%', background: r.col, flexShrink: 0 }} />
-                <span style={{ fontSize: 7.5, fontFamily: "'IBM Plex Mono', monospace", color: '#3D5270', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.id}</span>
-                <span style={{ fontSize: 7, color: '#253345', fontFamily: "'DM Sans', sans-serif', flexShrink: 0" }}>{r.ev}</span>
-                <span style={{
-                  fontSize: 7,
-                  fontWeight: 700,
-                  fontFamily: "'IBM Plex Mono', monospace",
-                  color: r.col,
-                  background: `${r.col}18`,
-                  padding: '1px 4px',
-                  borderRadius: 3,
-                  flexShrink: 0,
-                }}>{r.dec}</span>
-                <span style={{ fontSize: 7.5, fontFamily: "'IBM Plex Mono', monospace", color: r.col, width: 16, textAlign: 'right', flexShrink: 0 }}>{r.score}</span>
+
+            {/* Live Risk Feed */}
+            <div style={{
+              background: '#0B1016',
+              border: '1px solid rgba(255,255,255,0.05)',
+              borderRadius: 7,
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+            }}>
+              <div style={{ padding: '6px 9px', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                  <span className="pulse-dot" style={{ width: 4, height: 4, borderRadius: '50%', background: '#16C784', display: 'inline-block' }} />
+                  <p style={{ fontSize: 7, color: '#3D5270', fontFamily: "'DM Sans', sans-serif" }}>Live Risk Feed</p>
+                </div>
+                <span style={{ fontSize: 7, color: '#253345', fontFamily: "'IBM Plex Mono', monospace" }}>
+                  {EVENTS.length} events
+                </span>
               </div>
-            ))}
+              {EVENTS.map((r, i) => (
+                <div key={r.id} style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  padding: '5px 9px',
+                  borderBottom: i < EVENTS.length - 1 ? '1px solid rgba(255,255,255,0.03)' : 'none',
+                }}>
+                  <span style={{ width: 4, height: 4, borderRadius: '50%', background: r.col, flexShrink: 0 }} />
+                  <span style={{ fontSize: 7, fontFamily: "'IBM Plex Mono', monospace", color: '#3D5270', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.id}</span>
+                  <span style={{ fontSize: 7, color: '#253345', fontFamily: "'DM Sans', sans-serif", flexShrink: 0 }}>{r.ev}</span>
+                  <span style={{
+                    fontSize: 7,
+                    fontWeight: 700,
+                    fontFamily: "'IBM Plex Mono', monospace",
+                    color: r.col,
+                    background: `${r.col}18`,
+                    padding: '1px 4px',
+                    borderRadius: 3,
+                    flexShrink: 0,
+                  }}>{r.dec}</span>
+                  <span style={{ fontSize: 7, fontFamily: "'IBM Plex Mono', monospace", color: r.col, width: 14, textAlign: 'right', flexShrink: 0 }}>{r.score}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -362,16 +400,16 @@ const PRICING_PLANS: {
     id: 'starter', name: 'Starter',
     price: '£99', sub: '/mo',
     subtitle: 'For startups shipping their first fraud defense layer.',
-    badge: null, featured: false, trialNote: '7-day trial included',
-    cta: 'Start 7-Day Trial', ctaTo: '/register', external: false,
+    badge: null, featured: false, trialNote: 'Beta access · invite required',
+    cta: 'Request Beta Access', ctaTo: '/register', external: false,
     features: ['50,000 events/month', 'RiskScore API', 'Webhooks', '30-day event history', 'Basic rules engine', 'Dashboard analytics', 'Shadow mode', 'Email support'],
   },
   {
     id: 'growth', name: 'Growth',
     price: '£499', sub: '/mo',
     subtitle: 'For platforms scaling with real fraud exposure.',
-    badge: 'Most Popular', featured: true, trialNote: '7-day trial included',
-    cta: 'Start 7-Day Trial', ctaTo: '/register', external: false,
+    badge: 'Most Popular', featured: true, trialNote: 'Beta access · invite required',
+    cta: 'Request Beta Access', ctaTo: '/register', external: false,
     features: ['500,000 events/month', 'All core modules', 'Device Intelligence', 'BehaviorAI', 'SessionGuard', 'Real-time risk alerts', 'Advanced rules engine', 'Behavioral anomaly detection', 'Velocity analysis', 'Team access', '90-day history', 'Priority support'],
   },
   {
@@ -477,7 +515,7 @@ export default function Landing() {
               style={{ background: C.dark, color: '#FFFFFF', fontFamily: "'Inter Tight', sans-serif" }}
               onMouseEnter={e => (e.currentTarget.style.background = '#0B1016')}
               onMouseLeave={e => (e.currentTarget.style.background = C.dark)}>
-              Get started <ArrowRight size={12} />
+              Request Beta Access
             </Link>
           </div>
 
@@ -509,7 +547,7 @@ export default function Landing() {
               <Link to="/register" onClick={() => setMobileMenuOpen(false)}
                 className="flex-1 text-sm py-2.5 rounded-lg text-center font-semibold"
                 style={{ background: C.dark, color: '#FFFFFF', fontFamily: "'Inter Tight', sans-serif" }}>
-                Get started
+                Request Beta Access
               </Link>
             </div>
           </div>
@@ -542,91 +580,89 @@ export default function Landing() {
         }} />
 
         <div className="relative max-w-7xl mx-auto px-6 w-full">
-          {/* Two column: 42% text / 58% product */}
-          <div className="grid lg:grid-cols-[42%,58%] gap-12 items-center">
 
-            {/* Left — proposition */}
-            <div>
-              {/* Badge — plain text, no pill */}
-              <div className="flex items-center gap-2 mb-5 anim-0">
-                <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest"
-                  style={{ color: C.trust, letterSpacing: '0.1em', fontFamily: "'Inter Tight', sans-serif" }}>
-                  <span className="pulse-dot inline-block w-1.5 h-1.5 rounded-full bg-current" />
-                  Risk Intelligence API · Controlled Beta
-                </span>
-              </div>
+          {/* Centered text block — max 780px, like Stripe/Vercel */}
+          <div className="max-w-[780px] mx-auto text-center">
 
-              {/* Headline — controlled. Not impressiona. Convence. */}
-              <h1 className="anim-1"
-                style={{
-                  fontSize: 'clamp(1.85rem, 3vw, 2.7rem)',
-                  fontWeight: 700,
-                  letterSpacing: '-0.022em',
-                  lineHeight: 1.18,
-                  color: C.text,
-                  marginBottom: 18,
-                  ...H,
-                }}>
-                Real-time fraud decisions
-                <br />
-                <span style={{ color: C.trust }}>for every transaction.</span>
-              </h1>
-
-              {/* Subtext — specific and technical */}
-              <p className="anim-2"
-                style={{
-                  fontSize: '1rem',
-                  lineHeight: 1.65,
-                  color: C.textSec,
-                  maxWidth: 420,
-                  marginBottom: 28,
-                  fontFamily: "'DM Sans', sans-serif",
-                }}>
-                One API call delivers trust scores, fraud signals, and block/approve decisions in under 50ms.
-                Full coverage from signup to withdrawal — no vendor sprawl.
-              </p>
-
-              {/* CTAs */}
-              <div className="flex flex-wrap items-center gap-3 mb-8 anim-3">
-                <Link to="/register" className="btn-trust px-5 py-2.5 text-sm gap-1.5">
-                  Start 7-Day Trial <ArrowRight size={14} />
-                </Link>
-                <Link to="/docs"
-                  className="flex items-center gap-1.5 px-5 py-2.5 text-sm font-medium transition-all duration-150"
-                  style={{ color: C.textSec, border: `1px solid ${C.border}`, borderRadius: 10, fontFamily: "'DM Sans', sans-serif" }}
-                  onMouseEnter={e => { e.currentTarget.style.color = C.text; e.currentTarget.style.borderColor = '#A0A8BE' }}
-                  onMouseLeave={e => { e.currentTarget.style.color = C.textSec; e.currentTarget.style.borderColor = C.border }}>
-                  View API docs <ChevronRight size={13} />
-                </Link>
-              </div>
-
-              {/* Stats — compact, data-first */}
-              <div className="flex flex-wrap items-center gap-5 anim-4">
-                {[
-                  { val: '< 50ms', label: 'Decision latency' },
-                  { val: '300+',   label: 'Risk signals' },
-                  { val: '7',      label: 'Event types' },
-                  { val: '1 call', label: 'Full coverage' },
-                ].map((s, i) => (
-                  <div key={i} className={i > 0 ? 'pl-5' : ''}
-                    style={i > 0 ? { borderLeft: `1px solid ${C.border}` } : {}}>
-                    <p style={{ fontSize: 15, fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace", color: C.text, lineHeight: 1 }}>
-                      {s.val}
-                    </p>
-                    <p style={{ fontSize: 10, color: C.textMut, marginTop: 3, fontFamily: "'DM Sans', sans-serif" }}>{s.label}</p>
-                  </div>
-                ))}
-              </div>
-
-              <p className="anim-5 mt-5 text-xs" style={{ color: C.textMut, fontFamily: "'DM Sans', sans-serif" }}>
-                No credit card required · 5-minute setup · Cancel anytime
-              </p>
+            {/* Badge */}
+            <div className="flex items-center justify-center gap-2 mb-5 anim-0">
+              <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest"
+                style={{ color: C.trust, letterSpacing: '0.1em', fontFamily: "'Inter Tight', sans-serif" }}>
+                <span className="pulse-dot inline-block w-1.5 h-1.5 rounded-full bg-current" />
+                Risk Intelligence API · Controlled Beta
+              </span>
             </div>
 
-            {/* Right — product (58% width) */}
-            <div className="hidden lg:block anim-5">
-              <DashboardMockup />
+            {/* Headline */}
+            <h1 className="anim-1"
+              style={{
+                fontSize: 'clamp(1.9rem, 3.2vw, 2.85rem)',
+                fontWeight: 700,
+                letterSpacing: '-0.022em',
+                lineHeight: 1.18,
+                color: C.text,
+                marginBottom: 18,
+                ...H,
+              }}>
+              Real-time fraud decisions
+              <br />
+              <span style={{ color: C.trust }}>for every transaction.</span>
+            </h1>
+
+            {/* Subtext */}
+            <p className="anim-2"
+              style={{
+                fontSize: '1rem',
+                lineHeight: 1.65,
+                color: C.textSec,
+                maxWidth: 560,
+                margin: '0 auto 28px',
+                fontFamily: "'DM Sans', sans-serif",
+              }}>
+              One API call delivers trust scores, fraud signals, and block/approve decisions in under 50ms.
+              Full coverage from signup to withdrawal — no vendor sprawl.
+            </p>
+
+            {/* CTAs */}
+            <div className="flex flex-wrap items-center justify-center gap-3 mb-9 anim-3">
+              <Link to="/register" className="btn-trust px-5 py-2.5 text-sm gap-1.5">
+                Request Beta Access <ArrowRight size={14} />
+              </Link>
+              <Link to="/docs"
+                className="flex items-center gap-1.5 px-5 py-2.5 text-sm font-medium transition-all duration-150"
+                style={{ color: C.textSec, border: `1px solid ${C.border}`, borderRadius: 10, fontFamily: "'DM Sans', sans-serif" }}
+                onMouseEnter={e => { e.currentTarget.style.color = C.text; e.currentTarget.style.borderColor = '#A0A8BE' }}
+                onMouseLeave={e => { e.currentTarget.style.color = C.textSec; e.currentTarget.style.borderColor = C.border }}>
+                View API docs <ChevronRight size={13} />
+              </Link>
             </div>
+
+            {/* Stats */}
+            <div className="flex flex-wrap items-center justify-center gap-5 anim-4">
+              {[
+                { val: '< 50ms', label: 'Decision latency' },
+                { val: '300+',   label: 'Risk signals' },
+                { val: '7',      label: 'Event types' },
+                { val: '1 call', label: 'Full coverage' },
+              ].map((s, i) => (
+                <div key={i} className={i > 0 ? 'pl-5' : ''}
+                  style={i > 0 ? { borderLeft: `1px solid ${C.border}` } : {}}>
+                  <p style={{ fontSize: 15, fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace", color: C.text, lineHeight: 1 }}>
+                    {s.val}
+                  </p>
+                  <p style={{ fontSize: 10, color: C.textMut, marginTop: 3, fontFamily: "'DM Sans', sans-serif" }}>{s.label}</p>
+                </div>
+              ))}
+            </div>
+
+            <p className="anim-5 mt-5 text-xs" style={{ color: C.textMut, fontFamily: "'DM Sans', sans-serif" }}>
+              No credit card required · 5-minute setup · Cancel anytime
+            </p>
+          </div>
+
+          {/* Dashboard mockup — full width below, like Stripe product screenshots */}
+          <div className="mt-14 anim-5">
+            <DashboardMockup />
           </div>
         </div>
       </section>
