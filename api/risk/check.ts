@@ -772,7 +772,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const supabase = adminClient()
 
   // ── 1. Autenticação ─────────────────────────────────────────
-  const rawKey = extractBearerToken(req.headers['authorization'] as string | undefined)
+  // Temporary instrumentation — remove after Authorization header bug confirmed fixed.
+  console.log('[auth-debug] REQUEST METHOD:', req.method)
+  console.log('[auth-debug] REQUEST URL:', req.url)
+  console.log('[auth-debug] HEADERS RAW:', JSON.stringify(req.headers))
+  console.log('[auth-debug] AUTH HEADER BRACKET:', req.headers?.['authorization'])
+  console.log('[auth-debug] AUTH HEADER DOT:', (req.headers as Record<string, string | string[] | undefined>)?.authorization)
+  console.log('[auth-debug] AUTH HEADER GET:', (req.headers as unknown as { get?: (k: string) => string | null })?.get?.('authorization'))
+
+  // Resilient header extraction — compatible with Node runtime, Edge runtime,
+  // and clients that send the header with any casing.
+  const authorizationHeader =
+    (req.headers?.['authorization'] as string | undefined) ??
+    (req.headers as Record<string, string | string[] | undefined>)?.['Authorization'] as string | undefined ??
+    (req.headers as unknown as { get?: (k: string) => string | null })?.get?.('authorization') ??
+    null
+
+  const rawKey = extractBearerToken(authorizationHeader ?? undefined)
 
   if (!rawKey) {
     return res.status(401).json({

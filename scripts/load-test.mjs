@@ -130,8 +130,9 @@ async function fireRequest() {
         'Content-Type':  'application/json',
         'Authorization': `Bearer ${API_KEY}`,
       },
-      body:   JSON.stringify(makePayload()),
-      signal: AbortSignal.timeout(12_000),
+      body:     JSON.stringify(makePayload()),
+      signal:   AbortSignal.timeout(12_000),
+      redirect: 'error',   // fail immediately on any redirect — never silently drop Authorization
     })
     status = res.status
 
@@ -145,12 +146,27 @@ async function fireRequest() {
         limitType = 'rate'
       }
     }
-  } catch {
-    status = 0  // timeout or network error
+  } catch (err) {
+    // redirect: 'error' throws TypeError with cause.message = 'unexpected redirect'
+    const cause = err instanceof Error ? (err.cause?.message ?? '') : ''
+    const isRedirect = cause.includes('redirect') || cause.includes('Redirect')
+    if (isRedirect) {
+      if (!_redirectWarned) {
+        _redirectWarned = true
+        console.error(`\n  ⚠️  REDIRECT DETECTED — Authorization header would have been silently dropped.`)
+        console.error(`  The URL "${BASE_URL}" returns a redirect (likely HTTP→HTTPS or apex→www).`)
+        console.error(`  Fix: use the canonical URL — e.g. --url https://www.genuinux.com\n`)
+      }
+      status = -1  // redirect error — counted separately, not as a real error
+    } else {
+      status = 0  // timeout or network error
+    }
   }
 
   return { latencyMs: performance.now() - t0, status, limitType }
 }
+
+let _redirectWarned = false
 
 // ── Statistics ────────────────────────────────────────────────────────────────
 
@@ -214,10 +230,17 @@ let   progressTick   = 0
 const targetReqs     = RPS * DURATION
 const measureStart   = Date.now()
 
+let redirectCount = 0
+
 await runPhase('measure', DURATION, ({ latencyMs, status, limitType }) => {
   latencies.push(latencyMs)
-  const key = status === 0 ? 'TIMEOUT' : String(status)
-  statusCounts[key] = (statusCounts[key] ?? 0) + 1
+  if (status === -1) {
+    redirectCount++
+    statusCounts['REDIRECT'] = (statusCounts['REDIRECT'] ?? 0) + 1
+  } else {
+    const key = status === 0 ? 'TIMEOUT' : String(status)
+    statusCounts[key] = (statusCounts[key] ?? 0) + 1
+  }
 
   if (limitType === 'rate') rateLimitCount++
   if (limitType === 'plan') planLimitCount++
@@ -238,7 +261,7 @@ const sorted    = [...latencies].sort((a, b) => a - b)
 const n         = sorted.length
 const anyLimit  = rateLimitCount + planLimitCount
 const errCount  = Object.entries(statusCounts)
-                    .filter(([s]) => s !== '200')
+                    .filter(([s]) => s !== '200' && s !== 'REDIRECT')
                     .reduce((a, [, v]) => a + v, 0)
 const nonLimitErrors = errCount - anyLimit
 const errRate   = n > 0 ? errCount / n : 1
@@ -257,6 +280,7 @@ console.log(`  Requests completed : ${n}`)
 console.log(`  Elapsed            : ${elapsedSec.toFixed(1)}s`)
 console.log(`  Actual throughput  : ${throughput.toFixed(1)} req/s  (target: ${RPS})`)
 console.log(`  Error rate         : ${(errRate * 100).toFixed(2)}%  (${errCount}/${n})`)
+if (redirectCount  > 0) console.log(`  Redirects detected : ${redirectCount}  ← Authorization dropped! Use --url https://www.genuinux.com (canonical)`)
 if (rateLimitCount > 0) console.log(`  Rate-limited (429) : ${rateLimitCount}  ← RATE_LIMIT_EXCEEDED — reduce --rps or add Upstash`)
 if (planLimitCount > 0) console.log(`  Plan-limited (429) : ${planLimitCount}  ← PLAN_LIMIT_EXCEEDED — org hit monthly cap`)
 if (nonLimitErrors > 0) console.log(`  Non-limit errors   : ${nonLimitErrors}  ← 5xx / timeouts — investigate immediately`)
