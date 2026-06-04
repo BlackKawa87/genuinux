@@ -150,8 +150,6 @@ export default function Register() {
       alignItems: 'center',
       justifyContent: 'center',
       padding: '32px 16px',
-      backgroundImage: 'radial-gradient(circle, rgba(22,199,132,0.07) 1px, transparent 1px)',
-      backgroundSize: '28px 28px',
     }}>
       <div style={{ width: '100%', maxWidth: 460 }}>
 

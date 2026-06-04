@@ -11,7 +11,7 @@
   --c-trust-dim:    rgba(22, 199, 132, 0.08);
   --c-trust-border: rgba(22, 199, 132, 0.22);
   --c-muted:        #5B6480;
-  --c-dimmed:       #9BA4BC;
+  --c-dimmed:       #848EA8;
   --c-text:         #07090F;
   --c-nav-hover-bg: rgba(7, 9, 15, 0.05);
 }
@@ -27,7 +27,7 @@
   --c-trust-dim:    rgba(22, 199, 132, 0.09);
   --c-trust-border: rgba(22, 199, 132, 0.2);
   --c-muted:        #8B9BB8;
-  --c-dimmed:       #475569;
+  --c-dimmed:       #64748B;
   --c-text:         #ECF0FA;
   --c-nav-hover-bg: rgba(236, 240, 250, 0.04);
 }
@@ -84,7 +84,7 @@ body {
   left: 0;
   right: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(22, 199, 132, 0.55), transparent);
+  background: linear-gradient(90deg, transparent, rgba(22, 199, 132, 0.28), transparent);
   animation: scanLine 6s ease-in-out infinite;
   animation-delay: 1.2s;
 }
@@ -208,4 +208,7 @@ body {
 .badge-block    { background: rgba(239, 68, 68,  0.10); color: #EF4444; border-radius: 5px; }
 
 /* ── Monospace ───────────────────────────────────────────── */
-.mono { font-family: 'IBM Plex Mono', 'Fira Code', monospace; }
+.mono {
+  font-family: 'IBM Plex Mono', 'Fira Code', monospace;
+  letter-spacing: normal;
+}

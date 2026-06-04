@@ -42,9 +42,6 @@ export default function Login() {
       alignItems: 'center',
       justifyContent: 'center',
       padding: '24px 16px',
-      // subtle dot grid
-      backgroundImage: 'radial-gradient(circle, rgba(22,199,132,0.07) 1px, transparent 1px)',
-      backgroundSize: '28px 28px',
     }}>
       <div style={{ width: '100%', maxWidth: 400 }}>
 

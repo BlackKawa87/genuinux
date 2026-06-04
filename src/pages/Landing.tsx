@@ -492,7 +492,7 @@ export default function Landing() {
             </p>
 
             {/* Stats bar */}
-            <div className="flex items-center gap-6 mb-9 anim-3">
+            <div className="flex items-center flex-wrap gap-5 mb-9 anim-3">
               {SCALE_CLAIMS.map((s, i) => (
                 <div key={i} className={i > 0 ? 'pl-6' : ''}
                   style={i > 0 ? { borderLeft: `1px solid ${C.border}` } : {}}>
@@ -510,8 +510,8 @@ export default function Landing() {
                 Start 7-Day Trial <ArrowRight size={15} />
               </Link>
               <Link to="/demo"
-                className="flex items-center gap-1.5 px-5 py-3 rounded-xl text-sm font-medium transition-all duration-150"
-                style={{ color: C.textSec, border: `1px solid ${C.border}` }}
+                className="flex items-center gap-1.5 px-5 py-3 text-sm font-medium transition-all duration-150"
+                style={{ color: C.textSec, border: `1px solid ${C.border}`, borderRadius: 10 }}
                 onMouseEnter={e => { e.currentTarget.style.color = C.text; e.currentTarget.style.borderColor = C.textMut }}
                 onMouseLeave={e => { e.currentTarget.style.color = C.textSec; e.currentTarget.style.borderColor = C.border }}>
                 Schedule a demo <ChevronRight size={13} />
@@ -666,8 +666,8 @@ export default function Landing() {
                   Start 7-Day Trial <ArrowRight size={14} />
                 </Link>
                 <Link to="/docs"
-                  className="px-5 py-2.5 text-sm flex items-center gap-2 rounded-lg transition-colors duration-150"
-                  style={{ color: C.textSec, border: `1px solid ${C.border}` }}
+                  className="px-5 py-2.5 text-sm flex items-center gap-2 transition-colors duration-150"
+                  style={{ color: C.textSec, border: `1px solid ${C.border}`, borderRadius: 10 }}
                   onMouseEnter={e => (e.currentTarget.style.color = C.text)}
                   onMouseLeave={e => (e.currentTarget.style.color = C.textSec)}>
                   View docs <ChevronRight size={13} />
