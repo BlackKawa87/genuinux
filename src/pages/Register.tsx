@@ -1,20 +1,20 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Loader2, CheckCircle, Lock } from 'lucide-react'
+import { Loader2, CheckCircle, Lock, ArrowLeft } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 
 const USE_CASES = [
-  { value: 'marketplace',       label: 'Marketplace' },
-  { value: 'fintech',           label: 'Fintech / Payments' },
-  { value: 'saas',              label: 'SaaS Platform' },
-  { value: 'crypto',            label: 'Crypto / Web3' },
-  { value: 'ticketing',         label: 'Ticketing / Events' },
-  { value: 'community',         label: 'Community / Social' },
-  { value: 'affiliate',         label: 'Affiliate / Referrals' },
-  { value: 'digital_products',  label: 'Digital Products' },
-  { value: 'ai_saas',           label: 'AI SaaS' },
-  { value: 'other',             label: 'Other' },
+  { value: 'marketplace',      label: 'Marketplace' },
+  { value: 'fintech',          label: 'Fintech / Payments' },
+  { value: 'saas',             label: 'SaaS Platform' },
+  { value: 'crypto',           label: 'Crypto / Web3' },
+  { value: 'ticketing',        label: 'Ticketing / Events' },
+  { value: 'community',        label: 'Community / Social' },
+  { value: 'affiliate',        label: 'Affiliate / Referrals' },
+  { value: 'digital_products', label: 'Digital Products' },
+  { value: 'ai_saas',          label: 'AI SaaS' },
+  { value: 'other',            label: 'Other' },
 ]
 
 const EVENT_ESTIMATES = [
@@ -39,22 +39,24 @@ export default function Register() {
   const { signUp }  = useAuth()
   const navigate    = useNavigate()
 
-  const inputStyle = {
-    background: '#F8FAFC',
-    border:     '1px solid #E2E8F0',
-    color:      '#0F172A',
-  }
-
-  const selectStyle = {
-    ...inputStyle,
+  const inputBase = {
+    background: '#F1F4FA',
+    border: '1px solid #D8DCEC',
+    color: '#07090F',
+    fontFamily: "'DM Sans', sans-serif",
+    outline: 'none',
+    transition: 'border-color 0.15s, box-shadow 0.15s',
+    letterSpacing: '-0.01em',
     appearance: 'none' as const,
   }
 
   const onFocus = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => {
     e.currentTarget.style.borderColor = '#16C784'
+    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(22,199,132,0.1)'
   }
   const onBlur = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => {
-    e.currentTarget.style.borderColor = '#E2E8F0'
+    e.currentTarget.style.borderColor = '#D8DCEC'
+    e.currentTarget.style.boxShadow = 'none'
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -64,7 +66,6 @@ export default function Register() {
 
     const code = inviteCode.trim().toUpperCase()
 
-    // ── Step 1: Validate invite code (+ email ownership pre-flight) ────────────
     try {
       const params = new URLSearchParams({ code, email: email.trim().toLowerCase() })
       const res = await fetch(`/api/beta/validate-invite?${params.toString()}`)
@@ -75,12 +76,11 @@ export default function Register() {
         return
       }
     } catch {
-      setError('Unable to validate invite code. Please check your connection and try again.')
+      setError('Unable to validate invite code. Check your connection and try again.')
       setLoading(false)
       return
     }
 
-    // ── Step 2: Create Supabase user ─────────────────────────────────────────────
     const { error: signUpErr } = await signUp(email, password)
     if (signUpErr) {
       setError(signUpErr.message)
@@ -88,7 +88,6 @@ export default function Register() {
       return
     }
 
-    // ── Step 3: Update org with onboarding data ──────────────────────────────────
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
       const { data: prof } = await supabase
@@ -99,26 +98,25 @@ export default function Register() {
 
       if (prof?.organization_id) {
         const updates: Record<string, string> = {}
-        if (company.trim())         updates.name                     = company.trim()
-        if (website.trim())         updates.website                  = website.trim()
-        if (useCase)                updates.use_case                 = useCase
-        if (estimatedEvents)        updates.estimated_monthly_events = estimatedEvents
+        if (company.trim())  updates.name                     = company.trim()
+        if (website.trim())  updates.website                  = website.trim()
+        if (useCase)         updates.use_case                 = useCase
+        if (estimatedEvents) updates.estimated_monthly_events = estimatedEvents
         if (Object.keys(updates).length > 0) {
           await supabase.from('organizations').update(updates).eq('id', prof.organization_id)
         }
       }
 
-      // ── Step 4: Mark invite code as used (passes email for ownership gate) ────
       const { data: { session } } = await supabase.auth.getSession()
       if (session?.access_token) {
         fetch('/api/beta/use-invite', {
-          method:  'POST',
+          method: 'POST',
           headers: {
             'Content-Type':  'application/json',
             'Authorization': `Bearer ${session.access_token}`,
           },
           body: JSON.stringify({ code, email: email.trim() }),
-        }).catch(() => {})  // fire-and-forget — non-critical
+        }).catch(() => {})
       }
     }
 
@@ -128,64 +126,86 @@ export default function Register() {
 
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: '#F8FAFC' }}>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#F1F4FA' }}>
         <div className="text-center anim-0">
-          <div
-            className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-5"
-            style={{ background: 'rgba(22,199,132,0.08)', border: '1px solid rgba(22,199,132,0.2)' }}
-          >
+          <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-5"
+            style={{ background: 'rgba(22,199,132,0.09)', border: '1px solid rgba(22,199,132,0.22)' }}>
             <CheckCircle size={28} style={{ color: '#16C784' }} />
           </div>
-          <h2 className="text-xl font-bold mb-2" style={{ color: '#0F172A' }}>Workspace created</h2>
-          <p style={{ color: '#64748B' }}>Redirecting to your dashboard…</p>
+          <h2 className="font-black mb-2"
+            style={{ fontSize: '1.4rem', letterSpacing: '-0.04em', color: '#07090F', fontFamily: "'Syne', sans-serif" }}>
+            Workspace created
+          </h2>
+          <p style={{ color: '#5B6480', fontFamily: "'DM Sans', sans-serif" }}>Redirecting to your dashboard…</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-12" style={{ background: '#F8FAFC' }}>
-      <div className="w-full max-w-[440px]">
+    <div style={{
+      minHeight: '100vh',
+      background: '#F1F4FA',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '32px 16px',
+      backgroundImage: 'radial-gradient(circle, rgba(22,199,132,0.07) 1px, transparent 1px)',
+      backgroundSize: '28px 28px',
+    }}>
+      <div style={{ width: '100%', maxWidth: 460 }}>
 
         {/* Back */}
-        <Link to="/" className="flex items-center gap-1.5 text-sm mb-6" style={{ color: '#64748B' }}>
-          ← Back to home
+        <Link to="/"
+          className="flex items-center gap-1.5 text-sm mb-8 transition-colors duration-150"
+          style={{ color: '#9BA4BC', fontFamily: "'DM Sans', sans-serif" }}
+          onMouseEnter={e => (e.currentTarget.style.color = '#07090F')}
+          onMouseLeave={e => (e.currentTarget.style.color = '#9BA4BC')}>
+          <ArrowLeft size={14} />
+          Back to home
         </Link>
 
         {/* Logo */}
-        <Link to="/" className="flex justify-center mb-8">
-          <img src="/logo-horizontal.png" alt="Genuinux" style={{ height: '112px', display: 'block' }} />
+        <Link to="/" className="flex justify-center mb-7">
+          <img src="/logo-horizontal.png" alt="Genuinux" style={{ height: 88, display: 'block' }} />
         </Link>
 
         {/* Beta notice */}
-        <div
-          className="flex items-center gap-2.5 px-4 py-3 rounded-xl mb-5 text-xs"
+        <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl mb-5 text-xs"
           style={{
             background: 'rgba(245,158,11,0.06)',
-            border: '1px solid rgba(245,158,11,0.2)',
+            border: '1px solid rgba(245,158,11,0.18)',
             color: '#92400E',
-          }}
-        >
-          <Lock size={12} style={{ color: '#F59E0B', flexShrink: 0 }} />
+            fontFamily: "'DM Sans', sans-serif",
+          }}>
+          <Lock size={11} style={{ color: '#F59E0B', flexShrink: 0 }} />
           <span>
             Genuinux is in <strong>controlled beta</strong>. Access is invite-only.
-            No invite? <a href="mailto:beta@genuinux.io" style={{ color: '#D97706', textDecoration: 'underline' }}>
+            No invite?{' '}
+            <a href="mailto:beta@genuinux.io" style={{ color: '#D97706', textDecoration: 'underline' }}>
               Request one →
             </a>
           </span>
         </div>
 
         {/* Card */}
-        <div
-          className="p-8 rounded-2xl"
-          style={{
-            background: '#FFFFFF',
-            border: '1px solid #E2E8F0',
-            boxShadow: '0 4px 24px rgba(15,23,42,0.06), 0 1px 4px rgba(15,23,42,0.04)',
-          }}
-        >
-          <h1 className="text-2xl font-bold mb-1" style={{ color: '#0F172A' }}>Create your workspace</h1>
-          <p className="text-sm mb-7" style={{ color: '#64748B' }}>
+        <div style={{
+          background: '#FFFFFF',
+          border: '1px solid #D8DCEC',
+          borderRadius: 18,
+          padding: 36,
+          boxShadow: '0 4px 32px rgba(7,9,15,0.07), 0 1px 6px rgba(7,9,15,0.04)',
+        }}>
+          <h1 className="font-black mb-1.5"
+            style={{
+              fontSize: '1.6rem',
+              letterSpacing: '-0.04em',
+              color: '#07090F',
+              fontFamily: "'Syne', sans-serif",
+            }}>
+            Create your workspace
+          </h1>
+          <p className="text-sm mb-8" style={{ color: '#5B6480', fontFamily: "'DM Sans', sans-serif" }}>
             Start protecting your platform with AI trust infrastructure.
           </p>
 
@@ -193,7 +213,8 @@ export default function Register() {
 
             {/* Invite code */}
             <div>
-              <label className="block text-xs font-semibold mb-1.5" style={{ color: '#64748B' }}>
+              <label className="block text-xs font-semibold mb-1.5"
+                style={{ color: '#5B6480', fontFamily: "'DM Sans', sans-serif", letterSpacing: '-0.01em' }}>
                 Invite code <span style={{ color: '#EF4444' }}>*</span>
               </label>
               <input
@@ -202,8 +223,8 @@ export default function Register() {
                 onChange={e => setInviteCode(e.target.value)}
                 placeholder="BETA-XXXX-XXXX"
                 required
-                className="w-full px-3.5 py-2.5 rounded-lg text-sm outline-none transition-all duration-150 mono tracking-wider uppercase"
-                style={inputStyle}
+                className="w-full px-4 py-2.5 rounded-xl text-sm mono tracking-wider uppercase"
+                style={inputBase}
                 onFocus={onFocus}
                 onBlur={onBlur}
               />
@@ -212,7 +233,8 @@ export default function Register() {
             {/* Company + website */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold mb-1.5" style={{ color: '#64748B' }}>
+                <label className="block text-xs font-semibold mb-1.5"
+                  style={{ color: '#5B6480', fontFamily: "'DM Sans', sans-serif", letterSpacing: '-0.01em' }}>
                   Company name
                 </label>
                 <input
@@ -220,23 +242,24 @@ export default function Register() {
                   value={company}
                   onChange={e => setCompany(e.target.value)}
                   placeholder="Acme Corp"
-                  className="w-full px-3.5 py-2.5 rounded-lg text-sm outline-none transition-all duration-150"
-                  style={inputStyle}
+                  className="w-full px-4 py-2.5 rounded-xl text-sm"
+                  style={inputBase}
                   onFocus={onFocus}
                   onBlur={onBlur}
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold mb-1.5" style={{ color: '#64748B' }}>
-                  Website <span style={{ color: '#94A3B8' }}>(optional)</span>
+                <label className="block text-xs font-semibold mb-1.5"
+                  style={{ color: '#5B6480', fontFamily: "'DM Sans', sans-serif", letterSpacing: '-0.01em' }}>
+                  Website <span style={{ color: '#9BA4BC' }}>(optional)</span>
                 </label>
                 <input
                   type="text"
                   value={website}
                   onChange={e => setWebsite(e.target.value)}
                   placeholder="acme.com"
-                  className="w-full px-3.5 py-2.5 rounded-lg text-sm outline-none transition-all duration-150"
-                  style={inputStyle}
+                  className="w-full px-4 py-2.5 rounded-xl text-sm"
+                  style={inputBase}
                   onFocus={onFocus}
                   onBlur={onBlur}
                 />
@@ -246,14 +269,15 @@ export default function Register() {
             {/* Use case + estimated events */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold mb-1.5" style={{ color: '#64748B' }}>
-                  Use case <span style={{ color: '#94A3B8' }}>(optional)</span>
+                <label className="block text-xs font-semibold mb-1.5"
+                  style={{ color: '#5B6480', fontFamily: "'DM Sans', sans-serif", letterSpacing: '-0.01em' }}>
+                  Use case <span style={{ color: '#9BA4BC' }}>(optional)</span>
                 </label>
                 <select
                   value={useCase}
                   onChange={e => setUseCase(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-lg text-sm outline-none transition-all duration-150"
-                  style={selectStyle}
+                  className="w-full px-4 py-2.5 rounded-xl text-sm"
+                  style={inputBase}
                   onFocus={onFocus}
                   onBlur={onBlur}
                 >
@@ -264,14 +288,15 @@ export default function Register() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold mb-1.5" style={{ color: '#64748B' }}>
-                  Est. events/mo <span style={{ color: '#94A3B8' }}>(optional)</span>
+                <label className="block text-xs font-semibold mb-1.5"
+                  style={{ color: '#5B6480', fontFamily: "'DM Sans', sans-serif", letterSpacing: '-0.01em' }}>
+                  Est. events/mo <span style={{ color: '#9BA4BC' }}>(optional)</span>
                 </label>
                 <select
                   value={estimatedEvents}
                   onChange={e => setEstimatedEvents(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-lg text-sm outline-none transition-all duration-150"
-                  style={selectStyle}
+                  className="w-full px-4 py-2.5 rounded-xl text-sm"
+                  style={inputBase}
                   onFocus={onFocus}
                   onBlur={onBlur}
                 >
@@ -283,9 +308,10 @@ export default function Register() {
               </div>
             </div>
 
-            {/* Email + password */}
+            {/* Email */}
             <div>
-              <label className="block text-xs font-semibold mb-1.5" style={{ color: '#64748B' }}>
+              <label className="block text-xs font-semibold mb-1.5"
+                style={{ color: '#5B6480', fontFamily: "'DM Sans', sans-serif", letterSpacing: '-0.01em' }}>
                 Work email
               </label>
               <input
@@ -294,15 +320,17 @@ export default function Register() {
                 onChange={e => setEmail(e.target.value)}
                 placeholder="you@company.com"
                 required
-                className="w-full px-3.5 py-2.5 rounded-lg text-sm outline-none transition-all duration-150"
-                style={inputStyle}
+                className="w-full px-4 py-2.5 rounded-xl text-sm"
+                style={inputBase}
                 onFocus={onFocus}
                 onBlur={onBlur}
               />
             </div>
 
+            {/* Password */}
             <div>
-              <label className="block text-xs font-semibold mb-1.5" style={{ color: '#64748B' }}>
+              <label className="block text-xs font-semibold mb-1.5"
+                style={{ color: '#5B6480', fontFamily: "'DM Sans', sans-serif", letterSpacing: '-0.01em' }}>
                 Password
               </label>
               <input
@@ -312,22 +340,21 @@ export default function Register() {
                 placeholder="Min. 8 characters"
                 required
                 minLength={8}
-                className="w-full px-3.5 py-2.5 rounded-lg text-sm outline-none transition-all duration-150"
-                style={inputStyle}
+                className="w-full px-4 py-2.5 rounded-xl text-sm"
+                style={inputBase}
                 onFocus={onFocus}
                 onBlur={onBlur}
               />
             </div>
 
             {error && (
-              <p
-                className="text-xs py-2.5 px-3 rounded-lg"
+              <p className="text-xs py-2.5 px-3.5 rounded-xl"
                 style={{
                   background: 'rgba(239,68,68,0.06)',
                   color: '#DC2626',
                   border: '1px solid rgba(239,68,68,0.15)',
-                }}
-              >
+                  fontFamily: "'DM Sans', sans-serif",
+                }}>
                 {error}
               </p>
             )}
@@ -335,24 +362,26 @@ export default function Register() {
             <button
               type="submit"
               disabled={loading}
-              className="btn-trust w-full py-2.5 rounded-lg text-sm justify-center gap-2 mt-1"
-            >
-              {loading && <Loader2 size={15} className="animate-spin" />}
+              className="btn-trust w-full py-3 rounded-xl text-sm justify-center gap-2 mt-1">
+              {loading && <Loader2 size={14} className="animate-spin" />}
               Create workspace
             </button>
           </form>
 
-          <p className="text-xs mt-5 text-center" style={{ color: '#94A3B8' }}>
+          <p className="text-xs mt-5 text-center" style={{ color: '#9BA4BC', fontFamily: "'DM Sans', sans-serif" }}>
             By creating a workspace you agree to our{' '}
-            <a href="mailto:legal@genuinux.io" style={{ color: '#64748B' }}>Terms</a>
+            <a href="mailto:legal@genuinux.io" style={{ color: '#5B6480' }}>Terms</a>
             {' '}and{' '}
-            <a href="mailto:legal@genuinux.io" style={{ color: '#64748B' }}>Privacy Policy</a>
+            <a href="mailto:legal@genuinux.io" style={{ color: '#5B6480' }}>Privacy Policy</a>
           </p>
         </div>
 
-        <p className="text-center text-sm mt-5" style={{ color: '#64748B' }}>
+        <p className="text-center text-sm mt-5" style={{ color: '#5B6480', fontFamily: "'DM Sans', sans-serif" }}>
           Already have a workspace?{' '}
-          <Link to="/login" className="font-semibold" style={{ color: '#16C784' }}>
+          <Link to="/login" className="font-semibold transition-opacity duration-150"
+            style={{ color: '#16C784' }}
+            onMouseEnter={e => (e.currentTarget.style.opacity = '0.7')}
+            onMouseLeave={e => (e.currentTarget.style.opacity = '1')}>
             Sign in
           </Link>
         </p>

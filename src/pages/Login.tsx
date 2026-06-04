@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Loader2 } from 'lucide-react'
+import { Loader2, ArrowLeft } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 
 export default function Login() {
@@ -24,38 +24,70 @@ export default function Login() {
     }
   }
 
-  return (
-    <div className="min-h-screen flex items-center justify-center px-4"
-      style={{ background: '#F8FAFC' }}>
+  const inputBase = {
+    background: '#F1F4FA',
+    border: '1px solid #D8DCEC',
+    color: '#07090F',
+    fontFamily: "'DM Sans', sans-serif",
+    outline: 'none',
+    transition: 'border-color 0.15s, box-shadow 0.15s',
+    letterSpacing: '-0.01em',
+  }
 
-      <div className="w-full max-w-[400px]">
+  return (
+    <div style={{
+      minHeight: '100vh',
+      background: '#F1F4FA',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '24px 16px',
+      // subtle dot grid
+      backgroundImage: 'radial-gradient(circle, rgba(22,199,132,0.07) 1px, transparent 1px)',
+      backgroundSize: '28px 28px',
+    }}>
+      <div style={{ width: '100%', maxWidth: 400 }}>
+
         {/* Back */}
-        <Link
-          to="/"
-          className="flex items-center gap-1.5 text-sm mb-6"
-          style={{ color: '#64748B' }}
-        >
-          ← Back to home
+        <Link to="/"
+          className="flex items-center gap-1.5 text-sm mb-8 transition-colors duration-150"
+          style={{ color: '#9BA4BC', fontFamily: "'DM Sans', sans-serif" }}
+          onMouseEnter={e => (e.currentTarget.style.color = '#07090F')}
+          onMouseLeave={e => (e.currentTarget.style.color = '#9BA4BC')}>
+          <ArrowLeft size={14} />
+          Back to home
         </Link>
 
         {/* Logo */}
         <Link to="/" className="flex justify-center mb-8">
-          <img src="/logo-horizontal.png" alt="Genuinux" style={{ height: '112px', display: 'block' }} />
+          <img src="/logo-horizontal.png" alt="Genuinux" style={{ height: 88, display: 'block' }} />
         </Link>
 
         {/* Card */}
-        <div className="p-8 rounded-2xl"
-          style={{
-            background: '#FFFFFF',
-            border: '1px solid #E2E8F0',
-            boxShadow: '0 4px 24px rgba(15,23,42,0.06), 0 1px 4px rgba(15,23,42,0.04)',
-          }}>
-          <h1 className="text-2xl font-bold mb-1" style={{ color: '#0F172A' }}>Welcome back</h1>
-          <p className="text-sm mb-7" style={{ color: '#64748B' }}>Sign in to your Genuinux workspace.</p>
+        <div style={{
+          background: '#FFFFFF',
+          border: '1px solid #D8DCEC',
+          borderRadius: 18,
+          padding: 36,
+          boxShadow: '0 4px 32px rgba(7,9,15,0.07), 0 1px 6px rgba(7,9,15,0.04)',
+        }}>
+          <h1 className="font-black mb-1.5"
+            style={{
+              fontSize: '1.6rem',
+              letterSpacing: '-0.04em',
+              color: '#07090F',
+              fontFamily: "'Syne', sans-serif",
+            }}>
+            Welcome back
+          </h1>
+          <p className="text-sm mb-8" style={{ color: '#5B6480', fontFamily: "'DM Sans', sans-serif" }}>
+            Sign in to your Genuinux workspace.
+          </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold mb-1.5" style={{ color: '#64748B' }}>
+              <label className="block text-xs font-semibold mb-1.5"
+                style={{ color: '#5B6480', fontFamily: "'DM Sans', sans-serif", letterSpacing: '-0.01em' }}>
                 Email address
               </label>
               <input
@@ -64,21 +96,32 @@ export default function Login() {
                 onChange={e => setEmail(e.target.value)}
                 placeholder="you@company.com"
                 required
-                className="w-full px-3.5 py-2.5 rounded-lg text-sm outline-none transition-all duration-150"
-                style={{
-                  background: '#F8FAFC',
-                  border: '1px solid #E2E8F0',
-                  color: '#0F172A',
+                className="w-full px-4 py-2.5 rounded-xl text-sm"
+                style={inputBase}
+                onFocus={e => {
+                  e.currentTarget.style.borderColor = '#16C784'
+                  e.currentTarget.style.boxShadow = '0 0 0 3px rgba(22,199,132,0.1)'
                 }}
-                onFocus={e => (e.currentTarget.style.borderColor = '#16C784')}
-                onBlur={e => (e.currentTarget.style.borderColor = '#E2E8F0')}
+                onBlur={e => {
+                  e.currentTarget.style.borderColor = '#D8DCEC'
+                  e.currentTarget.style.boxShadow = 'none'
+                }}
               />
             </div>
 
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="text-xs font-semibold" style={{ color: '#64748B' }}>Password</label>
-                <Link to="/forgot-password" className="text-xs font-medium" style={{ color: '#16C784' }}>Forgot?</Link>
+                <label className="text-xs font-semibold"
+                  style={{ color: '#5B6480', fontFamily: "'DM Sans', sans-serif", letterSpacing: '-0.01em' }}>
+                  Password
+                </label>
+                <Link to="/forgot-password"
+                  className="text-xs font-medium transition-opacity duration-150"
+                  style={{ color: '#16C784' }}
+                  onMouseEnter={e => (e.currentTarget.style.opacity = '0.7')}
+                  onMouseLeave={e => (e.currentTarget.style.opacity = '1')}>
+                  Forgot?
+                </Link>
               </div>
               <input
                 type="password"
@@ -86,20 +129,27 @@ export default function Login() {
                 onChange={e => setPassword(e.target.value)}
                 placeholder="••••••••"
                 required
-                className="w-full px-3.5 py-2.5 rounded-lg text-sm outline-none transition-all duration-150"
-                style={{
-                  background: '#F8FAFC',
-                  border: '1px solid #E2E8F0',
-                  color: '#0F172A',
+                className="w-full px-4 py-2.5 rounded-xl text-sm"
+                style={inputBase}
+                onFocus={e => {
+                  e.currentTarget.style.borderColor = '#16C784'
+                  e.currentTarget.style.boxShadow = '0 0 0 3px rgba(22,199,132,0.1)'
                 }}
-                onFocus={e => (e.currentTarget.style.borderColor = '#16C784')}
-                onBlur={e => (e.currentTarget.style.borderColor = '#E2E8F0')}
+                onBlur={e => {
+                  e.currentTarget.style.borderColor = '#D8DCEC'
+                  e.currentTarget.style.boxShadow = 'none'
+                }}
               />
             </div>
 
             {error && (
-              <p className="text-xs py-2.5 px-3 rounded-lg"
-                style={{ background: 'rgba(239,68,68,0.06)', color: '#DC2626', border: '1px solid rgba(239,68,68,0.15)' }}>
+              <p className="text-xs py-2.5 px-3.5 rounded-xl"
+                style={{
+                  background: 'rgba(239,68,68,0.06)',
+                  color: '#DC2626',
+                  border: '1px solid rgba(239,68,68,0.15)',
+                  fontFamily: "'DM Sans', sans-serif",
+                }}>
                 {error}
               </p>
             )}
@@ -107,16 +157,19 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="btn-trust w-full py-2.5 rounded-lg text-sm justify-center gap-2 mt-1">
-              {loading && <Loader2 size={15} className="animate-spin" />}
+              className="btn-trust w-full py-3 rounded-xl text-sm justify-center gap-2 mt-1">
+              {loading && <Loader2 size={14} className="animate-spin" />}
               Sign in
             </button>
           </form>
         </div>
 
-        <p className="text-center text-sm mt-5" style={{ color: '#64748B' }}>
+        <p className="text-center text-sm mt-5" style={{ color: '#5B6480', fontFamily: "'DM Sans', sans-serif" }}>
           New to Genuinux?{' '}
-          <Link to="/register" className="font-semibold" style={{ color: '#16C784' }}>
+          <Link to="/register" className="font-semibold transition-opacity duration-150"
+            style={{ color: '#16C784' }}
+            onMouseEnter={e => (e.currentTarget.style.opacity = '0.7')}
+            onMouseLeave={e => (e.currentTarget.style.opacity = '1')}>
             Create a workspace
           </Link>
         </p>
