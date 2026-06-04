@@ -35,34 +35,134 @@
 
 import { parseArgs } from 'node:util'
 
+// ── Help ──────────────────────────────────────────────────────────────────────
+
+const HELP = `
+  Genuinux load test — POST /api/risk/check
+
+  Usage:
+    node scripts/load-test.mjs --url <url> --key <api_key> [options]
+
+  Required:
+    --url <url>                Base URL of the deployment
+                               Must be the canonical domain (no apex→www redirects).
+                               Example: https://www.genuinux.com
+
+    --key <api_key>            API key from the Genuinux dashboard → API Keys.
+                               Example: gnx_live_xxxxxxxxxxxxxxxxxxxx
+
+  Options:
+    --rps <n>                  Target requests per second          (default: 10)
+    --duration <s>             Measurement window in seconds       (default: 30)
+    --warm <s>                 Warmup duration in seconds          (default: 5)
+    --device-pool <n>          Pool of shared device IDs.          (default: 0)
+                               0 = unique device per request.
+                               >0 = simulate device reuse.
+    --device-reuse-rate <0-1>  Fraction of requests that reuse     (default: 0.8)
+                               a device from the pool.
+    --help                     Show this help message and exit.
+
+  Phase 2A Beta gates:
+    p95 < 400ms  ·  p99 < 800ms  ·  max < 2000ms
+    error rate < 1%  ·  non-limit errors = 0
+
+  Exit codes:
+    0 — all beta gates passed
+    1 — one or more gates failed
+
+  Example:
+    node scripts/load-test.mjs \\
+      --url https://www.genuinux.com \\
+      --key gnx_live_xxxxxxxxxxxxxxxxxxxx \\
+      --rps 20 \\
+      --duration 60 \\
+      --device-pool 50 \\
+      --device-reuse-rate 0.8
+`
+
 // ── Args ──────────────────────────────────────────────────────────────────────
 
-const { values: flags } = parseArgs({
-  options: {
-    url:                { type: 'string', default: 'http://localhost:3000' },
-    key:                { type: 'string', default: '' },
-    rps:                { type: 'string', default: '10'  },
-    duration:           { type: 'string', default: '30'  },
-    warm:               { type: 'string', default: '5'   },
-    'device-pool':      { type: 'string', default: '0'   },
-    'device-reuse-rate':{ type: 'string', default: '0.8' },
-  },
-  allowPositionals: false,
-})
-
-const BASE_URL          = flags.url.replace(/\/$/, '')
-const API_KEY           = flags.key
-const RPS               = Math.max(1, parseInt(flags.rps,      10))
-const DURATION          = Math.max(5, parseInt(flags.duration, 10))
-const WARM_SECS         = Math.max(0, parseInt(flags.warm,     10))
-const DEVICE_POOL_SIZE  = Math.max(0, parseInt(flags['device-pool'],       10))
-const DEVICE_REUSE_RATE = Math.min(1, Math.max(0, parseFloat(flags['device-reuse-rate'])))
-
-if (!API_KEY) {
-  console.error('\n  Error: --key is required.')
-  console.error('  Get an API key from the Genuinux dashboard → API Keys.\n')
+let parsed
+try {
+  parsed = parseArgs({
+    args:             process.argv.slice(2),
+    allowPositionals: true,   // accept stray positionals (e.g. script path leaking in some shells)
+    strict:           true,   // still throw on unknown flags (clear error)
+    options: {
+      url:                { type: 'string'  },
+      key:                { type: 'string'  },
+      rps:                { type: 'string'  },
+      duration:           { type: 'string'  },
+      warm:               { type: 'string'  },
+      'device-pool':      { type: 'string'  },
+      'device-reuse-rate':{ type: 'string'  },
+      help:               { type: 'boolean' },
+    },
+  })
+} catch (err) {
+  console.error(`\n  Error: ${err.message}`)
+  console.error(`  Run with --help to see available options.\n`)
   process.exit(1)
 }
+
+const { values: flags, positionals } = parsed
+
+// Warn if unexpected positionals slipped through (e.g. script path in argv)
+if (positionals.length > 0) {
+  const suspicious = positionals.filter(p => p.endsWith('.mjs') || p.endsWith('.js'))
+  if (suspicious.length > 0) {
+    // Script path leaked into argv — silently ignore, this is a Node/shell quirk
+  } else {
+    console.warn(`\n  Warning: unexpected positional arguments ignored: ${positionals.join(', ')}\n`)
+  }
+}
+
+// ── --help ────────────────────────────────────────────────────────────────────
+
+if (flags.help) {
+  console.log(HELP)
+  process.exit(0)
+}
+
+// ── Validation ────────────────────────────────────────────────────────────────
+
+const errors = []
+
+if (!flags.url || flags.url.trim() === '') {
+  errors.push('Missing required argument: --url')
+}
+if (!flags.key || flags.key.trim() === '') {
+  errors.push('Missing required argument: --key')
+}
+
+const _rps      = parseInt(flags.rps      ?? '10',  10)
+const _duration = parseInt(flags.duration ?? '30',  10)
+const _warm     = parseInt(flags.warm     ?? '5',   10)
+const _pool     = parseInt(flags['device-pool']       ?? '0',   10)
+const _reuse    = parseFloat(flags['device-reuse-rate'] ?? '0.8')
+
+if (flags.rps !== undefined      && (_rps <= 0  || !isFinite(_rps)))     errors.push('--rps must be a positive integer (e.g. --rps 20)')
+if (flags.duration !== undefined && (_duration < 5 || !isFinite(_duration))) errors.push('--duration must be an integer >= 5 (e.g. --duration 60)')
+if (flags.warm !== undefined     && (_warm < 0  || !isFinite(_warm)))    errors.push('--warm must be an integer >= 0 (e.g. --warm 5)')
+if (flags['device-pool'] !== undefined     && (_pool < 0  || !isFinite(_pool)))    errors.push('--device-pool must be an integer >= 0 (e.g. --device-pool 50)')
+if (flags['device-reuse-rate'] !== undefined && (_reuse < 0 || _reuse > 1 || !isFinite(_reuse))) errors.push('--device-reuse-rate must be a number between 0 and 1 (e.g. --device-reuse-rate 0.8)')
+
+if (errors.length > 0) {
+  console.error('')
+  for (const e of errors) console.error(`  Error: ${e}`)
+  console.error('\n  Run with --help to see available options and an example command.\n')
+  process.exit(1)
+}
+
+// ── Resolved constants ────────────────────────────────────────────────────────
+
+const BASE_URL          = flags.url.trim().replace(/\/$/, '')
+const API_KEY           = flags.key.trim()
+const RPS               = Math.max(1, _rps)
+const DURATION          = Math.max(5, _duration)
+const WARM_SECS         = Math.max(0, _warm)
+const DEVICE_POOL_SIZE  = Math.max(0, _pool)
+const DEVICE_REUSE_RATE = Math.min(1, Math.max(0, _reuse))
 
 // ── Device pool ───────────────────────────────────────────────────────────────
 
