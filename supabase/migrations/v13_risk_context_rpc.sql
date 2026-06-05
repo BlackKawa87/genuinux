@@ -41,7 +41,7 @@ AS $$
       SELECT COUNT(DISTINCT external_user_id)
       FROM   risk_events
       WHERE  organization_id = p_org_id
-        AND  ip_address = p_ip
+        AND  ip_address::text = p_ip
         AND  created_at >= p_h24ago
     ) END,
 
@@ -49,7 +49,7 @@ AS $$
       SELECT COUNT(*)
       FROM   risk_events
       WHERE  organization_id = p_org_id
-        AND  ip_address = p_ip
+        AND  ip_address::text = p_ip
         AND  event_type = 'signup'
         AND  created_at >= p_h1ago
     ) END,
