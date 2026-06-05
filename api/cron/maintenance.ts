@@ -7,7 +7,9 @@
  * Tasks (in order):
  *   1. Purge expired ai_summary_cache rows (expires_at < NOW())
  *   2. Purge stale webhook_deliveries rows older than 90 days
- *   3. Write run summary to maintenance_logs (requires v8 schema migration)
+ *   3. Aggregate yesterday's risk_events into org_daily_stats (v17 migration)
+ *   4. Purge risk_events older than 365 days (v17 migration)
+ *   5. Write run summary to maintenance_logs (requires v8 schema migration)
  *
  * Auth: Authorization: Bearer <CRON_SECRET>  OR  x-vercel-cron: 1 header
  *       If CRON_SECRET is not set, the endpoint is open — set it in production.
@@ -114,7 +116,56 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     results.webhook_deliveries_purge = { status: 'error', message: String(err) }
   }
 
-  // ── Task 3: Write run to maintenance_logs (v8 migration required) ───────────
+  // ── Task 3: Aggregate yesterday's events into org_daily_stats ──────────
+  try {
+    const yesterday = new Date(Date.now() - 86_400_000)
+    const targetDate = yesterday.toISOString().slice(0, 10)  // YYYY-MM-DD
+
+    const { error: aggErr } = await supabase
+      .rpc('aggregate_daily_stats', { target_date: targetDate })
+
+    if (aggErr) {
+      // Function missing = v17 migration not yet run — skip silently
+      if (aggErr.message?.includes('does not exist') || aggErr.code === '42883') {
+        results.daily_stats_aggregate = { status: 'skipped', reason: 'v17 migration not applied' }
+      } else {
+        captureException(aggErr, { context: 'maintenance: aggregate_daily_stats' })
+        results.daily_stats_aggregate = { status: 'error', message: aggErr.message }
+      }
+    } else {
+      results.daily_stats_aggregate = { status: 'ok', date: targetDate }
+      captureMessage(`maintenance: aggregated daily stats for ${targetDate}`, 'info', { ran_at: now })
+    }
+  } catch (err) {
+    captureException(err, { context: 'maintenance: aggregate_daily_stats (exception)' })
+    results.daily_stats_aggregate = { status: 'error', message: String(err) }
+  }
+
+  // ── Task 4: Purge risk_events older than 365 days ─────────────────────
+  try {
+    const { data: purgeResult, error: purgeErr } = await supabase
+      .rpc('purge_old_risk_events', { retention_days: 365 })
+
+    if (purgeErr) {
+      if (purgeErr.message?.includes('does not exist') || purgeErr.code === '42883') {
+        results.risk_events_purge = { status: 'skipped', reason: 'v17 migration not applied' }
+      } else {
+        captureException(purgeErr, { context: 'maintenance: purge_old_risk_events' })
+        results.risk_events_purge = { status: 'error', message: purgeErr.message }
+      }
+    } else {
+      const deleted = purgeResult as number ?? 0
+      results.risk_events_purge = { status: 'ok', rows_deleted: deleted }
+      if (deleted > 0) {
+        captureMessage(`maintenance: purged ${deleted} risk_events older than 365 days`, 'info', { ran_at: now })
+      }
+    }
+  } catch (err) {
+    captureException(err, { context: 'maintenance: purge_old_risk_events (exception)' })
+    results.risk_events_purge = { status: 'error', message: String(err) }
+  }
+
+  // ── Task 5: Write run to maintenance_logs (v8 migration required) ───────────
   try {
     await supabase.from('maintenance_logs').insert({
       ran_at:  now,

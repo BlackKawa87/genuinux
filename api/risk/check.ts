@@ -27,6 +27,7 @@ import { captureException, setSentryTags } from '../_lib/monitoring.js'
 import { checkRateLimit } from '../_lib/rateLimit.js'
 import { createSecurityEvent } from '../_lib/securityEvents.js'
 import { getMonthlyUsage, incrementMonthlyUsage } from '../_lib/monthlyUsage.js'
+import { incrementOrgStats } from '../_lib/orgStats.js'
 import {
   getCachedApiKey, setCachedApiKey,
   getCachedOrg,    setCachedOrg,
@@ -1064,6 +1065,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     captureException(new Error('risk_event insert failed'), { orgId, eventId })
   } else {
     void incrementMonthlyUsage(orgId)
+    void incrementOrgStats(orgId, effectiveResult.decision, timings['total_ms'] ?? 0)
 
     if (process.env.DISABLE_AI_DURING_LOAD_TEST !== '1') {
       const orgAi = orgAiRow as {
