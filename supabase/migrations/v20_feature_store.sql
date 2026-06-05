@@ -2,21 +2,46 @@
 -- Migration v20 — Feature Store Foundation (Phase 3.3)
 -- ============================================================
 --
--- Expands fraud_features table (created in v19 Section C) with:
---   1. feature_group  — velocity | reputation | behavior | risk | context
---   2. feature_version — enables schema evolution without breaking old data
---   3. source          — identifies extraction engine version
+-- This migration is self-contained: it creates fraud_features
+-- if it does not exist yet (i.e. v19 Section C was skipped),
+-- then adds the Phase 3.3 columns to whichever path was taken.
 --
--- Adds SELECT RLS policy so dashboard members can query their org's features.
--- Adds additional indexes covering the new columns.
+-- Safe to run regardless of whether v19 Section C was applied:
+--   - Table missing  → CREATE TABLE with all columns
+--   - Table exists   → CREATE TABLE IF NOT EXISTS is a no-op,
+--                      then ALTER TABLE ADD COLUMN IF NOT EXISTS
 --
 -- IMPORTANT: Run each section separately in the Supabase SQL editor.
--- fraud_features must already exist (v19 Section C must have been applied).
 -- ============================================================
 
 
 -- ════════════════════════════════════════════════════════════
--- SECTION A — Add columns to fraud_features
+-- SECTION A — Create fraud_features (full schema)
+--
+-- CREATE TABLE IF NOT EXISTS is a no-op if v19 Section C
+-- already created the table. The columns added in Section B
+-- handle the "v19 already applied" case idempotently.
+-- ════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS fraud_features (
+  id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  risk_event_id    TEXT        NOT NULL,
+  organization_id  UUID        NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  feature_name     TEXT        NOT NULL,
+  feature_value    REAL        NOT NULL,
+  feature_group    TEXT        NOT NULL DEFAULT 'risk',
+  feature_version  INTEGER     NOT NULL DEFAULT 1,
+  source           TEXT        NOT NULL DEFAULT 'risk-engine-v1',
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+
+-- ════════════════════════════════════════════════════════════
+-- SECTION B — Add Phase 3.3 columns if table already existed
+--
+-- If Section A created the table fresh, these are no-ops.
+-- If the table came from v19 Section C (missing the new cols),
+-- these ALTER statements add them safely.
 -- ════════════════════════════════════════════════════════════
 
 ALTER TABLE fraud_features
@@ -26,8 +51,14 @@ ALTER TABLE fraud_features
 
 
 -- ════════════════════════════════════════════════════════════
--- SECTION B — Additional indexes
+-- SECTION C — Indexes
 -- ════════════════════════════════════════════════════════════
+
+CREATE INDEX IF NOT EXISTS idx_fraud_features_event
+  ON fraud_features (risk_event_id);
+
+CREATE INDEX IF NOT EXISTS idx_fraud_features_org_feature
+  ON fraud_features (organization_id, feature_name, created_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_fraud_features_org_group_created
   ON fraud_features (organization_id, feature_group, created_at DESC);
@@ -37,12 +68,10 @@ CREATE INDEX IF NOT EXISTS idx_fraud_features_name_version
 
 
 -- ════════════════════════════════════════════════════════════
--- SECTION C — RLS SELECT policy for org members
---
--- Writes remain service-role-only (no INSERT policy — featureStore.ts
--- uses the admin client). SELECT is opened to org members so the
--- /api/admin/intelligence/features endpoint (user JWT) can query stats.
+-- SECTION D — RLS
 -- ════════════════════════════════════════════════════════════
+
+ALTER TABLE fraud_features ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "fraud_features_select" ON fraud_features;
 
@@ -54,7 +83,7 @@ CREATE POLICY "fraud_features_select" ON fraud_features
 -- VALIDATION
 -- ════════════════════════════════════════════════════════════
 
--- 1. Confirm new columns:
+-- 1. Confirm all columns exist:
 -- SELECT column_name, data_type, column_default
 -- FROM information_schema.columns
 -- WHERE table_name = 'fraud_features'
