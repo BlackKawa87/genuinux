@@ -22,7 +22,7 @@ No test framework is configured.
 - **Supabase** for auth + PostgreSQL database (`@supabase/supabase-js`)
 - **lucide-react** for all icons
 - **Resend** (`resend`) for transactional email — beta invite delivery
-- **Upstash Redis** (`@upstash/redis` + `@upstash/ratelimit`) — sliding window rate limiting + hot-path caching (API key, org plan, rules, monthly usage)
+- **Upstash Redis** (`@upstash/redis` + `@upstash/ratelimit`) — sliding window rate limiting + hot-path caching (API key, org plan, rules, monthly usage) + fraud velocity counters + per-org daily stats
 - **Vercel** deployment — `vercel.json` rewrites non-API paths to `/index.html`
 
 ## Environment Variables
@@ -40,13 +40,16 @@ SUPABASE_SERVICE_ROLE_KEY=...   # server-side only — never expose to frontend
 # APP_URL=https://genuinux.com  # base URL used in invite email signup links
 # UPSTASH_REDIS_REST_URL=...    # required for rate limiting + caching (Upstash console)
 # UPSTASH_REDIS_REST_TOKEN=...  # required for rate limiting + caching (Upstash console)
+# REDIS_COUNTERS_ENABLED=true   # enable Redis-first fraud context reads (set AFTER 24-48h dual-write warm-up)
 ```
 
 `SUPABASE_SERVICE_ROLE_KEY` is required by Vercel serverless functions. It bypasses RLS — never expose it to the frontend.
 
 `RESEND_API_KEY` is optional — invite creation still works without it, email is simply skipped (graceful degradation). Never expose it to the frontend.
 
-`UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` enable rate limiting (`api/_lib/rateLimit.ts`) and all hot-path caching (`api/_lib/keyCache.ts`, `api/_lib/monthlyUsage.ts`). Without them all caches are bypassed and requests always pass through to Supabase.
+`UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` enable rate limiting (`api/_lib/rateLimit.ts`), all hot-path caching (`api/_lib/keyCache.ts`, `api/_lib/monthlyUsage.ts`), fraud velocity counters (`api/_lib/fraudCounters.ts`), and per-org daily stats (`api/_lib/orgStats.ts`). Without them all caches are bypassed and requests always pass through to Supabase.
+
+`REDIS_COUNTERS_ENABLED=true` activates Redis-first fraud context reads in `/api/risk/check`. Deploy without it first — writes are always active; set this only after 24-48h of dual-write warm-up so counters are fully populated before being read.
 
 API functions (`api/risk/check.ts`, `api/webhooks/test.ts`) resolve the Supabase URL via: `process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL`.
 
@@ -116,12 +119,28 @@ ai_reset_at timestamptz NOT NULL DEFAULT now()
 - **CREATE CONCURRENTLY** `idx_re_org_ip_text_time` — expression index on `(ip_address::text, created_at DESC)`. This is the only truly missing P0 index. schema.sql had IP indexes on `ip_address` (inet type) which are **never used** by the RPC because `ip_address::text = p_ip` requires an expression index on the cast. Without this, all IP subqueries in `get_risk_context()` do full table scans as `risk_events` grows.
 - **CREATE CONCURRENTLY** `idx_api_keys_hash_active` — partial index on active keys only; slightly more efficient than the UNIQUE constraint index as revoked keys accumulate.
 
-**Index inventory** (what schema.sql already has, active since project creation):
-- `risk_events`: `idx_risk_events_org_user_created` (org+user+date), `idx_risk_events_org_device_created` (org+device+date), `idx_risk_events_org_device_decision` (org+device+decision+date), `idx_risk_events_org_created` (org+date), `idx_risk_events_decision` (org+decision)
-- `security_events`: `idx_security_events_type_created` (event_type+date), `idx_security_events_agg` (event_type+ip+org+date)
+**v17 migration** (`supabase/migrations/v17_org_daily_stats.sql`): Daily aggregate stats + archival.
+- Table `org_daily_stats` — PK `(organization_id, date)`, columns: `total_requests`, `approve_count`, `review_count`, `block_count`, `avg_latency_ms`.
+- `aggregate_daily_stats(target_date DATE) RETURNS void` — `INSERT ... SELECT GROUP BY` from `risk_events` with `ON CONFLICT DO UPDATE`. Called nightly by `/api/cron/maintenance` Task 3.
+- `purge_old_risk_events(retention_days INTEGER DEFAULT 365) RETURNS integer` — deletes rows older than N days using `make_interval(days => retention_days)`. Called by maintenance Task 4.
+
+**v18 migration** (`supabase/migrations/v18_partition_risk_events.sql`): Monthly RANGE partitioning on `risk_events`.
+- `risk_events` converted to `PARTITION BY RANGE (created_at)` — 18 monthly partitions pre-created (2026-01 → 2027-06).
+- PK changed to `(id, created_at)` — PostgreSQL 15 RANGE partition requirement. FK from `review_queue → risk_events(id)` dropped (column kept; application guarantees integrity).
+- 9 indexes recreated on the partitioned table, including critical expression index `idx_rep_org_ip_text_time` on `(organization_id, (ip_address::text), created_at DESC)`.
+- `create_risk_events_partition(target_month DATE) RETURNS TEXT` — idempotent helper called by maintenance Task 5 to pre-create partitions ~2 months ahead.
+- Migration run in 4 sections (A: table+partitions, B: data copy, C: indexes, D: rename+RLS). `risk_events_legacy` preserved for 24-48h rollback window. **Drop `risk_events_legacy` after validating production.**
+
+**Index inventory** (active on `risk_events` partitioned table after v18):
+- `idx_rep_org_created` (org+date), `idx_rep_user` (org+user), `idx_rep_decision` (org+decision)
+- `idx_rep_org_user_created` (org+user+date), `idx_rep_org_device_created` (org+device+date), `idx_rep_org_device_decision` (org+device+decision+date)
+- `idx_rep_org_risk_level` (org+risk_level+date), `idx_rep_org_event_type` (org+event_type+date)
+- `idx_rep_org_ip_text_time` — expression index on `(org, ip_address::text, date)` — critical for `get_risk_context()` IP subqueries
+- `security_events`: `idx_security_events_type_created`, `idx_security_events_agg`
 - `users_checked`: `idx_users_checked_org_email`, `idx_users_checked_org_device`, `idx_users_checked_org_ip`, `idx_users_checked_org_user`
-- `api_keys`: UNIQUE constraint on `key_hash` (implicit btree index)
+- `api_keys`: UNIQUE on `key_hash` + `idx_api_keys_hash_active` (partial, active keys only — v15)
 - `rules`: `idx_rules_org_status_priority` (v10)
+- `org_daily_stats`: `idx_org_daily_stats_org_date` (v17)
 
 RLS helpers: `current_org_id()` and `current_user_role()` (SECURITY DEFINER functions).
 
@@ -203,6 +222,19 @@ Valid `event_type` values: `signup`, `login`, `transaction`, `withdrawal`, `refe
 
 **`POST /api/beta/use-invite`** — Authoritative invite gate called after signup. Requires user JWT + `{ code, email }`. Same validation as validate-invite plus marks `used_by`/`used_at`, writes audit log.
 
+**`GET /api/admin/metrics/per-org?days=N`** — Owner-only. Returns daily stats for the org over last N days (default 30, max 90). Sources: `org_daily_stats` Postgres table (historical, cron-aggregated) + `getTodayStats()` Redis (today real-time). Requires v17 migration; returns `{ stats[], today, summary, notice? }`. Degrades gracefully if v17 not applied.
+
+**`GET /api/admin/metrics/cache-stats`** — Owner-only. Returns Redis cache health: connection status, TTL remaining for `org` and `rules` caches, monthly event counter, today's real-time stats, and `fraud_counters_enabled` flag. Returns `status: 'unconfigured'` if Redis env vars are missing.
+
+**`GET|POST /api/cron/maintenance`** — Scheduled at 03:00 UTC via Vercel Cron. Auth: `x-vercel-cron: 1` header (auto) or `Authorization: Bearer <CRON_SECRET>`. 6 tasks in order:
+1. Purge expired `ai_summary_cache` rows
+2. Purge `webhook_deliveries` older than 90 days
+3. `aggregate_daily_stats(yesterday)` — writes to `org_daily_stats` (v17)
+4. `purge_old_risk_events(365)` — deletes events older than 1 year (v17)
+5. `create_risk_events_partition(+2 months)` — pre-creates next partition (v18)
+6. Write run summary to `maintenance_logs`
+Tasks 3-5 skip gracefully (`code === '42883'`) if migrations not yet applied.
+
 ### Performance Architecture (`api/risk/check.ts`)
 
 The `/api/risk/check` hot path is optimized to minimize Supabase round-trips:
@@ -212,17 +244,33 @@ The `/api/risk/check` hot path is optimized to minimize Supabase round-trips:
 | Supabase client init | Module-level singleton (lazy, reused across warm invocations) | 100–300ms |
 | API key lookup | Redis cache — `gnx:key:{hash}` — 5min TTL | 1 round-trip |
 | Org plan lookup | Redis cache — `gnx:org:{orgId}` — 60s TTL | 1 round-trip |
-| 6 context queries | Single `supabase.rpc('get_risk_context', …)` — v13 migration | 5 round-trips |
+| 6 context queries | Redis fraud counters (when `REDIS_COUNTERS_ENABLED=true`) — else `supabase.rpc('get_risk_context')` | 5 round-trips |
 | Rules fetch | Redis cache — `gnx:rules:{orgId}` — 60s TTL | 1 round-trip |
 | DB writes | Fire-and-forget after early `res.status(200).json()` | Off critical path |
+| Org stats + fraud counters write | Fire-and-forget after response — `incrementOrgStats` + `writeFraudCounters` | Off critical path |
 
-Observed latency (10 rps, 30s, Vercel → Supabase + Upstash):
+Observed latency — Phase 2A baseline (Supabase RPC path):
 - p50: ~565ms | p95: ~620ms | p99: ~890ms | error rate: 0%
 
-Phase 2A gates (calibrated for Supabase PostgREST RPC floor of ~500ms):
-- p95 < 800ms ✅ | p99 < 1500ms ✅ | max < 2000ms ✅ | error rate < 1% ✅ | non-limit errors = 0 ✅
+Phase 2A gates: p95 < 800ms ✅ | p99 < 1500ms ✅ | max < 2000ms ✅ | error rate < 1% ✅
 
-Phase 2B (future): Replace the Supabase RPC with Redis counters (`INCR`/`GET`) for fraud context data — would reduce p50 from ~565ms to ~80ms.
+Phase 2B Redis counters (implemented, env-gated): `writeFraudCounters()` writes on every request. Set `REDIS_COUNTERS_ENABLED=true` after 24-48h warm-up to activate Redis-first reads — targets p50 ~80ms (vs ~565ms with RPC).
+
+**Redis key namespaces** (all fail-open):
+
+| Key pattern | Purpose | TTL |
+|---|---|---|
+| `gnx:key:{hash}` | API key cache | 5 min |
+| `gnx:org:{orgId}` | Org plan/config cache | 60s |
+| `gnx:rules:{orgId}` | Rules cache | 60s |
+| `gnx:monthly_events:{orgId}:{YYYY-MM}` | Monthly usage counter | end-of-month +5d |
+| `gnx:stats:{orgId}:{YYYY-MM-DD}` | Daily stats hash (total/approve/review/block/latency_sum) | 33d |
+| `gnx:cnt:u:{orgId}:{userId}:{b10m}` | User velocity — 10min bucket | 20min |
+| `gnx:cnt:ip:u:{orgId}:{ip}` | IP distinct users — 25h set | 25h |
+| `gnx:cnt:ip:s:{orgId}:{ip}:{b1h}` | IP signup count — 1h bucket | 2h |
+| `gnx:cnt:dev:u:{orgId}:{deviceId}` | Device distinct users — 91d set | 91d |
+| `gnx:flag:dev:b:{orgId}:{deviceId}` | Device block flag | 180d |
+| `gnx:cnt:email:u:{orgId}:{email}` | Email distinct users — 180d set | 180d |
 
 ### `api/_lib/` Modules
 
@@ -234,6 +282,8 @@ Phase 2B (future): Replace the Supabase RPC with Redis counters (`INCR`/`GET`) f
   - Rules: `gnx:rules:{orgId}` → `RuleRow[]` — TTL 60s; call `invalidateCachedRules(orgId)` on any rule mutation
   - All functions fail-open: cache misses and Redis errors fall back to Supabase transparently.
 - `monthlyUsage.ts` — Redis-backed monthly event counter. Key: `gnx:monthly_events:{orgId}:{YYYY-MM}`. TTL expires 5 days after end of month. `getMonthlyUsage()` reads Redis (O(1)) or syncs from Supabase COUNT(*) on miss. `incrementMonthlyUsage()` is fire-and-forget via Redis `INCR`. Never throws.
+- `orgStats.ts` — Redis Hash daily stats counter. Key: `gnx:stats:{orgId}:{YYYY-MM-DD}`, TTL 33 days. `incrementOrgStats(orgId, decision, latencyMs)` — pipeline of 4 commands (total, decision bucket, latency_sum, expire). `getTodayStats(orgId)` — reads hash + computes avg_latency. Written fire-and-forget after every `/api/risk/check` response.
+- `fraudCounters.ts` — Redis fraud velocity counters (Phase 2B). 6 signals replacing `get_risk_context()` RPC subqueries. `writeFraudCounters(orgId, userId, ip, deviceId, email, decision, eventType)` — fire-and-forget dual-write. `readFraudCounters(orgId, userId, ip, deviceId, email)` — 8-slot fixed pipeline, returns `RiskEngineContext | null`. Activated in `fetchContext` when `REDIS_COUNTERS_ENABLED=true`. Uses `NOOP = 'gnx:noop'` key for optional pipeline slots (SCARD/GET on nonexistent → 0/null).
 - `monitoring.ts` — `captureException` / `captureMessage` wrappers for error tracking.
 - `rateLimit.ts` — Upstash sliding window rate limiter. Limits per API key by plan tier.
 - `adminAuth.ts` — Owner-only auth guard for admin endpoints.
@@ -279,6 +329,10 @@ Phase 2B (future): Replace the Supabase RPC with Redis counters (`INCR`/`GET`) f
 **`Ops.tsx`** — Owner-only operations dashboard. Shows service health, DB metrics, cron schedule, load-test flags, API Test Sandbox, and beta invite management.
 - **API Test Sandbox** — interactive form to send real risk events without a terminal. Includes 4 presets (Normal user, Suspicious, Bot/Headless, Withdrawal), editable fields (user ID, email, IP, event type, country, device ID, user agent), API key input (password-masked), and inline response showing trust score, fraud score, decision badge, and detected signals. Events sent here are real — they appear in Risk Events and Overview.
 - Beta invites section: create form, active invite rows with copy-code / copy-invite-link / resend-email buttons and email-sent badge, used/expired/revoked archive.
+
+**`Infrastructure.tsx`** — 11-tab owner-only control center. Tabs: Overview, Environment, Database, Rate Limits, Webhooks, AI, Cron, Security, Incidents, Readiness, **Performance**.
+- **Performance tab**: Today real-time stats (approve/review/block/latency from Redis), last 7 days bar chart, 7-day summary, Redis cache health per namespace (org, rules TTL remaining, monthly counter, fraud counters mode). Fetches `/api/admin/metrics/per-org?days=7` + `/api/admin/metrics/cache-stats`.
+- All 11 fetches run in `Promise.allSettled` — individual failures don't break the page.
 
 ### Components
 - `src/components/layout/AppLayout.tsx` — fixed 220px sidebar + sticky 52px top header with breadcrumb and org/plan badge. NAV_ALL has 10 items: Overview, Risk Events, Users, Review Queue, Analytics, Rules, API Keys, Webhooks, Infrastructure, Beta Ops. Bottom section has Documentation + Settings links. Items are filtered by role permission — `owner_only` items (Infrastructure, Beta Ops) only show to owners.
@@ -344,6 +398,12 @@ Register adds **company name** and **website** fields. On successful sign-up, ca
 - Without Stripe env vars, Upgrade buttons return 503 with a clear error message — the UI degrades gracefully.
 
 ### Pending / Not Yet Built
+
+**Production activation (Phase 2C):**
+- `DROP TABLE risk_events_legacy` — run after 24-48h of validating the partitioned table in production.
+- Set `REDIS_COUNTERS_ENABLED=true` in Vercel — activate after 24-48h of dual-write warm-up.
+
+**Features:**
 - Invite team members: works end-to-end but requires running the `pending_invites` SQL migration in Supabase first.
 - Stripe billing: API endpoints ready — requires adding Stripe env vars to Vercel and running the `stripe_customer_id` migration.
 - Password reset: fully functional via Supabase email.
@@ -352,7 +412,6 @@ Register adds **company name** and **website** fields. On successful sign-up, ca
 - Stripe billing: "Contact us" button on Enterprise plan (links to `billing@genuinux.io`).
 - Blog: more posts, search/filter, RSS feed.
 - Rules cache invalidation: `Rules.tsx` mutations (create/update/delete/toggle) should call `invalidateCachedRules(orgId)` via a new API endpoint so rule changes take effect immediately instead of after the 60s Redis TTL.
-- Phase 2B performance: replace Supabase RPC context queries with Redis counters (INCR/GET) — targets p50 < 100ms.
 
 ## TypeScript Config
 
