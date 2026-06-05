@@ -29,6 +29,7 @@ const SettingsPage  = lazy(() => import('./pages/dashboard/Settings'))
 const Analytics     = lazy(() => import('./pages/dashboard/Analytics'))
 const OpsPage            = lazy(() => import('./pages/dashboard/Ops'))
 const InfrastructurePage = lazy(() => import('./pages/dashboard/Infrastructure'))
+const MLPage             = lazy(() => import('./pages/dashboard/ML'))
 
 function PageSpinner() {
   return (
@@ -79,6 +80,7 @@ export default function App() {
             <Route path="settings" element={<SettingsPage />} />
             <Route path="ops" element={<OpsPage />} />
             <Route path="infrastructure" element={<InfrastructurePage />} />
+            <Route path="ml" element={<MLPage />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>

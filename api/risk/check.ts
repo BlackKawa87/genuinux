@@ -30,7 +30,8 @@ import { getMonthlyUsage, incrementMonthlyUsage } from '../_lib/monthlyUsage.js'
 import { incrementOrgStats } from '../_lib/orgStats.js'
 import { readFraudCounters, writeFraudCounters } from '../_lib/fraudCounters.js'
 import { computeGnxScore } from '../_lib/gnxScore.js'
-import { persistFeatures }  from '../_lib/featureStore.js'
+import { persistFeatures } from '../_lib/featureStore.js'
+import { runMlShadow }    from '../_lib/mlShadowRunner.js'
 import {
   getCachedApiKey, setCachedApiKey,
   getCachedOrg,    setCachedOrg,
@@ -1108,6 +1109,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Feature Store (Phase 3.3) — gated by FEATURE_STORE_ENABLED=true
     void persistFeatures(supabase, orgId, insertedId, effectiveResult, context, gnxScore, {
+      event_type: payload.event_type,
+      country:    payload.country,
+    })
+
+    // ML Shadow Runner (Phase 3.7) — gated by ML_SHADOW_ENABLED=true
+    // Prediction stored in ml_predictions; NEVER influences live decision.
+    void runMlShadow(supabase, orgId, insertedId, effectiveResult, context, gnxScore, {
       event_type: payload.event_type,
       country:    payload.country,
     })

@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Key, Activity, ListChecks,
   Users, Settings, LogOut, Globe, GitBranch, BookOpen,
   ChevronRight, BarChart2, Sun, Moon, AlertTriangle,
-  ShieldCheck, Server, FlaskConical,
+  ShieldCheck, Server, FlaskConical, BrainCircuit,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
@@ -31,7 +31,8 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/dashboard/events',    icon: Activity,        label: 'Risk Events',  permission: null },
       { to: '/dashboard/users',     icon: Users,           label: 'Users',        permission: 'act_queue' },
       { to: '/dashboard/queue',     icon: ListChecks,      label: 'Review Queue', permission: 'act_queue' },
-      { to: '/dashboard/analytics', icon: BarChart2,       label: 'Analytics',    permission: null },
+      { to: '/dashboard/analytics', icon: BarChart2,       label: 'Analytics',       permission: null },
+      { to: '/dashboard/ml',        icon: BrainCircuit,    label: 'Machine Learning', permission: null },
     ],
   },
   {
