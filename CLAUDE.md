@@ -22,7 +22,7 @@ No test framework is configured.
 - **Supabase** for auth + PostgreSQL database (`@supabase/supabase-js`)
 - **lucide-react** for all icons
 - **Resend** (`resend`) for transactional email — beta invite delivery
-- **Upstash Redis** (`@upstash/redis` + `@upstash/ratelimit`) — per-API-key sliding window rate limiting
+- **Upstash Redis** (`@upstash/redis` + `@upstash/ratelimit`) — sliding window rate limiting + hot-path caching (API key, org plan, rules, monthly usage)
 - **Vercel** deployment — `vercel.json` rewrites non-API paths to `/index.html`
 
 ## Environment Variables
@@ -38,15 +38,15 @@ SUPABASE_SERVICE_ROLE_KEY=...   # server-side only — never expose to frontend
 # RESEND_FROM_EMAIL=...         # sender shown in invite emails (must be verified in Resend)
 # BETA_REPLY_TO_EMAIL=...       # reply-to for invite emails
 # APP_URL=https://genuinux.com  # base URL used in invite email signup links
-# UPSTASH_REDIS_REST_URL=...    # required for rate limiting (Upstash console)
-# UPSTASH_REDIS_REST_TOKEN=...  # required for rate limiting (Upstash console)
+# UPSTASH_REDIS_REST_URL=...    # required for rate limiting + caching (Upstash console)
+# UPSTASH_REDIS_REST_TOKEN=...  # required for rate limiting + caching (Upstash console)
 ```
 
 `SUPABASE_SERVICE_ROLE_KEY` is required by Vercel serverless functions. It bypasses RLS — never expose it to the frontend.
 
 `RESEND_API_KEY` is optional — invite creation still works without it, email is simply skipped (graceful degradation). Never expose it to the frontend.
 
-`UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` are required for rate limiting in `api/_lib/rateLimit.ts`. Without them the rate limiter is bypassed (requests always pass through).
+`UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` enable rate limiting (`api/_lib/rateLimit.ts`) and all hot-path caching (`api/_lib/keyCache.ts`, `api/_lib/monthlyUsage.ts`). Without them all caches are bypassed and requests always pass through to Supabase.
 
 API functions (`api/risk/check.ts`, `api/webhooks/test.ts`) resolve the Supabase URL via: `process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL`.
 
@@ -96,6 +96,19 @@ Single exported `supabase` client. Credentials from `VITE_SUPABASE_URL` / `VITE_
 
 **v6 migration** (required): `ALTER TABLE organizations ADD COLUMN IF NOT EXISTS shadow_mode boolean NOT NULL DEFAULT true;` — adds the shadow_mode flag shown in the sidebar and header. Also requires the `handle_new_user` trigger to have `SET search_path = public` in the function definition (SECURITY DEFINER functions don't inherit search path — omitting this causes `relation "organizations" does not exist` errors at registration time).
 
+**v10 migration** (`supabase/migrations/v10_rules_index.sql`): Composite index on `rules(organization_id, status, priority DESC, created_at ASC)` — covers the WHERE + ORDER BY in `applyCustomRules()`. Without it, every `/api/risk/check` request does a full table scan on `rules`.
+
+**v12 migration** (`supabase/migrations/v12_add_ai_columns.sql`): Adds AI budget columns to `organizations`:
+```sql
+ai_enabled boolean NOT NULL DEFAULT false,
+ai_monthly_limit integer NOT NULL DEFAULT 1000,
+ai_calls_used integer NOT NULL DEFAULT 0,
+ai_reset_at timestamptz NOT NULL DEFAULT now()
+```
+**Critical**: without these columns, the `organizations` SELECT in `check.ts` fails silently (`orgRow = null`), causing `currentPlan = 'free'` and rate limit = 30 instead of the org's actual plan limit.
+
+**v13 migration** (`supabase/migrations/v13_risk_context_rpc.sql`): Creates `get_risk_context()` PostgreSQL function (`STABLE SECURITY DEFINER SET search_path = public`). Replaces 6 parallel PostgREST HTTP round-trips in `fetchContext()` with a single `supabase.rpc()` call. All 6 subqueries run inside one PostgreSQL session. **Important**: `ip_address` column is `inet` type — comparisons must cast: `ip_address::text = p_ip` (not `ip_address = p_ip`).
+
 RLS helpers: `current_org_id()` and `current_user_role()` (SECURITY DEFINER functions).
 
 Role matrix: owner > admin > member. Only owners can manage API keys and webhooks.
@@ -123,21 +136,24 @@ The public API maps `allow` → `approve` in responses.
 ### Custom Rules (`src/lib/riskEngine.ts` + `api/risk/check.ts`)
 Rules run **after** the base Risk Engine score. First matching active rule overrides the final decision.
 
-Evaluated in `applyCustomRules()` inside `api/risk/check.ts` (step 4.5 in the handler). Rules fetched from `rules` table ordered by `created_at ASC` — oldest first.
+Evaluated in `applyCustomRules()` inside `api/risk/check.ts` (step 4.5 in the handler). Rules are cached in Redis (60s TTL via `api/_lib/keyCache.ts`) — fetched from `rules` table only on cache miss, ordered by `priority DESC, created_at ASC`.
 
 `condition_value` stored as `"operator:value"` string (e.g. `"gt:80"`, `"eq:BR"`).
 
 Supported condition types: `fraud_score`, `trust_score`, `risk_level`, `event_type`, `country`, `ip_user_count_1h`, `ip_signup_count_1h`, `device_user_count`.
 
+**Cache invalidation**: when rules are created/updated/deleted/toggled in the UI, `invalidateCachedRules(orgId)` from `api/_lib/keyCache.ts` must be called so the new rule takes effect immediately (not after the 60s TTL expires).
+
 ### API Endpoints (`api/`)
 
 **`POST /api/risk/check`** — Production endpoint for client integrations.
 - Auth: `Authorization: Bearer <api_key>` — key is SHA-256 hashed and matched against `api_keys.key_hash`
-- Fetches 6 parallel historical context queries from Supabase
+- **Hot path (optimized)**: module-level Supabase client singleton → Redis cache for API key (5min TTL) → Redis cache for org plan (60s TTL) → RPC `get_risk_context` (single DB round-trip for all 6 context queries) → Redis cache for rules (60s TTL)
 - Runs `analyze()` from risk engine, then evaluates custom rules (`applyCustomRules`)
-- Upserts `users_checked`, inserts `risk_events`
-- Fire-and-forget: `review_queue` (if decision=review) + webhook dispatch with HMAC-SHA256 signature (`X-Genuinux-Signature: sha256=<sig>`)
-- Webhook dispatch logs to `webhook_deliveries` (fire-and-forget, table optional)
+- **Early response**: `res.status(200).json(response)` is sent before DB writes — `upsertUserChecked` + `insertRiskEvent` run after the client receives the response
+- `crypto.randomUUID()` is pre-generated before the early response so the event_id in the response matches the DB row
+- Fire-and-forget after response: `review_queue` insert (if decision=review) + webhook dispatch + `incrementMonthlyUsage`
+- Webhook dispatch: HMAC-SHA256 signature (`X-Genuinux-Signature: sha256=<sig>`), logs to `webhook_deliveries` (table optional)
 - Response maps `allow` → `approve`
 
 Webhook payload format:
@@ -172,6 +188,44 @@ Valid `event_type` values: `signup`, `login`, `transaction`, `withdrawal`, `refe
 **`GET /api/beta/validate-invite?code=&email=`** — Pre-flight invite check (no auth). Validates: exists, not revoked, not used, not expired, email match if locked. Fires `beta_invite.email_mismatch` security event on mismatch.
 
 **`POST /api/beta/use-invite`** — Authoritative invite gate called after signup. Requires user JWT + `{ code, email }`. Same validation as validate-invite plus marks `used_by`/`used_at`, writes audit log.
+
+### Performance Architecture (`api/risk/check.ts`)
+
+The `/api/risk/check` hot path is optimized to minimize Supabase round-trips:
+
+| Step | Technique | Latency saved |
+|---|---|---|
+| Supabase client init | Module-level singleton (lazy, reused across warm invocations) | 100–300ms |
+| API key lookup | Redis cache — `gnx:key:{hash}` — 5min TTL | 1 round-trip |
+| Org plan lookup | Redis cache — `gnx:org:{orgId}` — 60s TTL | 1 round-trip |
+| 6 context queries | Single `supabase.rpc('get_risk_context', …)` — v13 migration | 5 round-trips |
+| Rules fetch | Redis cache — `gnx:rules:{orgId}` — 60s TTL | 1 round-trip |
+| DB writes | Fire-and-forget after early `res.status(200).json()` | Off critical path |
+
+Observed latency (10 rps, 30s, Vercel → Supabase + Upstash):
+- p50: ~565ms | p95: ~620ms | p99: ~890ms | error rate: 0%
+
+Phase 2A gates (calibrated for Supabase PostgREST RPC floor of ~500ms):
+- p95 < 800ms ✅ | p99 < 1500ms ✅ | max < 2000ms ✅ | error rate < 1% ✅ | non-limit errors = 0 ✅
+
+Phase 2B (future): Replace the Supabase RPC with Redis counters (`INCR`/`GET`) for fraud context data — would reduce p50 from ~565ms to ~80ms.
+
+### `api/_lib/` Modules
+
+- `email.ts` — `sendInviteEmail({ to, inviteCode, expiresAt, note? })` — wraps Resend SDK. Returns `{ sent, error? }`, never throws. Gracefully skips if `RESEND_API_KEY` is not set.
+- `emailTemplates.ts` — `betaInviteHtml()` + `betaInviteText()` — inline-styled HTML email + plain text fallback. Params: `{ to, inviteCode, expiresAt, signupUrl, note? }`.
+- `keyCache.ts` — Redis cache for the `/api/risk/check` hot path. Three namespaces:
+  - API key: `gnx:key:{hash}` → `{ id, organization_id, name, requests_count }` — TTL 5min
+  - Org: `gnx:org:{orgId}` → `{ plan, shadow_mode, ai_enabled, … }` — TTL 60s
+  - Rules: `gnx:rules:{orgId}` → `RuleRow[]` — TTL 60s; call `invalidateCachedRules(orgId)` on any rule mutation
+  - All functions fail-open: cache misses and Redis errors fall back to Supabase transparently.
+- `monthlyUsage.ts` — Redis-backed monthly event counter. Key: `gnx:monthly_events:{orgId}:{YYYY-MM}`. TTL expires 5 days after end of month. `getMonthlyUsage()` reads Redis (O(1)) or syncs from Supabase COUNT(*) on miss. `incrementMonthlyUsage()` is fire-and-forget via Redis `INCR`. Never throws.
+- `monitoring.ts` — `captureException` / `captureMessage` wrappers for error tracking.
+- `rateLimit.ts` — Upstash sliding window rate limiter. Limits per API key by plan tier.
+- `adminAuth.ts` — Owner-only auth guard for admin endpoints.
+- `aiEnricher.ts` / `aiSummary.ts` — GPT-4o-mini AI signal enrichment and event summaries.
+- `riskEngine.ts` — Server-side re-export of the risk engine for use in API functions.
+- `securityEvents.ts` — `createSecurityEvent()` helper for writing internal security audit entries.
 
 ### Dashboard Pages
 
@@ -211,10 +265,6 @@ Valid `event_type` values: `signup`, `login`, `transaction`, `withdrawal`, `refe
 **`Ops.tsx`** — Owner-only operations dashboard. Shows service health, DB metrics, cron schedule, load-test flags, API Test Sandbox, and beta invite management.
 - **API Test Sandbox** — interactive form to send real risk events without a terminal. Includes 4 presets (Normal user, Suspicious, Bot/Headless, Withdrawal), editable fields (user ID, email, IP, event type, country, device ID, user agent), API key input (password-masked), and inline response showing trust score, fraud score, decision badge, and detected signals. Events sent here are real — they appear in Risk Events and Overview.
 - Beta invites section: create form, active invite rows with copy-code / copy-invite-link / resend-email buttons and email-sent badge, used/expired/revoked archive.
-
-### Email (`api/_lib/`)
-- `email.ts` — `sendInviteEmail({ to, inviteCode, expiresAt, note? })` — wraps Resend SDK. Returns `{ sent, error? }`, never throws. Gracefully skips if `RESEND_API_KEY` is not set.
-- `emailTemplates.ts` — `betaInviteHtml()` + `betaInviteText()` — inline-styled HTML email + plain text fallback. Params: `{ to, inviteCode, expiresAt, signupUrl, note? }`.
 
 ### Components
 - `src/components/layout/AppLayout.tsx` — fixed 220px sidebar + sticky 52px top header with breadcrumb and org/plan badge. NAV_ALL has 10 items: Overview, Risk Events, Users, Review Queue, Analytics, Rules, API Keys, Webhooks, Infrastructure, Beta Ops. Bottom section has Documentation + Settings links. Items are filtered by role permission — `owner_only` items (Infrastructure, Beta Ops) only show to owners.
@@ -287,6 +337,8 @@ Register adds **company name** and **website** fields. On successful sign-up, ca
 - Invite flow to same org: currently new invited users are assigned to the invited org via the `/join` page, but the auto-created org from the DB trigger remains. A cleanup step (deleting the auto-created org) can be added later.
 - Stripe billing: "Contact us" button on Enterprise plan (links to `billing@genuinux.io`).
 - Blog: more posts, search/filter, RSS feed.
+- Rules cache invalidation: `Rules.tsx` mutations (create/update/delete/toggle) should call `invalidateCachedRules(orgId)` via a new API endpoint so rule changes take effect immediately instead of after the 60s Redis TTL.
+- Phase 2B performance: replace Supabase RPC context queries with Redis counters (INCR/GET) — targets p50 < 100ms.
 
 ## TypeScript Config
 
