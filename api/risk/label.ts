@@ -22,6 +22,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { getCachedApiKey, setCachedApiKey } from '../_lib/keyCache.js'
 import { updateEntityReputation, type LabelValue } from '../_lib/reputationNetwork.js'
 import { captureException } from '../_lib/monitoring.js'
+import { buildTrainingDataset } from '../_lib/datasetBuilder.js'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -141,7 +142,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     message:   'Label recorded. Entity reputation will be updated asynchronously.',
   })
 
-  // ── 5. Fire-and-forget: update entity_reputation ─────────────────────────
+  // ── 5. Fire-and-forget: Dataset Builder (Phase 3.6) ─────────────────────
+  void buildTrainingDataset(supabase, orgId, eventId.trim(), label, row.created_at)
+
+  // ── 6. Fire-and-forget: update entity_reputation ─────────────────────────
   // Fetch the event's entities to update global reputation counters.
   // Query by id alone (no created_at) — scans all partitions, OK for label submission.
   try {

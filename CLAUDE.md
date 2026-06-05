@@ -124,6 +124,12 @@ ai_reset_at timestamptz NOT NULL DEFAULT now()
 - `aggregate_daily_stats(target_date DATE) RETURNS void` — `INSERT ... SELECT GROUP BY` from `risk_events` with `ON CONFLICT DO UPDATE`. Called nightly by `/api/cron/maintenance` Task 3.
 - `purge_old_risk_events(retention_days INTEGER DEFAULT 365) RETURNS integer` — deletes rows older than N days using `make_interval(days => retention_days)`. Called by maintenance Task 4.
 
+**v21 migration** (`supabase/migrations/v21_training_dataset.sql`): Training Dataset table (Phase 3.6).
+- `training_dataset` table — PK `id UUID`, fields: `risk_event_id TEXT`, `label`, `decision`, `fraud_score`, `trust_score`, `gnx_score`, `feature_count`, `label_created_at`, `event_created_at`, `dataset_version INTEGER DEFAULT 1`.
+- 4 indexes: `idx_training_dataset_org_label`, `idx_training_dataset_org_event`, `idx_training_dataset_org_created`, `idx_training_dataset_version`.
+- RLS SELECT policy for org members. Service-role-only writes (no INSERT policy).
+- Run Sections A→C separately. Requires v19 (fraud_labels) to exist first.
+
 **v20 migration** (`supabase/migrations/v20_feature_store.sql`): Feature Store schema expansion (Phase 3.3).
 - Adds `feature_group TEXT NOT NULL DEFAULT 'risk'`, `feature_version INTEGER NOT NULL DEFAULT 1`, `source TEXT NOT NULL DEFAULT 'risk-engine-v1'` to `fraud_features`.
 - Adds indexes: `idx_fraud_features_org_group_created`, `idx_fraud_features_name_version`.
@@ -441,10 +447,13 @@ Register adds **company name** and **website** fields. On successful sign-up, ca
 - `api/_lib/gnxScore.ts` — `computeGnxScore()` — deterministic 0–1000 score, written to `risk_events.gnx_score` fire-and-forget (Module 10)
 - `api/_lib/featureExtractor.ts` — `extractFeatures()` — derives 17 features across 5 groups (velocity/reputation/behavior/risk/context) with `feature_group`, `feature_version`, `source` (Phase 3.3)
 - `api/_lib/featureStore.ts` — `persistFeatures()` — writes extracted feature vectors to `fraud_features` fire-and-forget (Phase 3.3), gated by `FEATURE_STORE_ENABLED`
+- `api/_lib/datasetBuilder.ts` — `buildTrainingDataset()` — joins risk_events + fraud_features into `training_dataset` fire-and-forget (Phase 3.6), gated by `DATASET_BUILDER_ENABLED`
 - `api/_lib/reputationNetwork.ts` — `updateEntityReputation()` / `getEntityReputation()` — atomic cross-org reputation via PostgreSQL RPC (Module 5)
 - `GET /api/admin/intelligence/summary` — aggregated Feedback Loop + GNX distribution + fraud trends + top patterns + training readiness
 - `GET /api/admin/intelligence/features?days=N&feature_name=&feature_group=` — Feature Store audit: total rows, per-group counts, per-feature stats (count/avg/min/max), coverage rate, daily growth, data quality warnings (Phase 3.3)
-- Analytics.tsx — Intelligence Layer overview + Feedback Loop + Fraud Analytics + Training Readiness + **Feature Store** sections (Phase 3.3)
+- `GET /api/admin/intelligence/dataset/stats` — Training Dataset stats: total records, label distribution, coverage, dataset balance warnings, readiness score 0–100 (Phase 3.6)
+- `GET /api/admin/intelligence/dataset/export?format=json|csv` — Training dataset export with feature columns, max 50k rows (Phase 3.6)
+- Analytics.tsx — Intelligence Layer overview + Feedback Loop + Fraud Analytics + Training Readiness + **Feature Store** (Phase 3.3) + **Training Dataset** (Phase 3.6) sections
 
 **Deferred (Phase 3.5+):**
 - `GET /api/risk/reputation` — client-facing entity reputation lookup endpoint

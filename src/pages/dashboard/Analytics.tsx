@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo, useCallback } from 'react'
 import type { ReactNode } from 'react'
 import {
   BarChart2, Shield, Target, MessageSquare,
-  RefreshCw, Activity, Brain, AlertCircle, Database,
+  RefreshCw, Activity, Brain, AlertCircle, Database, Layers, Download,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
@@ -108,6 +108,35 @@ interface FeatureStoreStats {
   data_quality_warnings: string[]
   generated_at:          string
   notice?:               string
+}
+
+interface LabelDistEntry { count: number; pct: number }
+
+interface DatasetReadiness {
+  score:             number
+  status:            string
+  events_progress:   number
+  labels_progress:   number
+  coverage_progress: number
+}
+
+interface DatasetStats {
+  total_records:            number
+  total_labels:             number
+  total_events:             number
+  feature_coverage_pct:     number
+  coverage_pct:             number
+  label_distribution: {
+    confirmed_fraud: LabelDistEntry
+    suspected_fraud: LabelDistEntry
+    false_positive:  LabelDistEntry
+    legitimate:      LabelDistEntry
+  }
+  dataset_balance_warnings: string[]
+  readiness:                DatasetReadiness
+  dataset_version:          number
+  generated_at:             string
+  notice?:                  string
 }
 
 interface DayBucket {
@@ -406,6 +435,7 @@ export default function Analytics() {
   const [labels,       setLabels]       = useState<LabelLite[]>([])
   const [intelSum,     setIntelSum]     = useState<IntelligenceSummary | null>(null)
   const [featureStore, setFeatureStore] = useState<FeatureStoreStats | null>(null)
+  const [datasetStats, setDatasetStats] = useState<DatasetStats | null>(null)
   const [loading,      setLoading]      = useState(true)
 
   const days = RANGE_DAYS[range]
@@ -418,7 +448,7 @@ export default function Analytics() {
     const since = new Date(Date.now() - 2 * days * 24 * 60 * 60 * 1000).toISOString()
     const token = session?.access_token ?? ''
 
-    const [evRes, fbRes, lblRes, intelData, featureData] = await Promise.all([
+    const [evRes, fbRes, lblRes, intelData, featureData, dsData] = await Promise.all([
       supabase
         .from('risk_events')
         .select('fraud_score, decision, signals_json, applied_rule_name, feedback_status, gnx_score, created_at')
@@ -447,6 +477,11 @@ export default function Analytics() {
             headers: { Authorization: `Bearer ${token}` },
           }).then(r => r.ok ? r.json() as Promise<FeatureStoreStats> : null).catch(() => null)
         : Promise.resolve(null),
+      token
+        ? fetch('/api/admin/intelligence/dataset/stats', {
+            headers: { Authorization: `Bearer ${token}` },
+          }).then(r => r.ok ? r.json() as Promise<DatasetStats> : null).catch(() => null)
+        : Promise.resolve(null),
     ])
 
     setEvents((evRes.data ?? []) as EventLite[])
@@ -454,6 +489,7 @@ export default function Analytics() {
     setLabels((lblRes.data ?? []) as LabelLite[])
     setIntelSum(intelData as IntelligenceSummary | null)
     setFeatureStore(featureData as FeatureStoreStats | null)
+    setDatasetStats(dsData as DatasetStats | null)
     setLoading(false)
   }, [profile?.organization_id, days, session?.access_token])
 
@@ -1314,6 +1350,217 @@ export default function Analytics() {
                 <p className="text-xs font-semibold mb-2" style={{ color: T.textDim }}>Data Quality Warnings</p>
                 <div className="space-y-2">
                   {featureStore.data_quality_warnings.map((w, i) => (
+                    <div key={i} className="flex items-start gap-2 rounded-lg px-3 py-2"
+                      style={{ background: '#F59E0B08', border: '1px solid #F59E0B20' }}>
+                      <AlertCircle size={12} style={{ color: '#F59E0B', flexShrink: 0, marginTop: 1 }} />
+                      <p className="text-[11px]" style={{ color: T.textSec }}>{w}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* ── Training Dataset ──────────────────────────────────────────────────── */}
+      <div className="rounded-2xl p-6" style={{ background: T.card, border: `1px solid ${T.border}` }}>
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-2.5">
+            <Layers size={15} style={{ color: '#16C784' }} />
+            <h2 className="text-sm font-bold" style={{ color: T.text }}>Training Dataset</h2>
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full mono"
+              style={{ background: '#16C78408', border: '1px solid #16C78430', color: '#16C784' }}>
+              Phase 3.6
+            </span>
+          </div>
+          {datasetStats && datasetStats.total_records > 0 && (
+            <div className="flex items-center gap-2">
+              {(['csv', 'json'] as const).map(fmt => (
+                <button
+                  key={fmt}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                  style={{ background: T.deep, border: `1px solid ${T.border}`, color: T.textSec }}
+                  onClick={() => {
+                    const token = session?.access_token
+                    if (!token) return
+                    fetch(`/api/admin/intelligence/dataset/export?format=${fmt}`, {
+                      headers: { Authorization: `Bearer ${token}` },
+                    })
+                      .then(r => r.blob())
+                      .then(blob => {
+                        const url = URL.createObjectURL(blob)
+                        const a   = document.createElement('a')
+                        a.href     = url
+                        a.download = `training_dataset_${new Date().toISOString().slice(0, 10)}.${fmt}`
+                        a.click()
+                        URL.revokeObjectURL(url)
+                      })
+                      .catch(() => {})
+                  }}
+                >
+                  <Download size={11} />
+                  {fmt.toUpperCase()}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {!datasetStats || datasetStats.total_records === 0 ? (
+          <div className="rounded-xl p-5 flex items-start gap-3"
+            style={{ background: '#16C78408', border: '1px solid #16C78420' }}>
+            <AlertCircle size={15} style={{ color: '#16C784', flexShrink: 0, marginTop: 1 }} />
+            <div>
+              <p className="text-sm font-semibold" style={{ color: T.text }}>
+                {datasetStats?.notice ? 'Migration required' : 'No dataset records yet'}
+              </p>
+              <p className="text-xs mt-1" style={{ color: T.textDim }}>
+                {datasetStats?.notice
+                  ? `${datasetStats.notice} Then set DATASET_BUILDER_ENABLED=true in Vercel.`
+                  : 'Submit ground-truth labels via POST /api/risk/label. The Dataset Builder generates training records automatically after each label.'}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* KPI strip */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+              {[
+                {
+                  label: 'Dataset Records',
+                  value: datasetStats.total_records.toLocaleString(),
+                  color: '#16C784',
+                },
+                {
+                  label: 'Total Labels',
+                  value: datasetStats.total_labels.toLocaleString(),
+                  color: '#16C784',
+                },
+                {
+                  label: 'Feature Coverage',
+                  value: `${datasetStats.feature_coverage_pct.toFixed(1)}%`,
+                  color: datasetStats.feature_coverage_pct >= 95 ? '#16C784' : '#F59E0B',
+                },
+                {
+                  label: 'Dataset Coverage',
+                  value: `${datasetStats.coverage_pct.toFixed(1)}%`,
+                  color: datasetStats.coverage_pct >= 95 ? '#16C784' : '#F59E0B',
+                },
+              ].map(k => (
+                <div key={k.label} className="rounded-xl p-4"
+                  style={{ background: T.deep, border: `1px solid ${T.border}` }}>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider mb-2"
+                    style={{ color: T.textDim }}>{k.label}</p>
+                  <p className="text-xl font-bold mono" style={{ color: k.color }}>{k.value}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-5">
+              {/* Label Distribution */}
+              <div>
+                <p className="text-xs font-semibold mb-3" style={{ color: T.textDim }}>Label Distribution</p>
+                <div className="space-y-2.5">
+                  {([
+                    { key: 'confirmed_fraud', label: 'Confirmed Fraud', color: '#EF4444' },
+                    { key: 'suspected_fraud', label: 'Suspected Fraud', color: '#F97316' },
+                    { key: 'false_positive',  label: 'False Positive',  color: '#F59E0B' },
+                    { key: 'legitimate',      label: 'Legitimate',      color: '#16C784' },
+                  ] as Array<{ key: keyof DatasetStats['label_distribution']; label: string; color: string }>)
+                    .map(({ key, label, color }) => {
+                      const entry = datasetStats.label_distribution[key]
+                      return (
+                        <div key={key}>
+                          <div className="flex justify-between mb-1">
+                            <span className="text-xs" style={{ color: T.textSec }}>{label}</span>
+                            <span className="text-xs mono" style={{ color: T.text }}>
+                              {entry.count.toLocaleString()}{' '}
+                              <span style={{ color: T.textDim }}>({entry.pct}%)</span>
+                            </span>
+                          </div>
+                          <div className="h-1.5 rounded-full overflow-hidden"
+                            style={{ background: T.border }}>
+                            <div className="h-full rounded-full transition-all"
+                              style={{ width: `${Math.min(entry.pct, 100)}%`, background: color, opacity: 0.85 }} />
+                          </div>
+                        </div>
+                      )
+                    })}
+                </div>
+              </div>
+
+              {/* Training Readiness Score */}
+              <div>
+                <p className="text-xs font-semibold mb-3" style={{ color: T.textDim }}>Training Readiness</p>
+                <div className="rounded-xl p-4" style={{ background: T.deep, border: `1px solid ${T.border}` }}>
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="relative flex-shrink-0" style={{ width: 64, height: 64 }}>
+                      <svg viewBox="0 0 64 64" width="64" height="64">
+                        <circle cx="32" cy="32" r="26" fill="none" stroke={T.border} strokeWidth="6" />
+                        <circle
+                          cx="32" cy="32" r="26" fill="none"
+                          stroke={
+                            datasetStats.readiness.score >= 76 ? '#16C784'
+                            : datasetStats.readiness.score >= 51 ? '#F59E0B'
+                            : '#818CF8'
+                          }
+                          strokeWidth="6"
+                          strokeDasharray={`${(datasetStats.readiness.score / 100) * 163.36} 163.36`}
+                          strokeLinecap="round"
+                          transform="rotate(-90 32 32)"
+                        />
+                      </svg>
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="text-xs font-bold mono" style={{ color: T.text }}>
+                          {Math.round(datasetStats.readiness.score)}%
+                        </span>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold" style={{ color: T.text }}>
+                        {datasetStats.readiness.status}
+                      </p>
+                      <p className="text-[11px] mt-0.5" style={{ color: T.textDim }}>
+                        v{datasetStats.dataset_version} · {datasetStats.total_records.toLocaleString()} records
+                      </p>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    {[
+                      { label: 'Events (100k)',  value: datasetStats.readiness.events_progress },
+                      { label: 'Labels (10k)',   value: datasetStats.readiness.labels_progress },
+                      { label: 'Coverage (95%)', value: datasetStats.readiness.coverage_progress },
+                    ].map(({ label, value }) => (
+                      <div key={label}>
+                        <div className="flex justify-between mb-0.5">
+                          <span className="text-[10px]" style={{ color: T.textDim }}>{label}</span>
+                          <span className="text-[10px] mono" style={{ color: T.textSec }}>
+                            {value.toFixed(1)}%
+                          </span>
+                        </div>
+                        <div className="h-1 rounded-full overflow-hidden" style={{ background: T.border }}>
+                          <div className="h-full rounded-full"
+                            style={{
+                              width: `${Math.min(value, 100)}%`,
+                              background: value >= 100 ? '#16C784' : '#818CF8',
+                            }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Dataset Balance Warnings */}
+            {datasetStats.dataset_balance_warnings.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold mb-2" style={{ color: T.textDim }}>
+                  Dataset Balance Warnings
+                </p>
+                <div className="space-y-2">
+                  {datasetStats.dataset_balance_warnings.map((w, i) => (
                     <div key={i} className="flex items-start gap-2 rounded-lg px-3 py-2"
                       style={{ background: '#F59E0B08', border: '1px solid #F59E0B20' }}>
                       <AlertCircle size={12} style={{ color: '#F59E0B', flexShrink: 0, marginTop: 1 }} />
