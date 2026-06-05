@@ -28,11 +28,13 @@ CREATE INDEX IF NOT EXISTS idx_org_daily_stats_org_date
 
 ALTER TABLE org_daily_stats ENABLE ROW LEVEL SECURITY;
 
--- Each org owner can read their own stats
+DROP POLICY IF EXISTS "org_daily_stats_select" ON org_daily_stats;
+DROP POLICY IF EXISTS "org_daily_stats_insert" ON org_daily_stats;
+DROP POLICY IF EXISTS "org_daily_stats_update" ON org_daily_stats;
+
 CREATE POLICY "org_daily_stats_select" ON org_daily_stats
   FOR SELECT USING (organization_id = current_org_id());
 
--- Service role can write (used by maintenance cron)
 CREATE POLICY "org_daily_stats_insert" ON org_daily_stats
   FOR INSERT WITH CHECK (true);
 
