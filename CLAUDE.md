@@ -226,6 +226,15 @@ Valid `event_type` values: `signup`, `login`, `transaction`, `withdrawal`, `refe
 
 **`GET /api/admin/metrics/cache-stats`** — Owner-only. Returns Redis cache health: connection status, TTL remaining for `org` and `rules` caches, monthly event counter, today's real-time stats, and `fraud_counters_enabled` flag. Returns `status: 'unconfigured'` if Redis env vars are missing.
 
+**`GET /api/admin/intelligence/summary?days=N`** — Any authenticated org member. Returns all Phase 3 intelligence metrics for the authenticated org. Accepts `days` (7–90, default 30). Runs 3 parallel Supabase queries + optional cross-partition ID lookup for labeled events. Gracefully returns zeroed response with `notice` if `fraud_labels` table doesn't exist (v19 not applied). Response shape:
+- `feedback_loop` — decision quality metrics: `correct_approve`, `incorrect_approve`, `correct_block`, `incorrect_block`, `correct_review`, `incorrect_review`, `decision_accuracy`, `false_positive_rate`, `false_negative_rate`, `precision`, `recall`, `review_quality`, `label_coverage_rate`, `insight` (auto-generated string)
+- `gnx_distribution` — counts bucketed by GNX score band: `low` (0–300), `review_zone` (301–700), `high` (701–1000)
+- `fraud_trends` — daily buckets: `{ date, confirmed_fraud, suspected_fraud, false_positive, legitimate }`
+- `label_counts` — period totals by label type
+- `top_patterns` — top 5 per category among confirmed-fraud events: `countries`, `event_types`, `risk_levels`, `original_decisions`
+- `training_readiness` — all-time label counts, `progress_pct` (to 10k), `status` (`not_ready`/`collecting`/`near_ready`/`ready`), `data_quality_warnings[]`
+- Auth: user JWT (anon key + RLS scopes data to org automatically)
+
 **`GET|POST /api/cron/maintenance`** — Scheduled at 03:00 UTC via Vercel Cron. Auth: `x-vercel-cron: 1` header (auto) or `Authorization: Bearer <CRON_SECRET>`. 6 tasks in order:
 1. Purge expired `ai_summary_cache` rows
 2. Purge `webhook_deliveries` older than 90 days
@@ -292,6 +301,17 @@ Phase 2B Redis counters (implemented, env-gated): `writeFraudCounters()` writes 
 - `securityEvents.ts` — `createSecurityEvent()` helper for writing internal security audit entries.
 
 ### Dashboard Pages
+
+**`Analytics.tsx`** — Full analytics dashboard with range picker (7d/30d/90d). Sections:
+1. **KPI row** — Total Events, Avg Fraud Score, Block Rate, Feedback Coverage (with previous-period deltas)
+2. **Decisions Over Time** — stacked SVG bar chart (allow/review/block per day or week)
+3. **Avg Fraud Score Trend** + **Feedback Breakdown** — 2-col grid
+4. **Rule Performance** + **Top Risk Signals** — 2-col grid
+5. **Feedback Loop** — decision quality vs submitted labels: Decision Accuracy, False Positive Rate, False Negative Rate, Label Coverage, Review Quality; Decision Quality Breakdown (6-bar chart); auto-generated insight; empty state if no labels
+6. **Fraud Analytics** — 2-col grid: GNX Score Distribution (3 bands: Low/Review/High with progress bars + percentages) + Fraud Label Trends (stacked bar chart with 4 label types); full-width Top Fraud Patterns (4-col: countries, event types, risk levels, original decisions for confirmed-fraud events)
+7. **Training Readiness** — all-time progress to 10k labels, status badge (Not Ready/Collecting/Near Ready/Ready), label count grid, Data Quality Warnings
+8. **Intelligence Layer** — Avg GNX Score, Labels Submitted, Confirmed Fraud count, False Positive Rate from client-side computation; label distribution HBar chart
+Data fetched in parallel `Promise.all`: risk_events (5k limit), event_feedback, fraud_labels (2k limit), plus `GET /api/admin/intelligence/summary` for server-side aggregations (Feedback Loop, GNX distribution, patterns, training readiness).
 
 **`Overview.tsx`** — Real-time metrics for last 24h. Subscribes to `postgres_changes` on `risk_events`. Charts: events over time (area), decisions (donut), fraud score distribution (histogram), risk level bars, top signals, top countries. Recent events table.
 
@@ -403,14 +423,34 @@ Register adds **company name** and **website** fields. On successful sign-up, ca
 - `DROP TABLE risk_events_legacy` — run after 24-48h of validating the partitioned table in production.
 - Set `REDIS_COUNTERS_ENABLED=true` in Vercel — activate after 24-48h of dual-write warm-up.
 
+**Intelligence Layer — Phase 3 activation:**
+- Run `supabase/migrations/v19_intelligence_layer.sql` (4 sections A–D separately in SQL editor) — creates `fraud_labels`, `fraud_features`, `entity_reputation` tables and `increment_entity_reputation()` RPC.
+- Set `FEATURE_STORE_ENABLED=true` in Vercel — activates `persistFeatures()` writes to `fraud_features` table.
+- After 24–48h warm-up (labels accumulating), Analytics Intelligence section populates automatically.
+- ML training (Phase 3.5): gated on 10,000 labels + 50+ confirmed_fraud labels — status shown in Training Readiness panel.
+- `REPUTATION_ENRICHMENT_ENABLED=true` — phase 3.5 gate to read entity reputation in the `/api/risk/check` hot path.
+
+**Phase 3 — Implemented (Modules 1, 2, 3, 5, 10):**
+- `POST /api/risk/label` — client API for ground-truth fraud labels (Module 1 + 2)
+- `api/_lib/gnxScore.ts` — `computeGnxScore()` — deterministic 0–1000 score, written to `risk_events.gnx_score` fire-and-forget (Module 10)
+- `api/_lib/featureStore.ts` — `persistFeatures()` — 12 ML feature vectors written to `fraud_features` (Module 3), gated by `FEATURE_STORE_ENABLED`
+- `api/_lib/reputationNetwork.ts` — `updateEntityReputation()` / `getEntityReputation()` — atomic cross-org reputation via PostgreSQL RPC (Module 5)
+- `GET /api/admin/intelligence/summary` — aggregated Feedback Loop + GNX distribution + fraud trends + top patterns + training readiness
+- Analytics.tsx — Intelligence Layer overview + Feedback Loop + Fraud Analytics + Training Readiness sections
+
+**Deferred (Phase 3.5+):**
+- `GET /api/risk/reputation` — client-facing entity reputation lookup endpoint
+- `api/_lib/aiCopilot.ts` — richer AI Copilot per-event investigation summary
+- ML training pipeline (Module 7) — gated on 100k events + 10k labels
+- Hybrid Decision Engine (Module 9) — gated on ML shadow mode validation
+- Shadow ML columns (`ml_score`, `ml_decision`, `ml_version`) added to `risk_events` in v19 migration but remain NULL until ML training activates
+
 **Features:**
 - Invite team members: works end-to-end but requires running the `pending_invites` SQL migration in Supabase first.
 - Stripe billing: API endpoints ready — requires adding Stripe env vars to Vercel and running the `stripe_customer_id` migration.
 - Password reset: fully functional via Supabase email.
 - Blog: 3 real articles live at `/blog/:slug`.
 - Invite flow to same org: currently new invited users are assigned to the invited org via the `/join` page, but the auto-created org from the DB trigger remains. A cleanup step (deleting the auto-created org) can be added later.
-- Stripe billing: "Contact us" button on Enterprise plan (links to `billing@genuinux.io`).
-- Blog: more posts, search/filter, RSS feed.
 - Rules cache invalidation: `Rules.tsx` mutations (create/update/delete/toggle) should call `invalidateCachedRules(orgId)` via a new API endpoint so rule changes take effect immediately instead of after the 60s Redis TTL.
 
 ## TypeScript Config

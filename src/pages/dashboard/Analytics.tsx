@@ -32,6 +32,54 @@ interface LabelLite {
   created_at: string
 }
 
+interface FraudTrend {
+  date:             string
+  confirmed_fraud:  number
+  suspected_fraud:  number
+  false_positive:   number
+  legitimate:       number
+}
+
+interface IntelligenceSummary {
+  period_days:  number
+  total_events: number
+  notice?:      string
+  feedback_loop: {
+    total_labeled:      number
+    correct_approve:    number; incorrect_approve: number
+    correct_block:      number; incorrect_block:   number
+    correct_review:     number; incorrect_review:  number
+    decision_accuracy:    number
+    false_positive_rate:  number
+    false_negative_rate:  number
+    precision:            number
+    recall:               number
+    review_quality:       number
+    label_coverage_rate:  number
+    insight:              string | null
+  }
+  gnx_distribution: { low: number; review_zone: number; high: number; total: number }
+  fraud_trends:     FraudTrend[]
+  label_counts:     { confirmed_fraud: number; suspected_fraud: number; false_positive: number; legitimate: number; total: number }
+  top_patterns: {
+    countries:          Array<{ value: string; count: number }>
+    event_types:        Array<{ value: string; count: number }>
+    risk_levels:        Array<{ value: string; count: number }>
+    original_decisions: Array<{ value: string; count: number }>
+  }
+  training_readiness: {
+    total_labels:           number
+    confirmed_fraud_labels: number
+    suspected_fraud_labels: number
+    legitimate_labels:      number
+    false_positive_labels:  number
+    progress_pct:           number
+    status:                 'not_ready' | 'collecting' | 'near_ready' | 'ready'
+    data_quality_warnings:  string[]
+  }
+  generated_at: string
+}
+
 interface DayBucket {
   label: string
   allow: number
@@ -271,16 +319,62 @@ function ChartCard({ title, subtitle, children, text, textDim }: {
   )
 }
 
+// ─── Chart: Label trend stacked bars ─────────────────────────────────────────
+
+function LabelStackedChart({ trends, textDim }: { trends: FraudTrend[]; textDim: string }) {
+  if (trends.length === 0) return <EmptyChart label="No labels submitted in this period" textDim={textDim} />
+
+  const W = 600, H = 90, PB = 20, PT = 6
+  const cH = H - PB - PT
+  const n  = trends.length
+  const maxTotal = Math.max(...trends.map(t => t.confirmed_fraud + t.suspected_fraud + t.false_positive + t.legitimate), 1)
+  const step = W / n
+  const barW = Math.max(2, step - 2)
+  const every = Math.max(1, Math.round(n / 7))
+
+  type Seg = { x: number; y: number; h: number; color: string; key: string }
+  const allSegs: Seg[] = []
+  const axisLabels: { x: number; label: string }[] = []
+
+  trends.forEach((t, i) => {
+    const x = i * step + (step - barW) / 2
+    const layers: [number, string][] = [
+      [t.legitimate,      '#16C784'],
+      [t.false_positive,  '#F59E0B'],
+      [t.suspected_fraud, '#F97316'],
+      [t.confirmed_fraud, '#EF4444'],
+    ]
+    let y = PT + cH
+    layers.forEach(([count, color], j) => {
+      const h = (count / maxTotal) * cH
+      if (h > 0) { y -= h; allSegs.push({ x, y, h, color, key: `${i}-${j}` }) }
+    })
+    if (i % every === 0) axisLabels.push({ x: x + barW / 2, label: t.date.slice(5) })
+  })
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block' }} preserveAspectRatio="none">
+      {allSegs.map(s => (
+        <rect key={s.key} x={s.x} y={s.y} width={barW} height={s.h} fill={s.color} opacity="0.85" rx="1" />
+      ))}
+      {axisLabels.map((l, i) => (
+        <text key={i} x={l.x} y={H - 5} textAnchor="middle" fontSize="7" fill={textDim}>{l.label}</text>
+      ))}
+    </svg>
+  )
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function Analytics() {
-  const { profile } = useAuth()
+  const { profile, session } = useAuth()
   const T = useT()
 
   const [range,    setRange]    = useState<Range>('30d')
   const [events,   setEvents]   = useState<EventLite[]>([])
   const [feedback, setFeedback] = useState<FbLite[]>([])
   const [labels,   setLabels]   = useState<LabelLite[]>([])
+  const [intelSum, setIntelSum] = useState<IntelligenceSummary | null>(null)
   const [loading,  setLoading]  = useState(true)
 
   const days = RANGE_DAYS[range]
@@ -291,8 +385,9 @@ export default function Analytics() {
 
     // Fetch 2× the period so we can compute previous-period deltas
     const since = new Date(Date.now() - 2 * days * 24 * 60 * 60 * 1000).toISOString()
+    const token = session?.access_token ?? ''
 
-    const [evRes, fbRes, lblRes] = await Promise.all([
+    const [evRes, fbRes, lblRes, intelData] = await Promise.all([
       supabase
         .from('risk_events')
         .select('fraud_score, decision, signals_json, applied_rule_name, feedback_status, gnx_score, created_at')
@@ -311,13 +406,19 @@ export default function Analytics() {
         .eq('organization_id', profile.organization_id)
         .gte('created_at', since)
         .limit(2000),
+      token
+        ? fetch(`/api/admin/intelligence/summary?days=${days}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }).then(r => r.ok ? r.json() as Promise<IntelligenceSummary> : null).catch(() => null)
+        : Promise.resolve(null),
     ])
 
     setEvents((evRes.data ?? []) as EventLite[])
     setFeedback((fbRes.data ?? []) as FbLite[])
     setLabels((lblRes.data ?? []) as LabelLite[])
+    setIntelSum(intelData as IntelligenceSummary | null)
     setLoading(false)
-  }, [profile?.organization_id, days])
+  }, [profile?.organization_id, days, session?.access_token])
 
   useEffect(() => { void loadData() }, [loadData])
 
@@ -633,7 +734,308 @@ export default function Analytics() {
         </ChartCard>
       </div>
 
-      {/* Intelligence Layer */}
+      {/* ── Feedback Loop ──────────────────────────────────────────────────────── */}
+      <div className="g-card p-5">
+        <div className="flex items-center gap-2.5 mb-5">
+          <Activity size={16} style={{ color: '#38BDF8' }} />
+          <div>
+            <h3 className="text-sm font-semibold" style={{ color: T.text }}>Feedback Loop</h3>
+            <p className="text-xs mt-0.5" style={{ color: T.textDim }}>
+              Decision quality measured against submitted fraud labels
+            </p>
+          </div>
+        </div>
+
+        {!intelSum || intelSum.feedback_loop.total_labeled === 0 ? (
+          <div className="rounded-xl p-5 flex items-start gap-3"
+            style={{ background: '#38BDF808', border: '1px solid #38BDF820' }}>
+            <AlertCircle size={15} style={{ color: '#38BDF8', flexShrink: 0, marginTop: 1 }} />
+            <div>
+              <p className="text-sm font-semibold" style={{ color: T.text }}>Feedback Loop activates after labeled events are submitted</p>
+              <p className="text-xs mt-1" style={{ color: T.textDim }}>
+                Use{' '}
+                <code className="mono px-1 py-0.5 rounded text-[11px]" style={{ background: T.card, color: '#38BDF8' }}>
+                  POST /api/risk/label
+                </code>{' '}
+                to submit ground-truth labels, or mark events from the Risk Events table. Labels enable decision
+                quality metrics: accuracy, false positives, false negatives, and review quality.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* KPI row */}
+            {(() => {
+              const fl = intelSum.feedback_loop
+              const accColor  = fl.decision_accuracy   >= 80 ? '#16C784' : fl.decision_accuracy   >= 50 ? '#F59E0B' : '#EF4444'
+              const fpColor   = fl.false_positive_rate <= 10 ? '#16C784' : fl.false_positive_rate <= 25 ? '#F59E0B' : '#EF4444'
+              const fnColor   = fl.false_negative_rate <= 10 ? '#16C784' : fl.false_negative_rate <= 25 ? '#F59E0B' : '#EF4444'
+              const covColor  = fl.label_coverage_rate >= 20 ? '#16C784' : fl.label_coverage_rate >= 5  ? '#F59E0B' : T.textSec
+              const revColor  = fl.review_quality      >= 70 ? '#16C784' : fl.review_quality      >= 40 ? '#F59E0B' : '#EF4444'
+              return (
+                <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-5">
+                  {[
+                    { title: 'Decision Accuracy', value: `${fl.decision_accuracy}%`, sub: `${fl.total_labeled} labeled events`, color: accColor, icon: <Target size={13} /> },
+                    { title: 'False Positive Rate', value: `${fl.false_positive_rate}%`, sub: 'Blocked but legitimate', color: fpColor, icon: <Shield size={13} /> },
+                    { title: 'False Negative Rate', value: `${fl.false_negative_rate}%`, sub: 'Approved but fraud', color: fnColor, icon: <AlertCircle size={13} /> },
+                    { title: 'Label Coverage', value: `${fl.label_coverage_rate}%`, sub: 'Events with labels', color: covColor, icon: <MessageSquare size={13} /> },
+                    { title: 'Review Quality', value: fl.correct_review + fl.incorrect_review === 0 ? '—' : `${fl.review_quality}%`, sub: 'Reviews that were fraud', color: revColor, icon: <Activity size={13} /> },
+                  ].map(card => (
+                    <div key={card.title} className="rounded-xl p-4" style={{ background: T.deep, border: `1px solid ${T.border}` }}>
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider leading-tight" style={{ color: T.textDim }}>{card.title}</p>
+                        <span style={{ color: card.color }}>{card.icon}</span>
+                      </div>
+                      <p className="text-xl font-bold mono" style={{ color: card.color }}>{card.value}</p>
+                      <p className="text-[10px] mt-1" style={{ color: T.textDim }}>{card.sub}</p>
+                    </div>
+                  ))}
+                </div>
+              )
+            })()}
+
+            {/* Decision Quality Breakdown */}
+            {(() => {
+              const fl = intelSum.feedback_loop
+              const maxVal = Math.max(fl.correct_approve, fl.incorrect_approve, fl.correct_block, fl.incorrect_block, fl.correct_review, fl.incorrect_review, 1)
+              const rows = [
+                { label: 'Correct Approves',    count: fl.correct_approve,    color: '#16C784', note: 'Allowed + legitimate' },
+                { label: 'Incorrect Approves',   count: fl.incorrect_approve,  color: '#EF4444', note: 'Allowed + fraud (missed)' },
+                { label: 'Correct Blocks',       count: fl.correct_block,      color: '#16C784', note: 'Blocked + confirmed fraud' },
+                { label: 'Incorrect Blocks',     count: fl.incorrect_block,    color: '#F59E0B', note: 'Blocked + legitimate (FP)' },
+                { label: 'Correct Reviews',      count: fl.correct_review,     color: '#16C784', note: 'Reviewed + confirmed fraud' },
+                { label: 'Incorrect Reviews',    count: fl.incorrect_review,   color: '#94A3B8', note: 'Reviewed + legitimate' },
+              ]
+              return (
+                <div className="mb-5">
+                  <p className="text-xs font-semibold mb-3" style={{ color: T.textDim }}>Decision Quality Breakdown</p>
+                  <div className="space-y-2">
+                    {rows.map(r => (
+                      <div key={r.label} className="flex items-center gap-3">
+                        <span className="text-[11px] flex-shrink-0" style={{ color: T.textSec, width: '160px' }}>{r.label}</span>
+                        <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: T.border }}>
+                          <div className="h-full rounded-full" style={{ width: `${(r.count / maxVal) * 100}%`, background: r.color }} />
+                        </div>
+                        <span className="text-[11px] mono flex-shrink-0 w-8 text-right" style={{ color: r.color }}>{r.count}</span>
+                        <span className="text-[10px] flex-shrink-0 hidden lg:block" style={{ color: T.textDim, width: '180px' }}>{r.note}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })()}
+
+            {/* Auto insight */}
+            {intelSum.feedback_loop.insight && (
+              <div className="p-3 rounded-lg flex items-start gap-2.5"
+                style={{ background: '#38BDF808', border: '1px solid #38BDF820' }}>
+                <AlertCircle size={13} style={{ color: '#38BDF8', flexShrink: 0, marginTop: 1 }} />
+                <p className="text-xs" style={{ color: T.textSec }}>{intelSum.feedback_loop.insight}</p>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* ── Fraud Analytics ────────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* GNX Score Distribution */}
+        <ChartCard
+          title="GNX Score Distribution"
+          subtitle="Events bucketed by Genuinux Fraud Score™ (0–1000)"
+          text={T.text} textDim={T.textDim}
+        >
+          {!intelSum || intelSum.gnx_distribution.total === 0 ? (
+            <EmptyChart label="No events with GNX scores yet" textDim={T.textDim} />
+          ) : (
+            <div className="space-y-3 pt-1">
+              {[
+                { label: 'Low Risk',     range: '0 – 300',   count: intelSum.gnx_distribution.low,         color: '#16C784' },
+                { label: 'Review Zone',  range: '301 – 700', count: intelSum.gnx_distribution.review_zone, color: '#F59E0B' },
+                { label: 'High Risk',    range: '701 – 1000',count: intelSum.gnx_distribution.high,        color: '#EF4444' },
+              ].map(band => {
+                const total = intelSum.gnx_distribution.total
+                const w = total === 0 ? 0 : (band.count / total) * 100
+                return (
+                  <div key={band.label}>
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium" style={{ color: T.text }}>{band.label}</span>
+                        <span className="text-[10px] mono" style={{ color: T.textDim }}>{band.range}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] mono font-semibold" style={{ color: band.color }}>{fmt(band.count)}</span>
+                        <span className="text-[10px]" style={{ color: T.textDim }}>{pct(band.count, total)}%</span>
+                      </div>
+                    </div>
+                    <div className="h-2 rounded-full overflow-hidden" style={{ background: T.border }}>
+                      <div className="h-full rounded-full transition-all" style={{ width: `${w}%`, background: band.color }} />
+                    </div>
+                  </div>
+                )
+              })}
+              <p className="text-[10px] pt-1" style={{ color: T.textDim }}>
+                {fmt(intelSum.gnx_distribution.total)} events with GNX scores in period
+              </p>
+            </div>
+          )}
+        </ChartCard>
+
+        {/* Fraud Label Trends */}
+        <ChartCard
+          title="Fraud Label Trends"
+          subtitle="Label submissions over time — stacked by type"
+          text={T.text} textDim={T.textDim}
+        >
+          {!intelSum || intelSum.fraud_trends.length === 0 ? (
+            <EmptyChart label="No labels submitted in this period" textDim={T.textDim} />
+          ) : (
+            <>
+              <LabelStackedChart trends={intelSum.fraud_trends} textDim={T.textDim} />
+              <div className="flex items-center gap-4 mt-3 flex-wrap">
+                {[
+                  { label: 'Confirmed Fraud', color: '#EF4444' },
+                  { label: 'Suspected Fraud', color: '#F97316' },
+                  { label: 'False Positive',  color: '#F59E0B' },
+                  { label: 'Legitimate',      color: '#16C784' },
+                ].map(l => (
+                  <div key={l.label} className="flex items-center gap-1.5">
+                    <div className="w-2 h-2 rounded-sm flex-shrink-0" style={{ background: l.color }} />
+                    <span className="text-[10px]" style={{ color: T.textDim }}>{l.label}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </ChartCard>
+      </div>
+
+      {/* Top Fraud Patterns */}
+      {intelSum && intelSum.label_counts.confirmed_fraud > 0 && (
+        <ChartCard
+          title="Top Fraud Patterns"
+          subtitle="Characteristics of events labeled as confirmed fraud"
+          text={T.text} textDim={T.textDim}
+        >
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 pt-1">
+            {[
+              { title: 'Top Countries',    data: intelSum.top_patterns.countries          },
+              { title: 'Event Types',      data: intelSum.top_patterns.event_types        },
+              { title: 'Risk Levels',      data: intelSum.top_patterns.risk_levels        },
+              { title: 'Original Decision',data: intelSum.top_patterns.original_decisions },
+            ].map(group => {
+              const maxC = Math.max(...group.data.map(d => d.count), 1)
+              return (
+                <div key={group.title}>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider mb-2.5" style={{ color: T.textDim }}>{group.title}</p>
+                  {group.data.length === 0 ? (
+                    <p className="text-[11px]" style={{ color: T.textDim }}>No data</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {group.data.map(d => (
+                        <div key={d.value} className="flex items-center gap-2">
+                          <span className="text-[11px] truncate flex-1" style={{ color: T.textSec }}>{d.value}</span>
+                          <div className="w-16 h-1 rounded-full overflow-hidden flex-shrink-0" style={{ background: T.border }}>
+                            <div className="h-full rounded-full" style={{ width: `${(d.count / maxC) * 100}%`, background: '#EF4444' }} />
+                          </div>
+                          <span className="text-[11px] mono flex-shrink-0" style={{ color: '#EF4444' }}>{d.count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </ChartCard>
+      )}
+
+      {/* ── Training Readiness ─────────────────────────────────────────────────── */}
+      {intelSum && (
+        <div className="g-card p-5">
+          {(() => {
+            const tr = intelSum.training_readiness
+            const statusMeta: Record<string, { label: string; color: string; bg: string }> = {
+              not_ready:  { label: 'Not Ready',          color: '#94A3B8', bg: '#94A3B820' },
+              collecting: { label: 'Collecting Data',    color: '#F59E0B', bg: '#F59E0B18' },
+              near_ready: { label: 'Near Ready',         color: '#38BDF8', bg: '#38BDF818' },
+              ready:      { label: 'Ready for ML Shadow Mode', color: '#16C784', bg: '#16C78418' },
+            }
+            const sm = statusMeta[tr.status] ?? statusMeta['not_ready']
+            return (
+              <>
+                <div className="flex items-center justify-between mb-5">
+                  <div className="flex items-center gap-2.5">
+                    <Brain size={16} style={{ color: sm.color }} />
+                    <div>
+                      <h3 className="text-sm font-semibold" style={{ color: T.text }}>Training Readiness</h3>
+                      <p className="text-xs mt-0.5" style={{ color: T.textDim }}>
+                        Progress toward ML shadow mode activation
+                      </p>
+                    </div>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold"
+                    style={{ background: sm.bg, color: sm.color }}>
+                    {sm.label}
+                  </span>
+                </div>
+
+                {/* Progress bar */}
+                <div className="mb-5">
+                  <div className="flex items-center justify-between text-xs mb-2">
+                    <span style={{ color: T.textSec }}>{tr.total_labels.toLocaleString()} labels collected</span>
+                    <span style={{ color: T.textDim }}>Goal: 10,000</span>
+                  </div>
+                  <div className="h-2 rounded-full overflow-hidden" style={{ background: T.border }}>
+                    <div className="h-full rounded-full transition-all"
+                      style={{ width: `${tr.progress_pct}%`, background: sm.color }} />
+                  </div>
+                  <p className="text-[10px] mt-1.5" style={{ color: T.textDim }}>{tr.progress_pct}% complete</p>
+                </div>
+
+                {/* Label count grid */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+                  {[
+                    { label: 'Confirmed Fraud', count: tr.confirmed_fraud_labels, color: '#EF4444' },
+                    { label: 'Suspected Fraud', count: tr.suspected_fraud_labels, color: '#F97316' },
+                    { label: 'False Positive',  count: tr.false_positive_labels,  color: '#F59E0B' },
+                    { label: 'Legitimate',      count: tr.legitimate_labels,       color: '#16C784' },
+                  ].map(l => (
+                    <div key={l.label} className="rounded-xl p-3" style={{ background: T.deep, border: `1px solid ${T.border}` }}>
+                      <p className="text-[10px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: T.textDim }}>{l.label}</p>
+                      <p className="text-lg font-bold mono" style={{ color: l.count > 0 ? l.color : T.textDim }}>{l.count.toLocaleString()}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Data Quality Warnings */}
+                {tr.data_quality_warnings.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: T.textDim }}>Data Quality Warnings</p>
+                    {tr.data_quality_warnings.map(w => (
+                      <div key={w} className="flex items-start gap-2 p-3 rounded-lg"
+                        style={{ background: '#F59E0B08', border: '1px solid #F59E0B20' }}>
+                        <AlertCircle size={12} style={{ color: '#F59E0B', flexShrink: 0, marginTop: 1 }} />
+                        <p className="text-xs" style={{ color: T.textSec }}>{w}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {tr.data_quality_warnings.length === 0 && tr.total_labels >= 100 && (
+                  <div className="flex items-center gap-2 p-3 rounded-lg"
+                    style={{ background: '#16C78408', border: '1px solid #16C78420' }}>
+                    <Activity size={12} style={{ color: '#16C784', flexShrink: 0 }} />
+                    <p className="text-xs" style={{ color: T.textSec }}>Dataset quality looks good — label distribution is balanced.</p>
+                  </div>
+                )}
+              </>
+            )
+          })()}
+        </div>
+      )}
+
+      {/* ── Intelligence Layer (overview) ────────────────────────────────────── */}
       <div className="g-card p-5">
         <div className="flex items-center gap-2.5 mb-5">
           <Brain size={16} style={{ color: '#818CF8' }} />
