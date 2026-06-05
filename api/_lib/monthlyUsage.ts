@@ -16,28 +16,11 @@
  *   UPSTASH_REDIS_REST_TOKEN
  */
 
-import { Redis } from '@upstash/redis'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { captureException, captureMessage } from './monitoring.js'
+import { getRedisClient } from './redisClient.js'
 
-// ─── Redis client (module-level singleton, lazy init) ─────────────────────────
-
-let _redis: Redis | null | undefined = undefined
-
-function getRedis(): Redis | null {
-  if (_redis !== undefined) return _redis
-
-  const url   = process.env.UPSTASH_REDIS_REST_URL
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN
-
-  if (!url || !token) {
-    _redis = null
-    return null
-  }
-
-  _redis = new Redis({ url, token })
-  return _redis
-}
+const getRedis = getRedisClient
 
 // ─── Key helpers ──────────────────────────────────────────────────────────────
 

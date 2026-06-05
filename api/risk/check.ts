@@ -159,7 +159,7 @@ interface ApiKeyRecord {
 async function validateApiKey(
   supabase: SupabaseClient,
   rawKey: string,
-): Promise<ApiKeyRecord | null> {
+): Promise<{ record: ApiKeyRecord | null; cacheHit: boolean }> {
   const keyHash = hashApiKey(rawKey)
 
   // Redis cache hit — skip DB round-trip (~200ms saved on warm instances)
@@ -170,7 +170,7 @@ async function validateApiKey(
       last_used_at:   new Date().toISOString(),
       requests_count: (cached.requests_count ?? 0) + 1,
     }).eq('id', cached.id).then(() => {})
-    return cached
+    return { record: cached, cacheHit: true }
   }
 
   const { data } = await supabase
@@ -180,7 +180,7 @@ async function validateApiKey(
     .eq('status', 'active')
     .single()
 
-  if (!data) return null
+  if (!data) return { record: null, cacheHit: false }
 
   // Populate cache for next requests with this key
   void setCachedApiKey(keyHash, data as ApiKeyRecord)
@@ -195,7 +195,7 @@ async function validateApiKey(
     .eq('id', data.id)
     .then(() => {}) // não aguarda — não bloqueia a resposta
 
-  return data as ApiKeyRecord
+  return { record: data as ApiKeyRecord, cacheHit: false }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -721,9 +721,10 @@ async function applyCustomRules(
   orgId: string,
   data: RuleData,
   baseDecision: 'allow' | 'review' | 'block',
-): Promise<RuleMatchResult> {
+): Promise<{ result: RuleMatchResult; cacheHit: boolean }> {
   // Redis cache (60s TTL) — rules rarely change, saves 1 sequential DB round-trip
   let rules = await getCachedRules(orgId) as RuleRow[] | null
+  const cacheHit = rules !== null
 
   if (!rules) {
     const { data: dbRules } = await supabase
@@ -738,7 +739,7 @@ async function applyCustomRules(
   }
 
   if (!rules || rules.length === 0) {
-    return { decision: baseDecision, applied_rule_id: null, applied_rule_name: null }
+    return { result: { decision: baseDecision, applied_rule_id: null, applied_rule_name: null }, cacheHit }
   }
 
   for (const rule of rules as RuleRow[]) {
@@ -746,14 +747,13 @@ async function applyCustomRules(
       // require_verification maps to review in the DB/response
       const decision = rule.action === 'require_verification' ? 'review' : rule.action
       return {
-        decision,
-        applied_rule_id:   rule.id,
-        applied_rule_name: rule.name,
+        result: { decision, applied_rule_id: rule.id, applied_rule_name: rule.name },
+        cacheHit,
       }
     }
   }
 
-  return { decision: baseDecision, applied_rule_id: null, applied_rule_name: null }
+  return { result: { decision: baseDecision, applied_rule_id: null, applied_rule_name: null }, cacheHit }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -763,6 +763,17 @@ async function applyCustomRules(
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   setCorsHeaders(res)
   res.setHeader('X-Genuinux-API-Version', 'v1')
+
+  // ── Observability setup ──────────────────────────────────────
+  const reqStart  = Date.now()
+  const requestId = (req.headers['x-request-id'] as string | undefined)
+    ?? crypto.randomUUID().slice(0, 8)
+  res.setHeader('X-Request-ID', requestId)
+
+  const timings: Record<string, number> = {}
+  const cache:   Record<string, 'hit' | 'miss'> = {}
+  let _prev = reqStart
+  const step = (key: string) => { const n = Date.now(); timings[key] = n - _prev; _prev = n }
 
   // Preflight CORS
   if (req.method === 'OPTIONS') {
@@ -792,7 +803,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     })
   }
 
-  const apiKey = await validateApiKey(supabase, rawKey)
+  const { record: apiKey, cacheHit: keyCached } = await validateApiKey(supabase, rawKey)
+  step('key_ms')
+  cache.key = keyCached ? 'hit' : 'miss'
 
   if (!apiKey) {
     void createSecurityEvent(supabase, {
@@ -806,11 +819,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const orgId = apiKey.organization_id
 
   // ── 1.3. Fetch org config — Redis cache first, Supabase on miss ─────────
+  const _orgCached = await getCachedOrg(orgId)
+  cache.org = _orgCached ? 'hit' : 'miss'
   let orgRow: {
     plan?: string; shadow_mode?: boolean
     ai_enabled?: boolean; ai_monthly_limit?: number
     ai_calls_used?: number; ai_reset_at?: string
-  } | null = await getCachedOrg(orgId)
+  } | null = _orgCached
 
   if (!orgRow) {
     // Cache miss — query Supabase (resilient: falls back to core fields if AI columns missing)
@@ -846,6 +861,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const currentPlan  = orgRow?.plan ?? 'free'
   const isShadowMode = Boolean(orgRow?.shadow_mode)
   const orgAiRow     = orgRow
+  step('org_ms')
 
   // ── 1.4. Rate limiting (per API key, plan-aware sliding window) ──────
   const rateLimit = await checkRateLimit(apiKey.id, currentPlan)
@@ -869,6 +885,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
   res.setHeader('X-RateLimit-Limit',     String(rateLimit.limit))
   res.setHeader('X-RateLimit-Remaining', String(rateLimit.remaining))
+  step('rate_ms')
 
   // ── 1.5. Plan monthly event limits (beta safety caps) ────────────────
   // Temporary beta safety limits — increase after load testing confirms stability.
@@ -886,6 +903,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Redis-backed counter (O(1)). Falls back to Supabase COUNT(*) on miss/unavailability.
     const usedThisMonth = await getMonthlyUsage(orgId, supabase)
 
+    step('monthly_ms')
     if (usedThisMonth >= monthlyLimit) {
       const planLabels: Record<string, string> = {
         free:       'Free (1,000/mo beta limit)',
@@ -914,6 +932,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // ── 3. Contexto histórico ───────────────────────────────────
   const context = await fetchContext(supabase, orgId, payload)
+  step('context_ms')
 
   // ── 4. Risk Engine ──────────────────────────────────────────
   const input: RiskEngineInput = {
@@ -932,7 +951,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const result = analyze(input)
 
   // ── 4.5. Custom rules ───────────────────────────────────────
-  const ruleMatch = await applyCustomRules(supabase, orgId, {
+  const { result: ruleMatch, cacheHit: rulesCached } = await applyCustomRules(supabase, orgId, {
     fraud_score:        result.fraud_score,
     trust_score:        result.trust_score,
     risk_level:         result.risk_level,
@@ -944,6 +963,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     ip_signup_count_1h: context.ip_signup_count_last_1h    ?? 0,
     device_user_count:  context.device_distinct_users       ?? 0,
   }, result.decision)
+  step('engine_ms')
+  cache.rules = rulesCached ? 'hit' : 'miss'
   const suggestedDecision = ruleMatch.decision
   // In shadow mode the live outcome is always 'allow' — engine still runs fully.
   const liveDecision      = isShadowMode ? 'allow' : suggestedDecision
@@ -1007,7 +1028,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }),
   }
 
+  timings.total_ms = Date.now() - reqStart
   res.status(200).json(response)  // ← client receives response HERE
+
+  // Structured request log — emitted after response, never blocks client
+  captureMessage('risk.check.completed', 'info', {
+    request_id:  requestId,
+    org_id:      orgId,
+    plan:        currentPlan,
+    shadow_mode: isShadowMode,
+    decision:    effectiveResult.decision,
+    risk_level:  effectiveResult.risk_level,
+    fraud_score: effectiveResult.fraud_score,
+    trust_score: effectiveResult.trust_score,
+    signals:     effectiveResult.signals.length,
+    rule_hit:    !!ruleMatch.applied_rule_id,
+    timings_ms:  timings,
+    cache,
+  })
 
   // ── 5 & 6. Persistência (after response — invisible to client latency) ─
   const [, insertedId] = await Promise.all([

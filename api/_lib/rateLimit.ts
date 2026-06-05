@@ -12,8 +12,8 @@
  *   UPSTASH_REDIS_REST_TOKEN — from Upstash console
  */
 
-import { Redis } from '@upstash/redis'
 import { Ratelimit } from '@upstash/ratelimit'
+import { getRedisClient } from './redisClient.js'
 
 export interface RateLimitResult {
   allowed:   boolean
@@ -34,26 +34,8 @@ const PLAN_WINDOWS: Record<string, number> = {
 // one Ratelimit instance per plan tier — initialized lazily
 const limiters = new Map<string, Ratelimit>()
 
-// undefined = not yet checked; null = unavailable
-let redisClient: Redis | null | undefined = undefined
-
-function initRedis(): Redis | null {
-  const url   = process.env.UPSTASH_REDIS_REST_URL
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN
-
-  if (!url || !token) {
-    console.warn(
-      '[rateLimit] UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN not set — ' +
-      'rate limiting is disabled (fail-open). Set both vars to enable it.',
-    )
-    return null
-  }
-
-  return new Redis({ url, token })
-}
-
 function getLimiter(plan: string): Ratelimit | null {
-  if (redisClient === undefined) redisClient = initRedis()
+  const redisClient = getRedisClient()
   if (!redisClient) return null
 
   const tier = plan in PLAN_WINDOWS ? plan : 'free'
