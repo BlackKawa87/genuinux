@@ -9,7 +9,8 @@
  *   2. Purge stale webhook_deliveries rows older than 90 days
  *   3. Aggregate yesterday's risk_events into org_daily_stats (v17 migration)
  *   4. Purge risk_events older than 365 days (v17 migration)
- *   5. Write run summary to maintenance_logs (requires v8 schema migration)
+ *   5. Pre-create next month's risk_events partition (v18 migration)
+ *   6. Write run summary to maintenance_logs (requires v8 schema migration)
  *
  * Auth: Authorization: Bearer <CRON_SECRET>  OR  x-vercel-cron: 1 header
  *       If CRON_SECRET is not set, the endpoint is open — set it in production.
@@ -165,7 +166,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     results.risk_events_purge = { status: 'error', message: String(err) }
   }
 
-  // ── Task 5: Write run to maintenance_logs (v8 migration required) ───────────
+  // ── Task 5: Pre-create next month's risk_events partition ─────────────────
+  // Ensures a partition exists 2 months ahead so inserts never miss a partition.
+  // Silently skipped if v18 migration (partitioning) is not yet applied.
+  try {
+    const nextMonth = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000)  // ~2 months ahead
+    const targetMonth = nextMonth.toISOString().slice(0, 10)
+
+    const { data: partResult, error: partErr } = await supabase
+      .rpc('create_risk_events_partition', { target_month: targetMonth })
+
+    if (partErr) {
+      if (partErr.message?.includes('does not exist') || partErr.code === '42883') {
+        results.partition_create = { status: 'skipped', reason: 'v18 migration not applied' }
+      } else {
+        captureException(partErr, { context: 'maintenance: create_risk_events_partition' })
+        results.partition_create = { status: 'error', message: partErr.message }
+      }
+    } else {
+      results.partition_create = { status: 'ok', result: partResult }
+    }
+  } catch (err) {
+    captureException(err, { context: 'maintenance: create_risk_events_partition (exception)' })
+    results.partition_create = { status: 'error', message: String(err) }
+  }
+
+  // ── Task 6: Write run to maintenance_logs (v8 migration required) ───────────
   try {
     await supabase.from('maintenance_logs').insert({
       ran_at:  now,
