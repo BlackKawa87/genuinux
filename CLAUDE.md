@@ -41,6 +41,9 @@ SUPABASE_SERVICE_ROLE_KEY=...   # server-side only — never expose to frontend
 # UPSTASH_REDIS_REST_URL=...    # required for rate limiting + caching (Upstash console)
 # UPSTASH_REDIS_REST_TOKEN=...  # required for rate limiting + caching (Upstash console)
 # REDIS_COUNTERS_ENABLED=true   # enable Redis-first fraud context reads (set AFTER 24-48h dual-write warm-up)
+# ML_SHADOW_ENABLED=true        # enable ML shadow predictions (set AFTER applying v22_ml_predictions.sql)
+# FEATURE_STORE_ENABLED=true    # enable feature vector writes to fraud_features (Phase 3.3)
+# DATASET_BUILDER_ENABLED=true  # enable training dataset auto-build on label submit (Phase 3.6)
 ```
 
 `SUPABASE_SERVICE_ROLE_KEY` is required by Vercel serverless functions. It bypasses RLS — never expose it to the frontend.
@@ -63,13 +66,17 @@ Routes:
 - `/login`                 → `Login.tsx` (public)
 - `/register`              → `Register.tsx` (public)
 - `/dashboard`             → `ProtectedRoute` → `AppLayout` (sidebar) + nested:
-  - `/dashboard`           → `Overview.tsx`
-  - `/dashboard/events`    → `Events.tsx`
-  - `/dashboard/users`     → `Users.tsx`
-  - `/dashboard/queue`     → `Queue.tsx`
-  - `/dashboard/rules`     → `Rules.tsx`
-  - `/dashboard/api-keys`  → `ApiKeys.tsx`
-  - `/dashboard/webhooks`  → `Webhooks.tsx`
+  - `/dashboard`                → `Overview.tsx`
+  - `/dashboard/events`         → `Events.tsx`
+  - `/dashboard/users`          → `Users.tsx`
+  - `/dashboard/queue`          → `Queue.tsx`
+  - `/dashboard/analytics`      → `Analytics.tsx`
+  - `/dashboard/ml`             → `ML.tsx` (Machine Learning — Phase 3.7)
+  - `/dashboard/rules`          → `Rules.tsx`
+  - `/dashboard/api-keys`       → `ApiKeys.tsx`
+  - `/dashboard/webhooks`       → `Webhooks.tsx`
+  - `/dashboard/infrastructure` → `Infrastructure.tsx`
+  - `/dashboard/ops`            → `Ops.tsx`
 
 ### Auth (`src/contexts/AuthContext.tsx`)
 `AuthProvider` wraps the full app in `main.tsx`. Exposes `useAuth()` with: `user`, `session`, `loading`, `signIn`, `signUp`, `signOut`. Backed by Supabase Auth.
@@ -123,6 +130,12 @@ ai_reset_at timestamptz NOT NULL DEFAULT now()
 - Table `org_daily_stats` — PK `(organization_id, date)`, columns: `total_requests`, `approve_count`, `review_count`, `block_count`, `avg_latency_ms`.
 - `aggregate_daily_stats(target_date DATE) RETURNS void` — `INSERT ... SELECT GROUP BY` from `risk_events` with `ON CONFLICT DO UPDATE`. Called nightly by `/api/cron/maintenance` Task 3.
 - `purge_old_risk_events(retention_days INTEGER DEFAULT 365) RETURNS integer` — deletes rows older than N days using `make_interval(days => retention_days)`. Called by maintenance Task 4.
+
+**v22 migration** (`supabase/migrations/v22_ml_predictions.sql`): ML Shadow Mode tables (Phase 3.7).
+- **Section A**: `ml_predictions` table — PK `id UUID`, `organization_id UUID FK`, `risk_event_id TEXT`, `model_name TEXT DEFAULT 'shadow-v1'`, `model_version INTEGER DEFAULT 1`, `prediction TEXT CHECK(block|review|allow)`, `prediction_score NUMERIC(5,4)`, `actual_decision TEXT`, `agreement BOOLEAN` (pre-computed at write time), `feature_version INTEGER`, `dataset_version INTEGER`. 5 indexes on org+created, org+event, org+model, org+agreement, org+prediction. RLS SELECT for org members.
+- **Section B**: `feature_importance` table — `(model_version TEXT, feature_name TEXT)` UNIQUE PK. Seeded with 9 shadow-v1 weights matching `api/_lib/shadowPredictor.ts`. RLS SELECT = true (global).
+- Safe to DROP+CREATE `ml_predictions` because `ML_SHADOW_ENABLED` was never true in production.
+- Run Section A then Section B separately in the Supabase SQL editor.
 
 **v21 migration** (`supabase/migrations/v21_training_dataset.sql`): Training Dataset table (Phase 3.6).
 - `training_dataset` table — PK `id UUID`, fields: `risk_event_id TEXT`, `label`, `decision`, `fraud_score`, `trust_score`, `gnx_score`, `feature_count`, `label_created_at`, `event_created_at`, `dataset_version INTEGER DEFAULT 1`.
@@ -311,8 +324,12 @@ Phase 2B Redis counters (implemented, env-gated): `writeFraudCounters()` writes 
 - `aiEnricher.ts` / `aiSummary.ts` — GPT-4o-mini AI signal enrichment and event summaries.
 - `riskEngine.ts` — Server-side re-export of the risk engine for use in API functions.
 - `securityEvents.ts` — `createSecurityEvent()` helper for writing internal security audit entries.
+- `shadowPredictor.ts` — `predictShadow(features[])` pure function. shadow-v1 deterministic model: 9-feature weighted linear combination, maps fraud probability to `block/review/allow` (thresholds 0.70/0.35). Weights match `feature_importance` DB seed. No randomness. (Phase 3.7)
+- `mlPredictionStore.ts` — `savePrediction()` writes to `ml_predictions` with pre-computed `agreement BOOLEAN`; `runShadowPrediction()` orchestrates extractFeatures→predictShadow→save fire-and-forget; `getPredictions()`, `getAgreementStats()`, `getModelStats()` for API endpoints. Gated by `ML_SHADOW_ENABLED=true`. (Phase 3.7)
 
 ### Dashboard Pages
+
+**`ML.tsx`** — Machine Learning dashboard at `/dashboard/ml`. Fetches 3 endpoints in parallel: `/api/admin/ml/summary`, `/api/admin/ml/disagreements`, `/api/admin/ml/features`. 6 sections: **ML Readiness** (coverage + agreement + readiness score bar), **Shadow Performance** (accuracy/precision/recall/F1 — null until labels exist; agreement rate always available), **Agreement Analysis** (disagreement breakdown + recent disagreements table with official_decision vs shadow_prediction), **Prediction Coverage** (coverage/agreement/event count grid), **Feature Importance** (bar chart of shadow-v1 weights from DB), **Dataset Health** (link to Analytics + training readiness). Shows activation notice with step-by-step instructions if `ML_SHADOW_ENABLED` not set. (Phase 3.7)
 
 **`Analytics.tsx`** — Full analytics dashboard with range picker (7d/30d/90d). Sections:
 1. **KPI row** — Total Events, Avg Fraud Score, Block Rate, Feedback Coverage (with previous-period deltas)
@@ -442,25 +459,38 @@ Register adds **company name** and **website** fields. On successful sign-up, ca
 - ML training (Phase 3.5): gated on 10,000 labels + 50+ confirmed_fraud labels — status shown in Training Readiness panel.
 - `REPUTATION_ENRICHMENT_ENABLED=true` — phase 3.5 gate to read entity reputation in the `/api/risk/check` hot path.
 
-**Phase 3 — Implemented (Modules 1, 2, 3, 5, 10):**
-- `POST /api/risk/label` — client API for ground-truth fraud labels (Module 1 + 2)
-- `api/_lib/gnxScore.ts` — `computeGnxScore()` — deterministic 0–1000 score, written to `risk_events.gnx_score` fire-and-forget (Module 10)
+**Phase 3 — Implemented:**
+- `POST /api/risk/label` — client API for ground-truth fraud labels (Phase 3.1/3.2)
+- `api/_lib/gnxScore.ts` — `computeGnxScore()` — deterministic 0–1000 score, written to `risk_events.gnx_score` fire-and-forget (Phase 3.0)
 - `api/_lib/featureExtractor.ts` — `extractFeatures()` — derives 17 features across 5 groups (velocity/reputation/behavior/risk/context) with `feature_group`, `feature_version`, `source` (Phase 3.3)
 - `api/_lib/featureStore.ts` — `persistFeatures()` — writes extracted feature vectors to `fraud_features` fire-and-forget (Phase 3.3), gated by `FEATURE_STORE_ENABLED`
 - `api/_lib/datasetBuilder.ts` — `buildTrainingDataset()` — joins risk_events + fraud_features into `training_dataset` fire-and-forget (Phase 3.6), gated by `DATASET_BUILDER_ENABLED`
-- `api/_lib/reputationNetwork.ts` — `updateEntityReputation()` / `getEntityReputation()` — atomic cross-org reputation via PostgreSQL RPC (Module 5)
+- `api/_lib/reputationNetwork.ts` — `updateEntityReputation()` / `getEntityReputation()` — atomic cross-org reputation via PostgreSQL RPC (Phase 3.5)
+- `api/_lib/shadowPredictor.ts` — `predictShadow(features[])` — pure function, deterministic heuristic model shadow-v1, returns `{ prediction: block|review|allow, prediction_score, confidence, model_name, model_version }` (Phase 3.7)
+- `api/_lib/mlPredictionStore.ts` — `savePrediction()`, `getPredictions()`, `getAgreementStats()`, `getModelStats()`, `runShadowPrediction()` — all persistence for ML shadow pipeline; `agreement` computed at write time as `prediction === engineDecision` (Phase 3.7)
 - `GET /api/admin/intelligence/summary` — aggregated Feedback Loop + GNX distribution + fraud trends + top patterns + training readiness
-- `GET /api/admin/intelligence/features?days=N&feature_name=&feature_group=` — Feature Store audit: total rows, per-group counts, per-feature stats (count/avg/min/max), coverage rate, daily growth, data quality warnings (Phase 3.3)
-- `GET /api/admin/intelligence/dataset/stats` — Training Dataset stats: total records, label distribution, coverage, dataset balance warnings, readiness score 0–100 (Phase 3.6)
-- `GET /api/admin/intelligence/dataset/export?format=json|csv` — Training dataset export with feature columns, max 50k rows (Phase 3.6)
-- Analytics.tsx — Intelligence Layer overview + Feedback Loop + Fraud Analytics + Training Readiness + **Feature Store** (Phase 3.3) + **Training Dataset** (Phase 3.6) sections
+- `GET /api/admin/intelligence/features?days=N&feature_name=&feature_group=` — Feature Store audit (Phase 3.3)
+- `GET /api/admin/intelligence/dataset/stats` — Training Dataset stats, readiness score 0–100 (Phase 3.6)
+- `GET /api/admin/intelligence/dataset/export?format=json|csv` — Training dataset export, max 50k rows (Phase 3.6)
+- `GET /api/admin/ml/summary?days=N` — ML Shadow summary: total_predictions, agreement_rate, coverage_rate, accuracy/precision/recall/f1_score (null until labels exist), model_name, model_version (Phase 3.7)
+- `GET /api/admin/ml/disagreements?page=N&limit=N&days=N` — Paginated disagreements: official_decision, shadow_prediction, confidence (Phase 3.7)
+- `GET /api/admin/ml/features?model=shadow-v1` — Feature weights from feature_importance table: `[{ feature, weight }]` (Phase 3.7)
+- Analytics.tsx — Intelligence Layer overview + Feedback Loop + Fraud Analytics + Training Readiness + Feature Store (Phase 3.3) + Training Dataset (Phase 3.6) sections
+- `src/pages/dashboard/ML.tsx` — Machine Learning dashboard at `/dashboard/ml`: ML Readiness, Shadow Performance, Agreement Analysis, Prediction Coverage, Feature Importance, Dataset Health (Phase 3.7)
 
-**Deferred (Phase 3.5+):**
-- `GET /api/risk/reputation` — client-facing entity reputation lookup endpoint
+**ML Shadow Mode — activation steps (Phase 3.7):**
+1. Apply `supabase/migrations/v22_ml_predictions.sql` Section A, then Section B in Supabase SQL editor
+2. Set `ML_SHADOW_ENABLED=true` in Vercel environment variables
+3. Every `/api/risk/check` call now generates a shadow prediction fire-and-forget
+4. `/dashboard/ml` populates in real time
+
+**engineDecision vs liveDecision note:** In shadow mode, `liveDecision = 'allow'` always. `runShadowPrediction()` receives `suggestedDecision` (engine's true intent before shadow override) as `engineDecision` so agreement calculation is meaningful even in shadow mode.
+
+**Deferred (Phase 3.8+):**
+- Hybrid Decision Engine — gated on ML shadow mode agreement ≥ 80% + coverage ≥ 95%
+- Real ML model training pipeline — gated on 100k events + 10k labels
+- `GET /api/risk/reputation` — client-facing entity reputation lookup
 - `api/_lib/aiCopilot.ts` — richer AI Copilot per-event investigation summary
-- ML training pipeline (Module 7) — gated on 100k events + 10k labels
-- Hybrid Decision Engine (Module 9) — gated on ML shadow mode validation
-- Shadow ML columns (`ml_score`, `ml_decision`, `ml_version`) added to `risk_events` in v19 migration but remain NULL until ML training activates
 
 **Features:**
 - Invite team members: works end-to-end but requires running the `pending_invites` SQL migration in Supabase first.
