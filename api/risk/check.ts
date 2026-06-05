@@ -96,11 +96,17 @@ const WEBHOOK_TIMEOUT_MS = 5_000
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Module-level client — reused across warm Vercel invocations.
+// Creating a new client per request multiplies connection overhead under load.
+let _supabase: SupabaseClient | null = null
+
 function adminClient(): SupabaseClient {
+  if (_supabase) return _supabase
   const url = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!url || !key) throw new Error('Missing Supabase env vars (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)')
-  return createClient(url, key)
+  _supabase = createClient(url, key)
+  return _supabase
 }
 
 /** SHA-256 da API key em hex — deve bater com key_hash na tabela api_keys */
@@ -801,34 +807,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const orgId = apiKey.organization_id
 
-  // ── 1.3. Fetch org config (plan needed for plan-aware rate limit) ───
-  // Split into two queries so a missing AI column never causes plan to
-  // fall back to 'free'. Essential fields (plan, shadow_mode) are fetched
-  // first; optional AI budget fields are fetched separately and fail-safe.
-  const { data: orgCore } = await supabase
-    .from('organizations')
-    .select('plan, shadow_mode')
-    .eq('id', orgId)
-    .single()
+  // ── 1.3. Fetch org config — single query, parallel with rate-limit check ─
+  // Resilient: if AI columns are missing (pre-v12 DB), falls back to core fields.
+  const [orgResult] = await Promise.all([
+    supabase
+      .from('organizations')
+      .select('plan, shadow_mode, ai_enabled, ai_monthly_limit, ai_calls_used, ai_reset_at')
+      .eq('id', orgId)
+      .maybeSingle(),
+  ])
 
-  const currentPlan  = (orgCore as { plan: string } | null)?.plan ?? 'free'
-  const isShadowMode = Boolean((orgCore as { plan: string; shadow_mode?: boolean } | null)?.shadow_mode)
+  // If AI columns don't exist yet the query fails — retry with essential fields only.
+  let orgRow = orgResult.data as {
+    plan?: string; shadow_mode?: boolean
+    ai_enabled?: boolean; ai_monthly_limit?: number
+    ai_calls_used?: number; ai_reset_at?: string
+  } | null
 
-  // AI budget fields — optional; defaults apply if columns don't exist yet.
-  const { data: orgAiRow } = await supabase
-    .from('organizations')
-    .select('ai_enabled, ai_monthly_limit, ai_calls_used, ai_reset_at')
-    .eq('id', orgId)
-    .maybeSingle()
-    .then(r => r.error ? { data: null } : r)
+  if (orgResult.error && !orgRow) {
+    const { data: fallback } = await supabase
+      .from('organizations')
+      .select('plan, shadow_mode')
+      .eq('id', orgId)
+      .maybeSingle()
+    orgRow = fallback as typeof orgRow
+  }
 
-  // Unified orgRow alias used below for backward-compat references.
-  const orgRow = orgCore
+  const currentPlan  = orgRow?.plan ?? 'free'
+  const isShadowMode = Boolean(orgRow?.shadow_mode)
+  const orgAiRow     = orgRow  // AI fields are in the same row after v12 migration
 
   // Temporary diagnostic headers — remove after plan resolution bug is confirmed fixed.
   res.setHeader('X-Debug-Org-Id',      orgId)
-  res.setHeader('X-Debug-Org-Plan',    (orgCore as { plan: string } | null)?.plan ?? 'NULL')
-  res.setHeader('X-Debug-Plan-Src',    orgCore ? 'db' : 'fallback')
+  res.setHeader('X-Debug-Org-Plan',    orgRow?.plan ?? 'NULL')
+  res.setHeader('X-Debug-Plan-Src',    orgRow ? 'db' : 'fallback')
   res.setHeader('X-Debug-CurrentPlan', currentPlan)
 
   // ── 1.4. Rate limiting (per API key, plan-aware sliding window) ──────
@@ -946,13 +958,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const effectiveResult = { ...result, decision: liveDecision, ai_summary }
 
-  // ── 5 & 6. Persistência (paralela onde possível) ────────────
-  await upsertUserChecked(supabase, orgId, payload)
-
-  const eventId = await insertRiskEvent(
-    supabase, orgId, payload, effectiveResult, ruleMatch,
-    isShadowMode, isShadowMode ? suggestedDecision : null,
-  )
+  // ── 5 & 6. Persistência — upsert runs parallel with insert ────────────
+  // upsertUserChecked only needs payload/orgId — no dependency on ruleMatch.
+  // insertRiskEvent needs effectiveResult + ruleMatch — both run concurrently.
+  const [, eventId] = await Promise.all([
+    upsertUserChecked(supabase, orgId, payload),
+    insertRiskEvent(
+      supabase, orgId, payload, effectiveResult, ruleMatch,
+      isShadowMode, isShadowMode ? suggestedDecision : null,
+    ),
+  ])
 
   if (!eventId) {
     captureException(new Error('risk_event insert failed — eventId null'), { orgId })
