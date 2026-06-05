@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo, useCallback } from 'react'
 import type { ReactNode } from 'react'
 import {
   BarChart2, Shield, Target, MessageSquare,
-  RefreshCw, Activity,
+  RefreshCw, Activity, Brain, AlertCircle,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
@@ -13,16 +13,22 @@ import { useT } from '../../lib/themeTokens'
 type Range = '7d' | '30d' | '90d'
 
 interface EventLite {
-  fraud_score: number
-  decision: string
-  signals_json: unknown
+  fraud_score:       number
+  decision:          string
+  signals_json:      unknown
   applied_rule_name: string | null
-  feedback_status: string | null
-  created_at: string
+  feedback_status:   string | null
+  gnx_score:         number | null
+  created_at:        string
 }
 
 interface FbLite {
   feedback_type: string
+  created_at:    string
+}
+
+interface LabelLite {
+  label:      string
   created_at: string
 }
 
@@ -274,6 +280,7 @@ export default function Analytics() {
   const [range,    setRange]    = useState<Range>('30d')
   const [events,   setEvents]   = useState<EventLite[]>([])
   const [feedback, setFeedback] = useState<FbLite[]>([])
+  const [labels,   setLabels]   = useState<LabelLite[]>([])
   const [loading,  setLoading]  = useState(true)
 
   const days = RANGE_DAYS[range]
@@ -285,10 +292,10 @@ export default function Analytics() {
     // Fetch 2× the period so we can compute previous-period deltas
     const since = new Date(Date.now() - 2 * days * 24 * 60 * 60 * 1000).toISOString()
 
-    const [evRes, fbRes] = await Promise.all([
+    const [evRes, fbRes, lblRes] = await Promise.all([
       supabase
         .from('risk_events')
-        .select('fraud_score, decision, signals_json, applied_rule_name, feedback_status, created_at')
+        .select('fraud_score, decision, signals_json, applied_rule_name, feedback_status, gnx_score, created_at')
         .eq('organization_id', profile.organization_id)
         .gte('created_at', since)
         .order('created_at', { ascending: true })
@@ -298,10 +305,17 @@ export default function Analytics() {
         .select('feedback_type, created_at')
         .eq('organization_id', profile.organization_id)
         .gte('created_at', since),
+      supabase
+        .from('fraud_labels')
+        .select('label, created_at')
+        .eq('organization_id', profile.organization_id)
+        .gte('created_at', since)
+        .limit(2000),
     ])
 
     setEvents((evRes.data ?? []) as EventLite[])
     setFeedback((fbRes.data ?? []) as FbLite[])
+    setLabels((lblRes.data ?? []) as LabelLite[])
     setLoading(false)
   }, [profile?.organization_id, days])
 
@@ -384,6 +398,38 @@ export default function Analytics() {
   const maxFb  = Math.max(...feedbackBreakdown.map(f => f.count), 1)
   const maxRule = Math.max(...ruleHits.map(r => r.count), 1)
   const maxSig  = Math.max(...topSignals.map(s => s.count), 1)
+
+  // ── Intelligence KPIs ───────────────────────────────────────────────────────
+  const currLabels = useMemo(() => labels.filter(l => l.created_at >= mid), [labels, mid])
+
+  const intelKpi = useMemo(() => {
+    const withGnx = curr.filter(e => e.gnx_score !== null)
+    const avgGnx  = withGnx.length === 0
+      ? null
+      : Math.round(withGnx.reduce((a, e) => a + (e.gnx_score ?? 0), 0) / withGnx.length)
+    const total          = currLabels.length
+    const confirmedFraud = currLabels.filter(l => l.label === 'confirmed_fraud').length
+    const suspectedFraud = currLabels.filter(l => l.label === 'suspected_fraud').length
+    const falsePositive  = currLabels.filter(l => l.label === 'false_positive').length
+    const legitimate     = currLabels.filter(l => l.label === 'legitimate').length
+    const fpRate         = total === 0 ? 0 : Math.round((falsePositive / total) * 100)
+    return { avgGnx, total, confirmedFraud, suspectedFraud, falsePositive, legitimate, fpRate }
+  }, [curr, currLabels])
+
+  const labelBreakdown = useMemo(() => [
+    { label: 'Confirmed Fraud', color: '#EF4444', count: intelKpi.confirmedFraud },
+    { label: 'Suspected Fraud', color: '#F97316', count: intelKpi.suspectedFraud },
+    { label: 'False Positive',  color: '#F59E0B', count: intelKpi.falsePositive  },
+    { label: 'Legitimate',      color: '#16C784', count: intelKpi.legitimate      },
+  ].filter(d => d.count > 0), [intelKpi])
+
+  const maxLabel = Math.max(...labelBreakdown.map(l => l.count), 1)
+
+  const gnxColor = intelKpi.avgGnx === null
+    ? T.textDim
+    : intelKpi.avgGnx >= 701 ? '#EF4444'
+    : intelKpi.avgGnx >= 301 ? '#F59E0B'
+    : '#16C784'
 
   const fraudColor = kpi.fraudAvg >= 50 ? '#EF4444' : kpi.fraudAvg >= 30 ? '#F59E0B' : '#16C784'
   const bucketLabel = days === 90 ? 'week' : 'day'
@@ -585,6 +631,107 @@ export default function Analytics() {
             </div>
           )}
         </ChartCard>
+      </div>
+
+      {/* Intelligence Layer */}
+      <div className="g-card p-5">
+        <div className="flex items-center gap-2.5 mb-5">
+          <Brain size={16} style={{ color: '#818CF8' }} />
+          <div>
+            <h3 className="text-sm font-semibold" style={{ color: T.text }}>Intelligence Layer</h3>
+            <p className="text-xs mt-0.5" style={{ color: T.textDim }}>
+              GNX Score distribution and API fraud labels submitted this period
+            </p>
+          </div>
+        </div>
+
+        {/* GNX + label KPI row */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+          {/* Avg GNX Score */}
+          <div className="rounded-xl p-4" style={{ background: T.deep, border: `1px solid ${T.border}` }}>
+            <p className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: T.textDim }}>
+              Avg GNX Score
+            </p>
+            <p className="text-2xl font-bold mono" style={{ color: intelKpi.avgGnx === null ? T.textDim : gnxColor }}>
+              {intelKpi.avgGnx === null ? '—' : intelKpi.avgGnx}
+            </p>
+            <p className="text-[10px] mt-1" style={{ color: T.textDim }}>0 – 1000 scale</p>
+          </div>
+
+          {/* Labels submitted */}
+          <div className="rounded-xl p-4" style={{ background: T.deep, border: `1px solid ${T.border}` }}>
+            <p className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: T.textDim }}>
+              Labels Submitted
+            </p>
+            <p className="text-2xl font-bold mono" style={{ color: T.text }}>{intelKpi.total}</p>
+            <p className="text-[10px] mt-1" style={{ color: T.textDim }}>via POST /api/risk/label</p>
+          </div>
+
+          {/* Confirmed Fraud */}
+          <div className="rounded-xl p-4" style={{ background: T.deep, border: `1px solid ${T.border}` }}>
+            <p className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: T.textDim }}>
+              Confirmed Fraud
+            </p>
+            <p className="text-2xl font-bold mono" style={{ color: intelKpi.confirmedFraud > 0 ? '#EF4444' : T.text }}>
+              {intelKpi.confirmedFraud}
+            </p>
+            <p className="text-[10px] mt-1" style={{ color: T.textDim }}>
+              + {intelKpi.suspectedFraud} suspected
+            </p>
+          </div>
+
+          {/* False Positive Rate */}
+          <div className="rounded-xl p-4" style={{ background: T.deep, border: `1px solid ${T.border}` }}>
+            <p className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: T.textDim }}>
+              False Positive Rate
+            </p>
+            <p className="text-2xl font-bold mono" style={{ color: intelKpi.fpRate > 20 ? '#F59E0B' : '#16C784' }}>
+              {intelKpi.fpRate}%
+            </p>
+            <p className="text-[10px] mt-1" style={{ color: T.textDim }}>of submitted labels</p>
+          </div>
+        </div>
+
+        {/* Label distribution */}
+        {intelKpi.total === 0 ? (
+          <div className="rounded-xl p-5 flex items-start gap-3"
+            style={{ background: `#818CF808`, border: `1px solid #818CF820` }}>
+            <AlertCircle size={15} style={{ color: '#818CF8', flexShrink: 0, marginTop: 1 }} />
+            <div>
+              <p className="text-sm font-semibold" style={{ color: T.text }}>No labels submitted yet</p>
+              <p className="text-xs mt-1" style={{ color: T.textDim }}>
+                Send ground-truth labels from your backend via{' '}
+                <code className="mono px-1 py-0.5 rounded text-[11px]"
+                  style={{ background: T.card, color: '#818CF8' }}>
+                  POST /api/risk/label
+                </code>{' '}
+                to activate the Intelligence Layer. Labels power the Genuinux Fraud Score™ and train
+                future ML models.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div>
+            <p className="text-xs font-semibold mb-3" style={{ color: T.textDim }}>Label Distribution</p>
+            <div className="space-y-2.5">
+              {labelBreakdown.map(l => (
+                <HBar
+                  key={l.label}
+                  label={l.label}
+                  count={l.count}
+                  max={maxLabel}
+                  color={l.color}
+                  textSec={T.textSec}
+                  card={T.deep}
+                />
+              ))}
+            </div>
+            <p className="text-[10px] mt-3" style={{ color: T.textDim }}>
+              {intelKpi.total} label{intelKpi.total !== 1 ? 's' : ''} collected ·{' '}
+              ML training activates at 10,000 labels
+            </p>
+          </div>
+        )}
       </div>
 
     </div>

@@ -25,12 +25,16 @@ export type EventType =
 export type Plan = 'free' | 'starter' | 'pro' | 'enterprise'
 export type FeedbackType =
   | 'confirmed_fraud'
+  | 'suspected_fraud'
   | 'false_positive'
+  | 'legitimate'
   | 'genuine_user'
   | 'chargeback_received'
   | 'account_abuse_confirmed'
   | 'manual_review_correct'
   | 'manual_review_wrong'
+
+export type FraudLabelType = 'confirmed_fraud' | 'suspected_fraud' | 'false_positive' | 'legitimate'
 export type ApiKeyStatus = 'active' | 'revoked'
 export type RuleStatus = 'active' | 'paused'
 export type ReviewStatus = 'pending' | 'in_review' | 'approved' | 'rejected' | 'escalated'
@@ -107,7 +111,29 @@ export interface RiskEvent {
   feedback_status: FeedbackType | null
   shadow_mode: boolean
   suggested_decision: string | null
+  gnx_score: number | null
+  ml_score: number | null
+  ml_decision: string | null
   created_at: string
+}
+
+export interface FraudLabel {
+  id:              string
+  organization_id: string
+  risk_event_id:   string
+  label:           FraudLabelType
+  notes:           string | null
+  created_by:      string | null
+  created_at:      string
+}
+
+export interface EntityReputation {
+  entity_type:      'ip' | 'device' | 'email'
+  entity_value:     string
+  fraud_count:      number
+  legitimate_count: number
+  reputation_score: number
+  last_seen_at:     string | null
 }
 
 export interface EventFeedback {

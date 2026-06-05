@@ -29,6 +29,8 @@ import { createSecurityEvent } from '../_lib/securityEvents.js'
 import { getMonthlyUsage, incrementMonthlyUsage } from '../_lib/monthlyUsage.js'
 import { incrementOrgStats } from '../_lib/orgStats.js'
 import { readFraudCounters, writeFraudCounters } from '../_lib/fraudCounters.js'
+import { computeGnxScore } from '../_lib/gnxScore.js'
+import { persistFeatures }  from '../_lib/featureStore.js'
 import {
   getCachedApiKey, setCachedApiKey,
   getCachedOrg,    setCachedOrg,
@@ -59,6 +61,7 @@ interface CheckResponse {
   risk_level: string
   trust_score: number
   fraud_score: number
+  gnx_score: number
   confidence_level: string
   shadow_mode: boolean
   signals: Array<{
@@ -1002,6 +1005,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const effectiveResult = { ...result, decision: liveDecision, ai_summary }
 
+  // Genuinux Fraud Score™ — computed synchronously before the response.
+  // Pure function ~0.01ms — adds no meaningful latency.
+  const gnxScore = computeGnxScore(result, context)
+
   // ── 9. Respond first — client gets the decision immediately ──────────
   // DB writes (upsert, insert, review queue, webhooks) happen after the
   // response is flushed. This removes ~400ms from client-perceived latency.
@@ -1016,6 +1023,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     risk_level:         effectiveResult.risk_level,
     trust_score:        effectiveResult.trust_score,
     fraud_score:        effectiveResult.fraud_score,
+    gnx_score:          gnxScore,
     confidence_level:   effectiveResult.confidence_level,
     shadow_mode:        isShadowMode,
     signals: effectiveResult.signals.map(s => ({
@@ -1090,6 +1098,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       effectiveResult.decision,
       payload.event_type,
     )
+
+    // Genuinux Fraud Score™ — update risk_events.gnx_score (fire-and-forget)
+    void supabase
+      .from('risk_events')
+      .update({ gnx_score: gnxScore })
+      .eq('id', insertedId)
+      .then(() => {})
+
+    // Feature Store (Module 3) — gated by FEATURE_STORE_ENABLED=true
+    void persistFeatures(supabase, orgId, insertedId, effectiveResult, context, gnxScore)
 
     if (process.env.DISABLE_AI_DURING_LOAD_TEST !== '1') {
       const orgAi = orgAiRow as {
