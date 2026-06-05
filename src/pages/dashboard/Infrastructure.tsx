@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import {
   Database, Shield, Globe, Cpu, Clock, AlertTriangle,
   CheckCircle, XCircle, MinusCircle, RefreshCw, ChevronDown, ChevronUp,
-  AlertOctagon, Zap, FileDown, Activity,
+  AlertOctagon, Zap, FileDown, Activity, TrendingUp,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useT } from '../../lib/themeTokens'
@@ -190,7 +190,8 @@ const TABS: TabItem[] = [
   { id: 'cron',        label: 'Cron',         icon: Clock     },
   { id: 'security',    label: 'Security',     icon: Shield    },
   { id: 'incidents',   label: 'Incidents',    icon: AlertOctagon },
-  { id: 'readiness',   label: 'Readiness',    icon: CheckCircle  },
+  { id: 'readiness',    label: 'Readiness',    icon: CheckCircle  },
+  { id: 'performance',  label: 'Performance',  icon: TrendingUp   },
 ]
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -208,8 +209,10 @@ export default function Infrastructure() {
   const [aiData,       setAiData]       = useState<Record<string, unknown> | null>(null)
   const [cronData,     setCronData]     = useState<Record<string, unknown> | null>(null)
   const [securityData, setSecurityData] = useState<Record<string, unknown> | null>(null)
-  const [exportData,   setExportData]   = useState<Record<string, unknown> | null>(null)
-  const [healthData,   setHealthData]   = useState<Record<string, unknown> | null>(null)
+  const [exportData,      setExportData]      = useState<Record<string, unknown> | null>(null)
+  const [healthData,      setHealthData]      = useState<Record<string, unknown> | null>(null)
+  const [perfData,        setPerfData]        = useState<Record<string, unknown> | null>(null)
+  const [cacheStatsData,  setCacheStatsData]  = useState<Record<string, unknown> | null>(null)
   const [incidents,    setIncidents]    = useState<Record<string, unknown>[]>([])
   const [incidentError,setIncidentError]= useState<string | null>(null)
   const [newIncident,  setNewIncident]  = useState({ title: '', description: '', severity: 'medium', affected_system: '' })
@@ -227,27 +230,31 @@ export default function Infrastructure() {
 
     const headers = { Authorization: `Bearer ${token}` }
 
-    const [env, db, rl, wh, ai, cron, sec, exp, health] = await Promise.allSettled([
-      fetch('/api/admin/env-check',       { headers }).then(r => r.json()),
-      fetch('/api/admin/db-health',       { headers }).then(r => r.json()),
-      fetch('/api/admin/rate-limit-status',{ headers }).then(r => r.json()),
-      fetch('/api/admin/webhook-health',  { headers }).then(r => r.json()),
-      fetch('/api/admin/ai-health',       { headers }).then(r => r.json()),
-      fetch('/api/admin/cron-health',     { headers }).then(r => r.json()),
-      fetch('/api/admin/security-health', { headers }).then(r => r.json()),
-      fetch('/api/admin/export-summary',  { headers }).then(r => r.json()),
+    const [env, db, rl, wh, ai, cron, sec, exp, health, perf, cacheStats] = await Promise.allSettled([
+      fetch('/api/admin/env-check',              { headers }).then(r => r.json()),
+      fetch('/api/admin/db-health',              { headers }).then(r => r.json()),
+      fetch('/api/admin/rate-limit-status',      { headers }).then(r => r.json()),
+      fetch('/api/admin/webhook-health',         { headers }).then(r => r.json()),
+      fetch('/api/admin/ai-health',              { headers }).then(r => r.json()),
+      fetch('/api/admin/cron-health',            { headers }).then(r => r.json()),
+      fetch('/api/admin/security-health',        { headers }).then(r => r.json()),
+      fetch('/api/admin/export-summary',         { headers }).then(r => r.json()),
       fetch('/api/health').then(r => r.json()),
+      fetch('/api/admin/metrics/per-org?days=7', { headers }).then(r => r.json()),
+      fetch('/api/admin/metrics/cache-stats',    { headers }).then(r => r.json()),
     ])
 
-    if (env.status      === 'fulfilled') setEnvData(env.value as Record<string, unknown>)
-    if (db.status       === 'fulfilled') setDbData(db.value as Record<string, unknown>)
-    if (rl.status       === 'fulfilled') setRateLimitData(rl.value as Record<string, unknown>)
-    if (wh.status       === 'fulfilled') setWebhookData(wh.value as Record<string, unknown>)
-    if (ai.status       === 'fulfilled') setAiData(ai.value as Record<string, unknown>)
-    if (cron.status     === 'fulfilled') setCronData(cron.value as Record<string, unknown>)
-    if (sec.status      === 'fulfilled') setSecurityData(sec.value as Record<string, unknown>)
-    if (exp.status      === 'fulfilled') setExportData(exp.value as Record<string, unknown>)
-    if (health.status   === 'fulfilled') setHealthData(health.value as Record<string, unknown>)
+    if (env.status        === 'fulfilled') setEnvData(env.value as Record<string, unknown>)
+    if (db.status         === 'fulfilled') setDbData(db.value as Record<string, unknown>)
+    if (rl.status         === 'fulfilled') setRateLimitData(rl.value as Record<string, unknown>)
+    if (wh.status         === 'fulfilled') setWebhookData(wh.value as Record<string, unknown>)
+    if (ai.status         === 'fulfilled') setAiData(ai.value as Record<string, unknown>)
+    if (cron.status       === 'fulfilled') setCronData(cron.value as Record<string, unknown>)
+    if (sec.status        === 'fulfilled') setSecurityData(sec.value as Record<string, unknown>)
+    if (exp.status        === 'fulfilled') setExportData(exp.value as Record<string, unknown>)
+    if (health.status     === 'fulfilled') setHealthData(health.value as Record<string, unknown>)
+    if (perf.status       === 'fulfilled') setPerfData(perf.value as Record<string, unknown>)
+    if (cacheStats.status === 'fulfilled') setCacheStatsData(cacheStats.value as Record<string, unknown>)
 
     // Incidents (from Supabase directly)
     try {
@@ -1047,6 +1054,142 @@ export default function Infrastructure() {
           </SectionCard>
         </div>
       )}
+
+      {/* ── PERFORMANCE tab ──────────────────────────────────────── */}
+      {activeTab === 'performance' && (() => {
+        // per-org data
+        const pToday   = perfData?.today   as { total: number; approve: number; review: number; block: number; approve_pct: number; review_pct: number; block_pct: number; avg_latency_ms: number | null } | null | undefined
+        const pSummary = perfData?.summary as { total_requests: number; avg_daily: number; peak_day: string | null; peak_requests: number } | null | undefined
+        const pStats   = (perfData?.stats  as Array<{ date: string; total_requests: number }> | undefined) ?? []
+        const pNotice  = perfData?.notice  as string | undefined
+
+        // cache-stats data
+        const csStatus     = cacheStatsData?.status as string | undefined
+        const csNs         = cacheStatsData?.namespaces as Record<string, { hit: boolean; ttl_remaining_s: number | null; note: string }> | undefined
+        const csMonthly    = cacheStatsData?.monthly_events as number | null | undefined
+        const csFraud      = cacheStatsData?.fraud_counters_enabled as boolean | undefined
+
+        // bar chart: last 7 days newest-first → reverse for chart
+        const chartDays = pStats.slice(0, 7).reverse()
+        const maxRequests = Math.max(1, ...chartDays.map(d => d.total_requests))
+
+        return (
+          <div>
+            {pNotice && (
+              <div
+                className="mb-4 flex items-start gap-2 rounded-xl px-4 py-3 text-xs"
+                style={{ background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.2)', color: '#B45309' }}
+              >
+                <AlertTriangle size={12} className="mt-0.5 flex-shrink-0" />
+                {pNotice}
+              </div>
+            )}
+
+            {/* Today */}
+            <SectionCard title="TODAY — REAL-TIME (REDIS)">
+              {pToday ? (
+                <>
+                  <Row label="Total requests"   value={pToday.total.toLocaleString()} />
+                  <Row label="Approved"          value={`${pToday.approve.toLocaleString()} (${pToday.approve_pct}%)`} accent="#16C784" />
+                  <Row label="Review"            value={`${pToday.review.toLocaleString()}  (${pToday.review_pct}%)`}  accent="#F59E0B" />
+                  <Row label="Blocked"           value={`${pToday.block.toLocaleString()}   (${pToday.block_pct}%)`}   accent="#EF4444" />
+                  <Row
+                    label="Avg latency"
+                    value={pToday.avg_latency_ms !== null ? `${pToday.avg_latency_ms} ms` : '—'}
+                    accent={
+                      pToday.avg_latency_ms === null ? undefined :
+                      pToday.avg_latency_ms < 600   ? '#16C784' :
+                      pToday.avg_latency_ms < 1000  ? '#F59E0B' : '#EF4444'
+                    }
+                  />
+                </>
+              ) : (
+                <p className="text-xs py-2" style={{ color: T.textDim }}>
+                  {perfData === null ? 'Loading…' : 'No events recorded today yet.'}
+                </p>
+              )}
+            </SectionCard>
+
+            {/* 7-day bar chart */}
+            <SectionCard title="LAST 7 DAYS — DAILY REQUESTS">
+              {chartDays.length > 0 ? (
+                <div className="flex items-end gap-2 h-20 mt-2">
+                  {chartDays.map(day => {
+                    const pct = (day.total_requests / maxRequests) * 100
+                    const isToday = day.date === new Date().toISOString().slice(0, 10)
+                    return (
+                      <div key={day.date} className="flex flex-col items-center gap-1 flex-1">
+                        <span className="text-xs mono leading-none" style={{ color: T.textSec }}>
+                          {day.total_requests > 0 ? day.total_requests : ''}
+                        </span>
+                        <div
+                          className="w-full rounded-t"
+                          style={{
+                            height: `${Math.max(pct, 4)}%`,
+                            minHeight: 4,
+                            background: isToday ? '#16C784' : `${T.trust}50`,
+                          }}
+                        />
+                        <span className="text-xs mono" style={{ color: T.textDim, fontSize: 9 }}>
+                          {day.date.slice(5)}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <p className="text-xs py-2" style={{ color: T.textDim }}>
+                  {perfData === null ? 'Loading…' : 'No daily stats available yet — requires v17 migration + at least one maintenance cron run.'}
+                </p>
+              )}
+            </SectionCard>
+
+            {/* 7-day summary */}
+            {pSummary && (
+              <SectionCard title="7-DAY SUMMARY">
+                <Row label="Total requests"  value={pSummary.total_requests.toLocaleString()} />
+                <Row label="Avg per day"     value={pSummary.avg_daily.toLocaleString()} />
+                <Row label="Peak day"        value={pSummary.peak_day ?? '—'} />
+                <Row label="Peak requests"   value={pSummary.peak_requests.toLocaleString()} />
+              </SectionCard>
+            )}
+
+            {/* Redis cache health */}
+            <SectionCard title="REDIS CACHE HEALTH">
+              {csStatus === undefined ? (
+                <p className="text-xs py-2" style={{ color: T.textDim }}>Loading…</p>
+              ) : csStatus === 'unconfigured' ? (
+                <Row label="Redis" value={<StatusBadge status="missing" />} />
+              ) : (
+                <>
+                  <Row label="Redis"          value={<StatusBadge status="healthy" />} />
+                  {csNs && Object.entries(csNs).map(([ns, info]) => (
+                    <Row
+                      key={ns}
+                      label={`${ns} cache`}
+                      value={
+                        info.hit
+                          ? `HIT — ${info.ttl_remaining_s !== null ? `${info.ttl_remaining_s}s TTL` : 'no expiry'}`
+                          : 'MISS'
+                      }
+                      accent={info.hit ? '#16C784' : '#94A3B8'}
+                    />
+                  ))}
+                  <Row
+                    label="Monthly events (Redis)"
+                    value={csMonthly !== null && csMonthly !== undefined ? csMonthly.toLocaleString() : '—'}
+                  />
+                  <Row
+                    label="Fraud counters"
+                    value={csFraud ? 'ENABLED (Redis-first)' : 'WRITE-ONLY (warm-up)'}
+                    accent={csFraud ? '#16C784' : '#F59E0B'}
+                  />
+                </>
+              )}
+            </SectionCard>
+          </div>
+        )
+      })()}
 
       {/* ── Docs link at bottom ───────────────────────────────────── */}
       <div className="mt-8 flex items-center gap-2 text-xs" style={{ color: T.textDim }}>
