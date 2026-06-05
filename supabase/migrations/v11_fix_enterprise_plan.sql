@@ -17,17 +17,13 @@
 --   3. Verifies the result.
 -- ============================================================
 
-BEGIN;
-
--- ── Step 1: Sanitize plan column (removes whitespace, normalizes case) ────────
-
-UPDATE organizations
-SET plan = TRIM(LOWER(plan))
-WHERE plan IS NOT NULL
-  AND (plan != TRIM(plan) OR plan != LOWER(plan));
-
--- ── Step 2: Set enterprise plan on every org that has an active API key ───────
--- This is the definitive fix regardless of which org was updated previously.
+-- ── Fix: set enterprise plan on every org that has an active API key ─────────
+--
+-- The plan column is a PostgreSQL ENUM (plan_tier), so whitespace is impossible.
+-- Root cause: api_keys.organization_id points to an auto-created org (plan=free)
+-- that is different from the org manually updated to plan='enterprise'.
+--
+-- This UPDATE targets the org the API key actually uses at runtime.
 
 UPDATE organizations
 SET plan = 'enterprise'
@@ -37,7 +33,7 @@ WHERE id IN (
   WHERE status = 'active'
 );
 
--- ── Step 3: Verify ────────────────────────────────────────────────────────────
+-- ── Verify ────────────────────────────────────────────────────────────────────
 
 SELECT
   ak.id                                          AS key_id,
@@ -45,17 +41,15 @@ SELECT
   ak.status,
   o.id                                           AS org_id,
   o.name                                         AS org_name,
-  o.plan                                         AS org_plan,
-  o.plan = 'enterprise'                          AS is_enterprise,
-  CASE
-    WHEN o.plan = 'enterprise' THEN '✅ x-ratelimit-limit will be 200'
-    WHEN o.plan = 'growth'     THEN '⚠️  x-ratelimit-limit will be 100'
-    WHEN o.plan = 'starter'    THEN '⚠️  x-ratelimit-limit will be 60'
-    ELSE                            '❌ x-ratelimit-limit will be 30 (free)'
-  END                                            AS expected_runtime_limit
+  o.plan::text                                   AS org_plan,
+  o.plan::text = 'enterprise'                    AS is_enterprise,
+  CASE o.plan::text
+    WHEN 'enterprise' THEN 'x-ratelimit-limit: 200  ✅'
+    WHEN 'growth'     THEN 'x-ratelimit-limit: 100  ⚠️'
+    WHEN 'starter'    THEN 'x-ratelimit-limit: 60   ⚠️'
+    ELSE                   'x-ratelimit-limit: 30   ❌'
+  END                                            AS runtime_limit
 FROM api_keys ak
 JOIN organizations o ON o.id = ak.organization_id
 WHERE ak.status = 'active'
 ORDER BY ak.created_at;
-
-COMMIT;
