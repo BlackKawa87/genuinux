@@ -170,6 +170,8 @@ $$;
 -- Verify row counts before proceeding to Section C.
 -- ════════════════════════════════════════════════════════════
 
+-- NOTE: v6 columns (suggested_decision, applied_rule_id, etc.) were not applied
+-- to production at migration time — use NULL/defaults for those columns.
 INSERT INTO risk_events_p (
   id, organization_id, external_user_id, event_type,
   ip_address, device_id, email, user_agent, country,
@@ -184,12 +186,15 @@ SELECT
   ip_address, device_id, email, user_agent, country,
   trust_score, fraud_score, risk_level, decision,
   signals_json, ai_summary, created_at,
-  suggested_decision, applied_rule_id, applied_rule_name,
-  COALESCE(risk_reasons_json, '[]'::jsonb),
-  confidence_level, recommended_action,
-  COALESCE(shadow_mode, false),
-  COALESCE(engine_version, 'risk-engine-v1'),
-  processed_at
+  NULL,             -- suggested_decision
+  NULL,             -- applied_rule_id
+  NULL,             -- applied_rule_name
+  '[]'::jsonb,      -- risk_reasons_json
+  NULL,             -- confidence_level
+  NULL,             -- recommended_action
+  false,            -- shadow_mode
+  'risk-engine-v1', -- engine_version
+  NULL              -- processed_at
 FROM risk_events;
 
 -- Verify row counts match before continuing:
