@@ -1,40 +1,56 @@
 -- ============================================================
--- Migration v16 — Webhook retry columns + index
+-- Migration v16 — Create webhook_deliveries table (full schema)
 -- Run in the Supabase SQL editor (safe to re-run).
 --
 -- Context:
---   The base webhook_deliveries table (schema.sql) has only:
---   id, webhook_id, organization_id, event_type, response_status,
---   response_body, duration_ms, success, created_at.
+--   webhook_deliveries was never created in production.
+--   The /api/webhooks/retry-due cron fails with
+--   "relation does not exist" on every invocation.
 --
---   The /api/webhooks/retry-due cron endpoint queries:
---     SELECT ... payload_json, attempt_count, max_attempts, event_type
---     FROM webhook_deliveries WHERE delivery_status = 'retrying' ...
---
---   Without these columns the SELECT fails → 500 on every cron tick.
---   This migration adds all missing columns + the retry index.
+--   This migration creates the full table (base + retry columns)
+--   in one shot so it matches what retry-due.ts expects.
 -- ============================================================
 
-ALTER TABLE webhook_deliveries
-  ADD COLUMN IF NOT EXISTS payload_json     jsonb,
-  ADD COLUMN IF NOT EXISTS delivery_status  text NOT NULL DEFAULT 'delivered',
-  ADD COLUMN IF NOT EXISTS attempt_count    integer NOT NULL DEFAULT 1,
-  ADD COLUMN IF NOT EXISTS max_attempts     integer NOT NULL DEFAULT 3,
-  ADD COLUMN IF NOT EXISTS next_retry_at    timestamptz;
+CREATE TABLE IF NOT EXISTS webhook_deliveries (
+  id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  webhook_id       UUID        NOT NULL REFERENCES webhooks(id) ON DELETE CASCADE,
+  organization_id  UUID        NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  event_type       TEXT        NOT NULL DEFAULT 'risk.check.completed',
+  response_status  SMALLINT,
+  response_body    TEXT,
+  duration_ms      INTEGER,
+  success          BOOLEAN     NOT NULL DEFAULT FALSE,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  -- retry columns (required by /api/webhooks/retry-due)
+  payload_json     JSONB,
+  delivery_status  TEXT        NOT NULL DEFAULT 'delivered',
+  attempt_count    INTEGER     NOT NULL DEFAULT 1,
+  max_attempts     INTEGER     NOT NULL DEFAULT 3,
+  next_retry_at    TIMESTAMPTZ
+);
+
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_webhook
+  ON webhook_deliveries (webhook_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_org
+  ON webhook_deliveries (organization_id, created_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_retry
   ON webhook_deliveries (delivery_status, next_retry_at)
   WHERE delivery_status = 'retrying';
 
+-- RLS
+ALTER TABLE webhook_deliveries ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "webhook_deliveries_select" ON webhook_deliveries
+  FOR SELECT USING (organization_id = current_org_id());
+
 -- ── Validation ────────────────────────────────────────────────────────────────
--- Run after to confirm all 5 columns exist:
---
--- SELECT column_name, data_type, column_default, is_nullable
+-- SELECT column_name, data_type
 -- FROM   information_schema.columns
--- WHERE  table_schema = 'public'
---   AND  table_name   = 'webhook_deliveries'
+-- WHERE  table_schema = 'public' AND table_name = 'webhook_deliveries'
 -- ORDER  BY ordinal_position;
---
--- Expected new columns: payload_json, delivery_status, attempt_count,
---                        max_attempts, next_retry_at
+-- Expected: 14 columns including payload_json, delivery_status,
+--           attempt_count, max_attempts, next_retry_at
 -- ============================================================
