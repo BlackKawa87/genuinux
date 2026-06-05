@@ -109,6 +109,20 @@ ai_reset_at timestamptz NOT NULL DEFAULT now()
 
 **v13 migration** (`supabase/migrations/v13_risk_context_rpc.sql`): Creates `get_risk_context()` PostgreSQL function (`STABLE SECURITY DEFINER SET search_path = public`). Replaces 6 parallel PostgREST HTTP round-trips in `fetchContext()` with a single `supabase.rpc()` call. All 6 subqueries run inside one PostgreSQL session. **Important**: `ip_address` column is `inet` type — comparisons must cast: `ip_address::text = p_ip` (not `ip_address = p_ip`).
 
+**v14 migration** (`supabase/migrations/v14_p0_indexes.sql`): Initial P0 index pass — superseded by v15. Contains some duplicates of schema.sql indexes (harmless due to IF NOT EXISTS) plus the critical `idx_re_org_ip_text_time` expression index.
+
+**v15 migration** (`supabase/migrations/v15_p0_indexes_final.sql`): Canonical P0 cleanup.
+- **DROP** 4 duplicate indexes created by v14 that already existed in schema.sql (write overhead reduction).
+- **CREATE CONCURRENTLY** `idx_re_org_ip_text_time` — expression index on `(ip_address::text, created_at DESC)`. This is the only truly missing P0 index. schema.sql had IP indexes on `ip_address` (inet type) which are **never used** by the RPC because `ip_address::text = p_ip` requires an expression index on the cast. Without this, all IP subqueries in `get_risk_context()` do full table scans as `risk_events` grows.
+- **CREATE CONCURRENTLY** `idx_api_keys_hash_active` — partial index on active keys only; slightly more efficient than the UNIQUE constraint index as revoked keys accumulate.
+
+**Index inventory** (what schema.sql already has, active since project creation):
+- `risk_events`: `idx_risk_events_org_user_created` (org+user+date), `idx_risk_events_org_device_created` (org+device+date), `idx_risk_events_org_device_decision` (org+device+decision+date), `idx_risk_events_org_created` (org+date), `idx_risk_events_decision` (org+decision)
+- `security_events`: `idx_security_events_type_created` (event_type+date), `idx_security_events_agg` (event_type+ip+org+date)
+- `users_checked`: `idx_users_checked_org_email`, `idx_users_checked_org_device`, `idx_users_checked_org_ip`, `idx_users_checked_org_user`
+- `api_keys`: UNIQUE constraint on `key_hash` (implicit btree index)
+- `rules`: `idx_rules_org_status_priority` (v10)
+
 RLS helpers: `current_org_id()` and `current_user_role()` (SECURITY DEFINER functions).
 
 Role matrix: owner > admin > member. Only owners can manage API keys and webhooks.
