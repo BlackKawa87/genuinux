@@ -28,6 +28,7 @@ import { checkRateLimit } from '../_lib/rateLimit.js'
 import { createSecurityEvent } from '../_lib/securityEvents.js'
 import { getMonthlyUsage, incrementMonthlyUsage } from '../_lib/monthlyUsage.js'
 import { incrementOrgStats } from '../_lib/orgStats.js'
+import { readFraudCounters, writeFraudCounters } from '../_lib/fraudCounters.js'
 import {
   getCachedApiKey, setCachedApiKey,
   getCachedOrg,    setCachedOrg,
@@ -252,6 +253,20 @@ async function fetchContext(
   orgId: string,
   payload: CheckPayload,
 ): Promise<RiskEngineContext> {
+  // Redis-first (Phase 2B) — ~5ms vs ~80ms RPC.
+  // Activated via REDIS_COUNTERS_ENABLED=true once counters are warmed up (24-48h of writes).
+  // Falls through to RPC automatically on Redis error or if env flag is off.
+  if (process.env.REDIS_COUNTERS_ENABLED === 'true') {
+    const redisCtx = await readFraudCounters(
+      orgId,
+      payload.external_user_id,
+      payload.ip_address ?? null,
+      payload.device_id  ?? null,
+      payload.email      ?? null,
+    )
+    if (redisCtx !== null) return redisCtx
+  }
+
   const now    = Date.now()
   const m10ago = new Date(now - 10 * 60_000).toISOString()
   const h1ago  = new Date(now - 60 * 60_000).toISOString()
@@ -1066,6 +1081,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } else {
     void incrementMonthlyUsage(orgId)
     void incrementOrgStats(orgId, effectiveResult.decision, timings['total_ms'] ?? 0)
+    void writeFraudCounters(
+      orgId,
+      payload.external_user_id,
+      payload.ip_address ?? null,
+      payload.device_id  ?? null,
+      payload.email      ?? null,
+      effectiveResult.decision,
+      payload.event_type,
+    )
 
     if (process.env.DISABLE_AI_DURING_LOAD_TEST !== '1') {
       const orgAi = orgAiRow as {
