@@ -103,3 +103,37 @@ export async function setCachedOrg(orgId: string, data: CachedOrg): Promise<void
     // ignore
   }
 }
+
+// ─── Rules cache ──────────────────────────────────────────────────────────────
+
+const RULES_TTL = 60  // 60 seconds — rule changes take effect within 1 minute
+
+export async function getCachedRules(orgId: string): Promise<unknown[] | null> {
+  const redis = getRedis()
+  if (!redis) return null
+  try {
+    return await redis.get<unknown[]>(`gnx:rules:${orgId}`)
+  } catch {
+    return null
+  }
+}
+
+export async function setCachedRules(orgId: string, rules: unknown[]): Promise<void> {
+  const redis = getRedis()
+  if (!redis) return
+  try {
+    await redis.set(`gnx:rules:${orgId}`, rules, { ex: RULES_TTL })
+  } catch {
+    // ignore
+  }
+}
+
+export async function invalidateCachedRules(orgId: string): Promise<void> {
+  const redis = getRedis()
+  if (!redis) return
+  try {
+    await redis.del(`gnx:rules:${orgId}`)
+  } catch {
+    // ignore
+  }
+}

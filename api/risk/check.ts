@@ -30,6 +30,7 @@ import { getMonthlyUsage, incrementMonthlyUsage } from '../_lib/monthlyUsage.js'
 import {
   getCachedApiKey, setCachedApiKey,
   getCachedOrg,    setCachedOrg,
+  getCachedRules,  setCachedRules,
 } from '../_lib/keyCache.js'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
@@ -242,7 +243,7 @@ function validatePayload(body: unknown): { ok: true; data: CheckPayload } | { ok
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 3. Contexto histórico
+// 3. Contexto histórico — single RPC call (6 queries → 1 HTTP round-trip)
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function fetchContext(
@@ -256,111 +257,81 @@ async function fetchContext(
   const h24ago = new Date(now - 24 * 60 * 60_000).toISOString()
   const d90ago = new Date(now - 90 * 24 * 60 * 60_000).toISOString()
 
-  // Wrap each builder with Promise.resolve() — Supabase builders are PromiseLike
-  // (have .then but not .catch/.finally), which TypeScript 5.9+ rejects as Promise<unknown>.
+  // Try single RPC (v13 migration). Falls back to 6 parallel queries if function missing.
+  const { data: rpcData, error: rpcError } = await supabase.rpc('get_risk_context', {
+    p_org_id:  orgId,
+    p_user_id: payload.external_user_id,
+    p_ip:      payload.ip_address ?? null,
+    p_device:  payload.device_id  ?? null,
+    p_email:   payload.email      ?? null,
+    p_m10ago:  m10ago,
+    p_h1ago:   h1ago,
+    p_h24ago:  h24ago,
+    p_d90ago:  d90ago,
+  })
+
+  if (!rpcError && rpcData) {
+    const r = rpcData as {
+      user_events_last_10min:     number
+      ip_distinct_users_last_24h: number
+      ip_signup_count_last_1h:    number
+      device_distinct_users:      number
+      device_has_prior_block:     boolean
+      email_account_count:        number
+    }
+    return {
+      user_events_last_10min:     r.user_events_last_10min     ?? 0,
+      ip_distinct_users_last_24h: r.ip_distinct_users_last_24h ?? 0,
+      ip_signup_count_last_1h:    r.ip_signup_count_last_1h    ?? 0,
+      device_distinct_users:      r.device_distinct_users       ?? 0,
+      device_has_prior_block:     Boolean(r.device_has_prior_block),
+      email_account_count:        r.email_account_count         ?? 0,
+    }
+  }
+
+  // Fallback: 6 parallel queries (pre-v13 DB or RPC error)
   const queries: Promise<unknown>[] = [
-    // Eventos deste user nos últimos 10min
     Promise.resolve(
-      supabase
-        .from('risk_events')
-        .select('id', { count: 'exact', head: true })
-        .eq('organization_id', orgId)
-        .eq('external_user_id', payload.external_user_id)
-        .gte('created_at', m10ago),
+      supabase.from('risk_events').select('id', { count: 'exact', head: true })
+        .eq('organization_id', orgId).eq('external_user_id', payload.external_user_id).gte('created_at', m10ago),
     ),
-
-    // Usuários distintos neste IP nas últimas 24h
     payload.ip_address
-      ? Promise.resolve(
-          supabase
-            .from('risk_events')
-            .select('external_user_id')
-            .eq('organization_id', orgId)
-            .eq('ip_address', payload.ip_address)
-            .gte('created_at', h24ago),
-        )
+      ? Promise.resolve(supabase.from('risk_events').select('external_user_id')
+          .eq('organization_id', orgId).eq('ip_address', payload.ip_address).gte('created_at', h24ago))
       : Promise.resolve({ data: [] }),
-
-    // Signups deste IP na última hora
     payload.ip_address
-      ? Promise.resolve(
-          supabase
-            .from('risk_events')
-            .select('id', { count: 'exact', head: true })
-            .eq('organization_id', orgId)
-            .eq('ip_address', payload.ip_address)
-            .eq('event_type', 'signup')
-            .gte('created_at', h1ago),
-        )
+      ? Promise.resolve(supabase.from('risk_events').select('id', { count: 'exact', head: true })
+          .eq('organization_id', orgId).eq('ip_address', payload.ip_address).eq('event_type', 'signup').gte('created_at', h1ago))
       : Promise.resolve({ count: 0 }),
-
-    // Usuários distintos neste device — last 90 days for performance and relevance.
-    // Device reuse context is evaluated over the last 90 days for performance and relevance.
     payload.device_id
-      ? Promise.resolve(
-          supabase
-            .from('risk_events')
-            .select('external_user_id')
-            .eq('organization_id', orgId)
-            .eq('device_id', payload.device_id)
-            .gte('created_at', d90ago),
-        )
+      ? Promise.resolve(supabase.from('risk_events').select('external_user_id')
+          .eq('organization_id', orgId).eq('device_id', payload.device_id).gte('created_at', d90ago))
       : Promise.resolve({ data: [] }),
-
-    // Device já bloqueado antes
     payload.device_id
-      ? Promise.resolve(
-          supabase
-            .from('risk_events')
-            .select('id', { count: 'exact', head: true })
-            .eq('organization_id', orgId)
-            .eq('device_id', payload.device_id)
-            .eq('decision', 'block')
-            .limit(1),
-        )
+      ? Promise.resolve(supabase.from('risk_events').select('id', { count: 'exact', head: true })
+          .eq('organization_id', orgId).eq('device_id', payload.device_id).eq('decision', 'block').limit(1))
       : Promise.resolve({ count: 0 }),
-
-    // Contas com este e-mail
     payload.email
-      ? Promise.resolve(
-          supabase
-            .from('users_checked')
-            .select('id', { count: 'exact', head: true })
-            .eq('organization_id', orgId)
-            .eq('email', payload.email),
-        )
+      ? Promise.resolve(supabase.from('users_checked').select('id', { count: 'exact', head: true })
+          .eq('organization_id', orgId).eq('email', payload.email))
       : Promise.resolve({ count: 0 }),
   ]
 
   type CountResult = { count: number | null }
   type RowsResult  = { data: Array<{ external_user_id: string }> | null }
 
-  const [
-    userEventsRes,
-    ipUsersRes,
-    ipSignupsRes,
-    deviceUsersRes,
-    deviceBlockRes,
-    emailCountRes,
-  ] = await Promise.all(queries) as [
-    CountResult, RowsResult, CountResult, RowsResult, CountResult, CountResult
-  ]
-
-  const ipDistinctUsers = payload.ip_address
-    ? new Set((ipUsersRes.data ?? []).map(r => r.external_user_id)).size
-    : 0
-
-  const deviceDistinctUsers = payload.device_id
-    ? new Set((deviceUsersRes.data ?? []).map(r => r.external_user_id)).size
-    : 0
+  const [evR, ipUR, ipSR, devUR, devBR, emR] =
+    await Promise.all(queries) as [CountResult, RowsResult, CountResult, RowsResult, CountResult, CountResult]
 
   return {
-    user_events_last_10min:     userEventsRes.count      ?? 0,
-    ip_distinct_users_last_24h: ipDistinctUsers,
-    ip_signup_count_last_1h:    ipSignupsRes.count        ?? 0,
-    device_distinct_users:      deviceDistinctUsers,
-    device_has_prior_block:     (deviceBlockRes.count     ?? 0) > 0,
-    email_account_count:        emailCountRes.count       ?? 0,
+    user_events_last_10min:     evR.count  ?? 0,
+    ip_distinct_users_last_24h: payload.ip_address
+      ? new Set((ipUR.data ?? []).map(r => r.external_user_id)).size : 0,
+    ip_signup_count_last_1h:    ipSR.count ?? 0,
+    device_distinct_users:      payload.device_id
+      ? new Set((devUR.data ?? []).map(r => r.external_user_id)).size : 0,
+    device_has_prior_block:     (devBR.count ?? 0) > 0,
+    email_account_count:        emR.count  ?? 0,
   }
 }
 
@@ -751,13 +722,20 @@ async function applyCustomRules(
   data: RuleData,
   baseDecision: 'allow' | 'review' | 'block',
 ): Promise<RuleMatchResult> {
-  const { data: rules } = await supabase
-    .from('rules')
-    .select('id, name, condition_type, condition_value, condition_group, action, priority')
-    .eq('organization_id', orgId)
-    .eq('status', 'active')
-    .order('priority',    { ascending: false })  // higher priority first
-    .order('created_at',  { ascending: true })   // then oldest first as tiebreaker
+  // Redis cache (60s TTL) — rules rarely change, saves 1 sequential DB round-trip
+  let rules = await getCachedRules(orgId) as RuleRow[] | null
+
+  if (!rules) {
+    const { data: dbRules } = await supabase
+      .from('rules')
+      .select('id, name, condition_type, condition_value, condition_group, action, priority')
+      .eq('organization_id', orgId)
+      .eq('status', 'active')
+      .order('priority',   { ascending: false })
+      .order('created_at', { ascending: true })
+    rules = (dbRules ?? []) as RuleRow[]
+    void setCachedRules(orgId, rules)
+  }
 
   if (!rules || rules.length === 0) {
     return { decision: baseDecision, applied_rule_id: null, applied_rule_name: null }
