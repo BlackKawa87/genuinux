@@ -58,10 +58,6 @@ function getLimiter(plan: string): Ratelimit | null {
 
   const tier = plan in PLAN_WINDOWS ? plan : 'free'
 
-  // [plan-debug] STEP 4 — confirm tier resolution inside getLimiter
-  console.log('[plan-debug] getLimiter received plan:', JSON.stringify(plan))
-  console.log('[plan-debug] resolved tier:', tier, '| limit:', PLAN_WINDOWS[tier] ?? 30)
-
   if (!limiters.has(tier)) {
     limiters.set(tier, new Ratelimit({
       redis:   redisClient,
@@ -80,15 +76,10 @@ export async function checkRateLimit(
   const limiter  = getLimiter(plan)
   const limitVal = PLAN_WINDOWS[plan] ?? 30
 
-  // [plan-debug] STEP 5 — confirm final limit value before applying
-  console.log('[plan-debug] checkRateLimit plan:', JSON.stringify(plan), '| limitVal:', limitVal)
-
   if (!limiter) {
-    console.log('[plan-debug] Redis unavailable — fail-open, limit:', limitVal)
     return { allowed: true, limit: limitVal, remaining: limitVal, resetMs: 0 }
   }
 
   const { success, limit, remaining, reset } = await limiter.limit(apiKeyId)
-  console.log('[plan-debug] Redis result — success:', success, '| limit:', limit, '| remaining:', remaining)
   return { allowed: success, limit, remaining, resetMs: reset }
 }

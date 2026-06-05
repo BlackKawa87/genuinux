@@ -772,14 +772,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const supabase = adminClient()
 
   // ── 1. Autenticação ─────────────────────────────────────────
-  // Temporary instrumentation — remove after Authorization header bug confirmed fixed.
-  console.log('[auth-debug] REQUEST METHOD:', req.method)
-  console.log('[auth-debug] REQUEST URL:', req.url)
-  console.log('[auth-debug] HEADERS RAW:', JSON.stringify(req.headers))
-  console.log('[auth-debug] AUTH HEADER BRACKET:', req.headers?.['authorization'])
-  console.log('[auth-debug] AUTH HEADER DOT:', (req.headers as Record<string, string | string[] | undefined>)?.authorization)
-  console.log('[auth-debug] AUTH HEADER GET:', (req.headers as unknown as { get?: (k: string) => string | null })?.get?.('authorization'))
-
   // Resilient header extraction — compatible with Node runtime, Edge runtime,
   // and clients that send the header with any casing.
   const authorizationHeader =
@@ -809,28 +801,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const orgId = apiKey.organization_id
 
-  // [plan-debug] STEP 1 — confirm which org the API key resolves to
-  console.log('[plan-debug] apiKey.id:', apiKey.id)
-  console.log('[plan-debug] apiKey.organization_id:', orgId)
-
   // ── 1.3. Fetch org config (plan needed for plan-aware rate limit) ───
-  const { data: orgRow, error: orgError } = await supabase
+  const { data: orgRow } = await supabase
     .from('organizations')
     .select('plan, shadow_mode, ai_enabled, ai_monthly_limit, ai_calls_used, ai_reset_at')
     .eq('id', orgId)
     .single()
 
-  // [plan-debug] STEP 2 — confirm what Supabase returned for this org
-  console.log('[plan-debug] orgRow:', JSON.stringify(orgRow))
-  console.log('[plan-debug] orgError:', orgError ? JSON.stringify(orgError) : 'none')
-
-  const rawPlan      = (orgRow as { plan: string } | null)?.plan
-  const currentPlan  = rawPlan ?? 'free'
+  const currentPlan  = (orgRow as { plan: string } | null)?.plan ?? 'free'
   const isShadowMode = Boolean((orgRow as { plan: string; shadow_mode?: boolean } | null)?.shadow_mode)
-
-  // [plan-debug] STEP 3 — confirm the plan value before rate limit
-  console.log('[plan-debug] rawPlan (from DB):', rawPlan)
-  console.log('[plan-debug] currentPlan (after fallback):', currentPlan)
 
   // ── 1.4. Rate limiting (per API key, plan-aware sliding window) ──────
   const rateLimit = await checkRateLimit(apiKey.id, currentPlan)
