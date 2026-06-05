@@ -27,6 +27,10 @@ import { captureException } from '../_lib/monitoring.js'
 import { checkRateLimit } from '../_lib/rateLimit.js'
 import { createSecurityEvent } from '../_lib/securityEvents.js'
 import { getMonthlyUsage, incrementMonthlyUsage } from '../_lib/monthlyUsage.js'
+import {
+  getCachedApiKey, setCachedApiKey,
+  getCachedOrg,    setCachedOrg,
+} from '../_lib/keyCache.js'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -157,6 +161,17 @@ async function validateApiKey(
 ): Promise<ApiKeyRecord | null> {
   const keyHash = hashApiKey(rawKey)
 
+  // Redis cache hit — skip DB round-trip (~200ms saved on warm instances)
+  const cached = await getCachedApiKey(keyHash)
+  if (cached) {
+    // Fire-and-forget update (don't await — cache hit path must stay fast)
+    supabase.from('api_keys').update({
+      last_used_at:   new Date().toISOString(),
+      requests_count: (cached.requests_count ?? 0) + 1,
+    }).eq('id', cached.id).then(() => {})
+    return cached
+  }
+
   const { data } = await supabase
     .from('api_keys')
     .select('id, organization_id, name, requests_count')
@@ -165,6 +180,9 @@ async function validateApiKey(
     .single()
 
   if (!data) return null
+
+  // Populate cache for next requests with this key
+  void setCachedApiKey(keyHash, data as ApiKeyRecord)
 
   // Atualiza last_used_at e incrementa requests_count (fire-and-forget)
   supabase
@@ -807,35 +825,47 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const orgId = apiKey.organization_id
 
-  // ── 1.3. Fetch org config — single query, parallel with rate-limit check ─
-  // Resilient: if AI columns are missing (pre-v12 DB), falls back to core fields.
-  const [orgResult] = await Promise.all([
-    supabase
-      .from('organizations')
-      .select('plan, shadow_mode, ai_enabled, ai_monthly_limit, ai_calls_used, ai_reset_at')
-      .eq('id', orgId)
-      .maybeSingle(),
-  ])
-
-  // If AI columns don't exist yet the query fails — retry with essential fields only.
-  let orgRow = orgResult.data as {
+  // ── 1.3. Fetch org config — Redis cache first, Supabase on miss ─────────
+  let orgRow: {
     plan?: string; shadow_mode?: boolean
     ai_enabled?: boolean; ai_monthly_limit?: number
     ai_calls_used?: number; ai_reset_at?: string
-  } | null
+  } | null = await getCachedOrg(orgId)
 
-  if (orgResult.error && !orgRow) {
-    const { data: fallback } = await supabase
+  if (!orgRow) {
+    // Cache miss — query Supabase (resilient: falls back to core fields if AI columns missing)
+    const { data, error } = await supabase
       .from('organizations')
-      .select('plan, shadow_mode')
+      .select('plan, shadow_mode, ai_enabled, ai_monthly_limit, ai_calls_used, ai_reset_at')
       .eq('id', orgId)
       .maybeSingle()
-    orgRow = fallback as typeof orgRow
+
+    if (error && !data) {
+      const { data: fallback } = await supabase
+        .from('organizations')
+        .select('plan, shadow_mode')
+        .eq('id', orgId)
+        .maybeSingle()
+      orgRow = fallback as typeof orgRow
+    } else {
+      orgRow = data as typeof orgRow
+    }
+
+    if (orgRow?.plan) {
+      void setCachedOrg(orgId, {
+        plan:             orgRow.plan,
+        shadow_mode:      Boolean(orgRow.shadow_mode),
+        ai_enabled:       Boolean(orgRow.ai_enabled),
+        ai_monthly_limit: orgRow.ai_monthly_limit ?? 1000,
+        ai_calls_used:    orgRow.ai_calls_used    ?? 0,
+        ai_reset_at:      orgRow.ai_reset_at      ?? new Date().toISOString(),
+      })
+    }
   }
 
   const currentPlan  = orgRow?.plan ?? 'free'
   const isShadowMode = Boolean(orgRow?.shadow_mode)
-  const orgAiRow     = orgRow  // AI fields are in the same row after v12 migration
+  const orgAiRow     = orgRow
 
   // Temporary diagnostic headers — remove after plan resolution bug is confirmed fixed.
   res.setHeader('X-Debug-Org-Id',      orgId)
