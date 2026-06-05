@@ -23,7 +23,7 @@ import type { RiskEngineContext, RiskEngineInput } from '../_lib/riskEngine.js'
 import { templateSummary } from '../_lib/aiSummary.js'
 import type { SummaryInput } from '../_lib/aiSummary.js'
 import { enrichWithAiSummary } from '../_lib/aiEnricher.js'
-import { captureException } from '../_lib/monitoring.js'
+import { captureException, setSentryTags } from '../_lib/monitoring.js'
 import { checkRateLimit } from '../_lib/rateLimit.js'
 import { createSecurityEvent } from '../_lib/securityEvents.js'
 import { getMonthlyUsage, incrementMonthlyUsage } from '../_lib/monthlyUsage.js'
@@ -862,6 +862,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const isShadowMode = Boolean(orgRow?.shadow_mode)
   const orgAiRow     = orgRow
   step('org_ms')
+
+  // Tag every subsequent Sentry event from this request with org/key/plan/requestId
+  setSentryTags({ org_id: orgId, api_key_id: apiKey.id, plan: currentPlan, request_id: requestId })
 
   // ── 1.4. Rate limiting (per API key, plan-aware sliding window) ──────
   const rateLimit = await checkRateLimit(apiKey.id, currentPlan)
