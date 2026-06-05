@@ -397,10 +397,12 @@ async function insertRiskEvent(
   ruleMatch: RuleMatchResult,
   shadowMode: boolean,
   suggestedDecision: string | null,
+  pregenId?: string,
 ): Promise<string | null> {
   const { data, error } = await supabase
     .from('risk_events')
     .insert({
+      ...(pregenId ? { id: pregenId } : {}),
       organization_id:    orgId,
       external_user_id:   payload.external_user_id,
       event_type:         payload.event_type,
@@ -988,55 +990,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const effectiveResult = { ...result, decision: liveDecision, ai_summary }
 
-  // ── 5 & 6. Persistência — upsert runs parallel with insert ────────────
-  // upsertUserChecked only needs payload/orgId — no dependency on ruleMatch.
-  // insertRiskEvent needs effectiveResult + ruleMatch — both run concurrently.
-  const [, eventId] = await Promise.all([
-    upsertUserChecked(supabase, orgId, payload),
-    insertRiskEvent(
-      supabase, orgId, payload, effectiveResult, ruleMatch,
-      isShadowMode, isShadowMode ? suggestedDecision : null,
-    ),
-  ])
-
-  if (!eventId) {
-    captureException(new Error('risk_event insert failed — eventId null'), { orgId })
-  } else {
-    // Increment Redis monthly counter (fire-and-forget — never blocks response)
-    void incrementMonthlyUsage(orgId)
-
-    if (process.env.DISABLE_AI_DURING_LOAD_TEST !== '1') {
-      const orgAi = orgAiRow as {
-        ai_enabled?: boolean; ai_monthly_limit?: number
-        ai_calls_used?: number; ai_reset_at?: string
-      } | null
-      void enrichWithAiSummary(supabase, orgId, eventId, summaryInput, {
-        ai_enabled:       Boolean(orgAi?.ai_enabled),
-        ai_monthly_limit: orgAi?.ai_monthly_limit ?? 1000,
-        ai_calls_used:    orgAi?.ai_calls_used    ?? 0,
-        ai_reset_at:      orgAi?.ai_reset_at      ?? new Date().toISOString(),
-      })
-    }
-  }
-
-  // ── 7. Review queue (skipped in shadow mode) ────────────────
-  if (effectiveResult.decision === 'review' && eventId) {
-    createReviewQueueItem(supabase, orgId, eventId).catch(() => {})
-  }
-
-  // ── 8. Webhooks (fire-and-forget) ───────────────────────────
-  if (eventId && process.env.DISABLE_WEBHOOKS_DURING_LOAD_TEST !== '1') {
-    dispatchWebhooks(
-      supabase, orgId, eventId, payload, effectiveResult, ruleMatch,
-      isShadowMode, isShadowMode ? suggestedDecision : null,
-    ).catch(() => {})
-  }
-
-  // ── 9. Resposta ─────────────────────────────────────────────
+  // ── 9. Respond first — client gets the decision immediately ──────────
+  // DB writes (upsert, insert, review queue, webhooks) happen after the
+  // response is flushed. This removes ~400ms from client-perceived latency.
+  // Vercel keeps the function alive until the handler Promise resolves.
+  const eventId = crypto.randomUUID()  // pre-generate so response has a real ID
   const shadowSuggestedLabel = suggestedDecision === 'allow' ? 'approve' : suggestedDecision
   const processedAt = new Date().toISOString()
   const response: CheckResponse = {
-    event_id:           eventId ?? `evt_${Date.now()}`,
+    event_id:           eventId,
     external_user_id:   payload.external_user_id,
     decision:           effectiveResult.decision === 'allow' ? 'approve' : effectiveResult.decision,
     risk_level:         effectiveResult.risk_level,
@@ -1073,5 +1035,47 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }),
   }
 
-  return res.status(200).json(response)
+  res.status(200).json(response)  // ← client receives response HERE
+
+  // ── 5 & 6. Persistência (after response — invisible to client latency) ─
+  const [, insertedId] = await Promise.all([
+    upsertUserChecked(supabase, orgId, payload),
+    insertRiskEvent(
+      supabase, orgId, payload, effectiveResult, ruleMatch,
+      isShadowMode, isShadowMode ? suggestedDecision : null,
+      eventId,  // use pre-generated UUID
+    ),
+  ])
+
+  if (!insertedId) {
+    captureException(new Error('risk_event insert failed'), { orgId, eventId })
+  } else {
+    void incrementMonthlyUsage(orgId)
+
+    if (process.env.DISABLE_AI_DURING_LOAD_TEST !== '1') {
+      const orgAi = orgAiRow as {
+        ai_enabled?: boolean; ai_monthly_limit?: number
+        ai_calls_used?: number; ai_reset_at?: string
+      } | null
+      void enrichWithAiSummary(supabase, orgId, insertedId, summaryInput, {
+        ai_enabled:       Boolean(orgAi?.ai_enabled),
+        ai_monthly_limit: orgAi?.ai_monthly_limit ?? 1000,
+        ai_calls_used:    orgAi?.ai_calls_used    ?? 0,
+        ai_reset_at:      orgAi?.ai_reset_at      ?? new Date().toISOString(),
+      })
+    }
+  }
+
+  // ── 7. Review queue (after response, skipped in shadow mode) ──────────
+  if (effectiveResult.decision === 'review') {
+    createReviewQueueItem(supabase, orgId, eventId).catch(() => {})
+  }
+
+  // ── 8. Webhooks (fire-and-forget) ─────────────────────────────────────
+  if (process.env.DISABLE_WEBHOOKS_DURING_LOAD_TEST !== '1') {
+    dispatchWebhooks(
+      supabase, orgId, eventId, payload, effectiveResult, ruleMatch,
+      isShadowMode, isShadowMode ? suggestedDecision : null,
+    ).catch(() => {})
+  }
 }
