@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo, useCallback } from 'react'
 import type { ReactNode } from 'react'
 import {
   BarChart2, Shield, Target, MessageSquare,
-  RefreshCw, Activity, Brain, AlertCircle,
+  RefreshCw, Activity, Brain, AlertCircle, Database,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
@@ -78,6 +78,36 @@ interface IntelligenceSummary {
     data_quality_warnings:  string[]
   }
   generated_at: string
+}
+
+interface FeatureGroupStat {
+  group:         string
+  count:         number
+  feature_count: number
+}
+
+interface FeatureStat {
+  feature_name:    string
+  feature_group:   string
+  feature_version: number
+  count:           number
+  avg:             number
+  min:             number
+  max:             number
+}
+
+interface FeatureStoreStats {
+  total_features:        number
+  feature_count:         number
+  events_with_features:  number
+  total_events:          number
+  coverage_pct:          number
+  period_days:           number
+  group_stats:           FeatureGroupStat[]
+  feature_stats:         FeatureStat[]
+  data_quality_warnings: string[]
+  generated_at:          string
+  notice?:               string
 }
 
 interface DayBucket {
@@ -370,12 +400,13 @@ export default function Analytics() {
   const { profile, session } = useAuth()
   const T = useT()
 
-  const [range,    setRange]    = useState<Range>('30d')
-  const [events,   setEvents]   = useState<EventLite[]>([])
-  const [feedback, setFeedback] = useState<FbLite[]>([])
-  const [labels,   setLabels]   = useState<LabelLite[]>([])
-  const [intelSum, setIntelSum] = useState<IntelligenceSummary | null>(null)
-  const [loading,  setLoading]  = useState(true)
+  const [range,        setRange]        = useState<Range>('30d')
+  const [events,       setEvents]       = useState<EventLite[]>([])
+  const [feedback,     setFeedback]     = useState<FbLite[]>([])
+  const [labels,       setLabels]       = useState<LabelLite[]>([])
+  const [intelSum,     setIntelSum]     = useState<IntelligenceSummary | null>(null)
+  const [featureStore, setFeatureStore] = useState<FeatureStoreStats | null>(null)
+  const [loading,      setLoading]      = useState(true)
 
   const days = RANGE_DAYS[range]
 
@@ -387,7 +418,7 @@ export default function Analytics() {
     const since = new Date(Date.now() - 2 * days * 24 * 60 * 60 * 1000).toISOString()
     const token = session?.access_token ?? ''
 
-    const [evRes, fbRes, lblRes, intelData] = await Promise.all([
+    const [evRes, fbRes, lblRes, intelData, featureData] = await Promise.all([
       supabase
         .from('risk_events')
         .select('fraud_score, decision, signals_json, applied_rule_name, feedback_status, gnx_score, created_at')
@@ -411,12 +442,18 @@ export default function Analytics() {
             headers: { Authorization: `Bearer ${token}` },
           }).then(r => r.ok ? r.json() as Promise<IntelligenceSummary> : null).catch(() => null)
         : Promise.resolve(null),
+      token
+        ? fetch(`/api/admin/intelligence/features?days=${days}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }).then(r => r.ok ? r.json() as Promise<FeatureStoreStats> : null).catch(() => null)
+        : Promise.resolve(null),
     ])
 
     setEvents((evRes.data ?? []) as EventLite[])
     setFeedback((fbRes.data ?? []) as FbLite[])
     setLabels((lblRes.data ?? []) as LabelLite[])
     setIntelSum(intelData as IntelligenceSummary | null)
+    setFeatureStore(featureData as FeatureStoreStats | null)
     setLoading(false)
   }, [profile?.organization_id, days, session?.access_token])
 
@@ -1133,6 +1170,160 @@ export default function Analytics() {
               ML training activates at 10,000 labels
             </p>
           </div>
+        )}
+      </div>
+
+      {/* ── Feature Store ─────────────────────────────────────────────────────── */}
+      <div className="rounded-2xl p-6" style={{ background: T.card, border: `1px solid ${T.border}` }}>
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-2.5">
+            <Database size={15} style={{ color: '#818CF8' }} />
+            <h2 className="text-sm font-bold" style={{ color: T.text }}>Feature Store</h2>
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full mono"
+              style={{ background: '#818CF808', border: '1px solid #818CF830', color: '#818CF8' }}>
+              Phase 3.3
+            </span>
+          </div>
+          {featureStore && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px]" style={{ color: T.textDim }}>Coverage</span>
+              <span className="text-xs font-bold mono"
+                style={{ color: featureStore.coverage_pct >= 95 ? '#16C784' : featureStore.coverage_pct > 0 ? '#F59E0B' : '#EF4444' }}>
+                {featureStore.coverage_pct.toFixed(1)}%
+              </span>
+            </div>
+          )}
+        </div>
+
+        {!featureStore || featureStore.total_features === 0 ? (
+          <div className="rounded-xl p-5 flex items-start gap-3"
+            style={{ background: '#818CF808', border: '1px solid #818CF820' }}>
+            <AlertCircle size={15} style={{ color: '#818CF8', flexShrink: 0, marginTop: 1 }} />
+            <div>
+              <p className="text-sm font-semibold" style={{ color: T.text }}>Feature Store not yet active</p>
+              <p className="text-xs mt-1" style={{ color: T.textDim }}>
+                Apply v19 + v20 migrations, then set{' '}
+                <code className="mono px-1 py-0.5 rounded text-[11px]"
+                  style={{ background: T.deep, color: '#818CF8' }}>
+                  FEATURE_STORE_ENABLED=true
+                </code>{' '}
+                in Vercel to start collecting feature vectors for ML training.
+              </p>
+              {featureStore?.notice && (
+                <p className="text-[11px] mt-2 mono" style={{ color: T.textDim }}>{featureStore.notice}</p>
+              )}
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* KPI strip */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+              {[
+                { label: 'Total Features',       value: featureStore.total_features.toLocaleString(), color: '#818CF8' },
+                { label: 'Feature Types',        value: String(featureStore.feature_count),           color: '#818CF8' },
+                { label: 'Events with Features', value: featureStore.events_with_features.toLocaleString(), color: '#16C784' },
+                { label: 'Coverage Rate',        value: `${featureStore.coverage_pct.toFixed(1)}%`,
+                  color: featureStore.coverage_pct >= 95 ? '#16C784' : '#F59E0B' },
+              ].map(k => (
+                <div key={k.label} className="rounded-xl p-4" style={{ background: T.deep, border: `1px solid ${T.border}` }}>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: T.textDim }}>
+                    {k.label}
+                  </p>
+                  <p className="text-xl font-bold mono" style={{ color: k.color }}>{k.value}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Group cards */}
+            <p className="text-xs font-semibold mb-3" style={{ color: T.textDim }}>Features by Group</p>
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-5">
+              {featureStore.group_stats.map(g => {
+                const COLOR_MAP: Record<string, string> = {
+                  velocity:   '#38BDF8',
+                  reputation: '#A78BFA',
+                  behavior:   '#FB923C',
+                  risk:       '#EF4444',
+                  context:    '#16C784',
+                }
+                const c = COLOR_MAP[g.group] ?? '#94A3B8'
+                return (
+                  <div key={g.group} className="rounded-xl p-4 text-center"
+                    style={{ background: `${c}08`, border: `1px solid ${c}30` }}>
+                    <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: c }}>
+                      {g.group}
+                    </p>
+                    <p className="text-2xl font-bold mono mb-0.5" style={{ color: T.text }}>
+                      {g.count.toLocaleString()}
+                    </p>
+                    <p className="text-[10px]" style={{ color: T.textDim }}>
+                      {g.feature_count} feature type{g.feature_count !== 1 ? 's' : ''}
+                    </p>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Top features table */}
+            {featureStore.feature_stats.length > 0 && (
+              <div className="mb-5">
+                <p className="text-xs font-semibold mb-3" style={{ color: T.textDim }}>Top Features by Volume</p>
+                <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${T.border}` }}>
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr style={{ background: T.deep }}>
+                        {['Feature', 'Group', 'Version', 'Rows', 'Avg', 'Min', 'Max'].map(h => (
+                          <th key={h} className="px-3 py-2 text-left font-semibold"
+                            style={{ color: T.textDim }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {featureStore.feature_stats.slice(0, 10).map((s, i) => {
+                        const GROUP_COLOR: Record<string, string> = {
+                          velocity: '#38BDF8', reputation: '#A78BFA',
+                          behavior: '#FB923C', risk: '#EF4444', context: '#16C784',
+                        }
+                        const gc = GROUP_COLOR[s.feature_group] ?? '#94A3B8'
+                        return (
+                          <tr key={`${s.feature_name}-v${s.feature_version}`}
+                            style={{ background: i % 2 === 0 ? 'transparent' : `${T.deep}80`, borderTop: `1px solid ${T.border}` }}>
+                            <td className="px-3 py-2 mono font-semibold" style={{ color: T.text }}>{s.feature_name}</td>
+                            <td className="px-3 py-2">
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold"
+                                style={{ background: `${gc}15`, color: gc }}>
+                                {s.feature_group}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 mono" style={{ color: T.textDim }}>v{s.feature_version}</td>
+                            <td className="px-3 py-2 mono" style={{ color: T.text }}>{s.count.toLocaleString()}</td>
+                            <td className="px-3 py-2 mono" style={{ color: T.textSec }}>{s.avg.toFixed(3)}</td>
+                            <td className="px-3 py-2 mono" style={{ color: T.textDim }}>{s.min.toFixed(2)}</td>
+                            <td className="px-3 py-2 mono" style={{ color: T.textDim }}>{s.max.toFixed(2)}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Data Quality Warnings */}
+            {featureStore.data_quality_warnings.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold mb-2" style={{ color: T.textDim }}>Data Quality Warnings</p>
+                <div className="space-y-2">
+                  {featureStore.data_quality_warnings.map((w, i) => (
+                    <div key={i} className="flex items-start gap-2 rounded-lg px-3 py-2"
+                      style={{ background: '#F59E0B08', border: '1px solid #F59E0B20' }}>
+                      <AlertCircle size={12} style={{ color: '#F59E0B', flexShrink: 0, marginTop: 1 }} />
+                      <p className="text-[11px]" style={{ color: T.textSec }}>{w}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
 

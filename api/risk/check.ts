@@ -1106,8 +1106,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .eq('id', insertedId)
       .then(() => {})
 
-    // Feature Store (Module 3) — gated by FEATURE_STORE_ENABLED=true
-    void persistFeatures(supabase, orgId, insertedId, effectiveResult, context, gnxScore)
+    // Feature Store (Phase 3.3) — gated by FEATURE_STORE_ENABLED=true
+    void persistFeatures(supabase, orgId, insertedId, effectiveResult, context, gnxScore, {
+      event_type: payload.event_type,
+      country:    payload.country,
+    })
 
     if (process.env.DISABLE_AI_DURING_LOAD_TEST !== '1') {
       const orgAi = orgAiRow as {

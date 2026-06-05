@@ -124,6 +124,12 @@ ai_reset_at timestamptz NOT NULL DEFAULT now()
 - `aggregate_daily_stats(target_date DATE) RETURNS void` — `INSERT ... SELECT GROUP BY` from `risk_events` with `ON CONFLICT DO UPDATE`. Called nightly by `/api/cron/maintenance` Task 3.
 - `purge_old_risk_events(retention_days INTEGER DEFAULT 365) RETURNS integer` — deletes rows older than N days using `make_interval(days => retention_days)`. Called by maintenance Task 4.
 
+**v20 migration** (`supabase/migrations/v20_feature_store.sql`): Feature Store schema expansion (Phase 3.3).
+- Adds `feature_group TEXT NOT NULL DEFAULT 'risk'`, `feature_version INTEGER NOT NULL DEFAULT 1`, `source TEXT NOT NULL DEFAULT 'risk-engine-v1'` to `fraud_features`.
+- Adds indexes: `idx_fraud_features_org_group_created`, `idx_fraud_features_name_version`.
+- Adds `fraud_features_select` RLS policy so dashboard members can query their org's features.
+- Run Sections A→C separately. Must apply v19 first.
+
 **v18 migration** (`supabase/migrations/v18_partition_risk_events.sql`): Monthly RANGE partitioning on `risk_events`.
 - `risk_events` converted to `PARTITION BY RANGE (created_at)` — 18 monthly partitions pre-created (2026-01 → 2027-06).
 - PK changed to `(id, created_at)` — PostgreSQL 15 RANGE partition requirement. FK from `review_queue → risk_events(id)` dropped (column kept; application guarantees integrity).
@@ -433,10 +439,12 @@ Register adds **company name** and **website** fields. On successful sign-up, ca
 **Phase 3 — Implemented (Modules 1, 2, 3, 5, 10):**
 - `POST /api/risk/label` — client API for ground-truth fraud labels (Module 1 + 2)
 - `api/_lib/gnxScore.ts` — `computeGnxScore()` — deterministic 0–1000 score, written to `risk_events.gnx_score` fire-and-forget (Module 10)
-- `api/_lib/featureStore.ts` — `persistFeatures()` — 12 ML feature vectors written to `fraud_features` (Module 3), gated by `FEATURE_STORE_ENABLED`
+- `api/_lib/featureExtractor.ts` — `extractFeatures()` — derives 17 features across 5 groups (velocity/reputation/behavior/risk/context) with `feature_group`, `feature_version`, `source` (Phase 3.3)
+- `api/_lib/featureStore.ts` — `persistFeatures()` — writes extracted feature vectors to `fraud_features` fire-and-forget (Phase 3.3), gated by `FEATURE_STORE_ENABLED`
 - `api/_lib/reputationNetwork.ts` — `updateEntityReputation()` / `getEntityReputation()` — atomic cross-org reputation via PostgreSQL RPC (Module 5)
 - `GET /api/admin/intelligence/summary` — aggregated Feedback Loop + GNX distribution + fraud trends + top patterns + training readiness
-- Analytics.tsx — Intelligence Layer overview + Feedback Loop + Fraud Analytics + Training Readiness sections
+- `GET /api/admin/intelligence/features?days=N&feature_name=&feature_group=` — Feature Store audit: total rows, per-group counts, per-feature stats (count/avg/min/max), coverage rate, daily growth, data quality warnings (Phase 3.3)
+- Analytics.tsx — Intelligence Layer overview + Feedback Loop + Fraud Analytics + Training Readiness + **Feature Store** sections (Phase 3.3)
 
 **Deferred (Phase 3.5+):**
 - `GET /api/risk/reputation` — client-facing entity reputation lookup endpoint
