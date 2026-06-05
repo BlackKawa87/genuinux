@@ -96,7 +96,7 @@ DECLARE
   deleted_count integer;
 BEGIN
   DELETE FROM risk_events
-  WHERE created_at < (NOW() - (retention_days || ' days')::interval);
+  WHERE created_at < NOW() - make_interval(days => retention_days);
   GET DIAGNOSTICS deleted_count = ROW_COUNT;
   RETURN deleted_count;
 END;
