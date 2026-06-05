@@ -847,12 +847,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const isShadowMode = Boolean(orgRow?.shadow_mode)
   const orgAiRow     = orgRow
 
-  // Temporary diagnostic headers — remove after plan resolution bug is confirmed fixed.
-  res.setHeader('X-Debug-Org-Id',      orgId)
-  res.setHeader('X-Debug-Org-Plan',    orgRow?.plan ?? 'NULL')
-  res.setHeader('X-Debug-Plan-Src',    orgRow ? 'db' : 'fallback')
-  res.setHeader('X-Debug-CurrentPlan', currentPlan)
-
   // ── 1.4. Rate limiting (per API key, plan-aware sliding window) ──────
   const rateLimit = await checkRateLimit(apiKey.id, currentPlan)
   if (!rateLimit.allowed) {
