@@ -802,19 +802,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const orgId = apiKey.organization_id
 
   // ── 1.3. Fetch org config (plan needed for plan-aware rate limit) ───
-  const { data: orgRow } = await supabase
+  // Split into two queries so a missing AI column never causes plan to
+  // fall back to 'free'. Essential fields (plan, shadow_mode) are fetched
+  // first; optional AI budget fields are fetched separately and fail-safe.
+  const { data: orgCore } = await supabase
     .from('organizations')
-    .select('plan, shadow_mode, ai_enabled, ai_monthly_limit, ai_calls_used, ai_reset_at')
+    .select('plan, shadow_mode')
     .eq('id', orgId)
     .single()
 
-  const currentPlan  = (orgRow as { plan: string } | null)?.plan ?? 'free'
-  const isShadowMode = Boolean((orgRow as { plan: string; shadow_mode?: boolean } | null)?.shadow_mode)
+  const currentPlan  = (orgCore as { plan: string } | null)?.plan ?? 'free'
+  const isShadowMode = Boolean((orgCore as { plan: string; shadow_mode?: boolean } | null)?.shadow_mode)
+
+  // AI budget fields — optional; defaults apply if columns don't exist yet.
+  const { data: orgAiRow } = await supabase
+    .from('organizations')
+    .select('ai_enabled, ai_monthly_limit, ai_calls_used, ai_reset_at')
+    .eq('id', orgId)
+    .maybeSingle()
+    .then(r => r.error ? { data: null } : r)
+
+  // Unified orgRow alias used below for backward-compat references.
+  const orgRow = orgCore
 
   // Temporary diagnostic headers — remove after plan resolution bug is confirmed fixed.
   res.setHeader('X-Debug-Org-Id',      orgId)
-  res.setHeader('X-Debug-Org-Plan',    (orgRow as { plan: string } | null)?.plan ?? 'NULL')
-  res.setHeader('X-Debug-Plan-Src',    orgRow ? 'db' : 'fallback')
+  res.setHeader('X-Debug-Org-Plan',    (orgCore as { plan: string } | null)?.plan ?? 'NULL')
+  res.setHeader('X-Debug-Plan-Src',    orgCore ? 'db' : 'fallback')
   res.setHeader('X-Debug-CurrentPlan', currentPlan)
 
   // ── 1.4. Rate limiting (per API key, plan-aware sliding window) ──────
@@ -947,7 +961,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     void incrementMonthlyUsage(orgId)
 
     if (process.env.DISABLE_AI_DURING_LOAD_TEST !== '1') {
-      const orgAi = orgRow as {
+      const orgAi = orgAiRow as {
         ai_enabled?: boolean; ai_monthly_limit?: number
         ai_calls_used?: number; ai_reset_at?: string
       } | null
