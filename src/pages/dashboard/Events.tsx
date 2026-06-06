@@ -1320,7 +1320,7 @@ export default function Events() {
             onChange={e => setSearch(e.target.value)}
             placeholder="User ID, email, IP, device…"
             className="g-input text-xs"
-            style={{ paddingLeft: 30, height: 36, width: 256 }}
+            style={{ paddingLeft: 30, paddingTop: 0, paddingBottom: 0, height: 36, width: 256 }}
           />
         </div>
 
@@ -1328,7 +1328,7 @@ export default function Events() {
           value={riskF}
           onChange={e => setRiskF(e.target.value as RiskLevel | '')}
           className="g-input text-xs"
-          style={{ height: 36, width: 140 }}
+          style={{ height: 36, width: 140, paddingTop: 0, paddingBottom: 0 }}
         >
           <option value="">All risk levels</option>
           <option value="low">Low</option>
@@ -1341,7 +1341,7 @@ export default function Events() {
           value={decF}
           onChange={e => setDecF(e.target.value as Decision | '')}
           className="g-input text-xs"
-          style={{ height: 36, width: 130 }}
+          style={{ height: 36, width: 130, paddingTop: 0, paddingBottom: 0 }}
         >
           <option value="">All decisions</option>
           <option value="allow">Allow</option>
@@ -1353,7 +1353,7 @@ export default function Events() {
           value={typeF}
           onChange={e => setTypeF(e.target.value as EventType | '')}
           className="g-input text-xs"
-          style={{ height: 36, width: 148 }}
+          style={{ height: 36, width: 148, paddingTop: 0, paddingBottom: 0 }}
         >
           <option value="">All event types</option>
           <option value="signup">Signup</option>
@@ -1369,7 +1369,7 @@ export default function Events() {
           value={rangeIdx}
           onChange={e => setRangeIdx(Number(e.target.value))}
           className="g-input text-xs"
-          style={{ height: 36, width: 130 }}
+          style={{ height: 36, width: 130, paddingTop: 0, paddingBottom: 0 }}
         >
           {DATE_RANGES.map((r, i) => (
             <option key={r.label} value={i}>{r.label}</option>
