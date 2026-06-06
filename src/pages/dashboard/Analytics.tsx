@@ -17,14 +17,13 @@ interface EventLite {
   decision:          string
   signals_json:      unknown
   applied_rule_name: string | null
-  feedback_status:   string | null
   gnx_score:         number | null
   created_at:        string
 }
 
 interface FbLite {
-  feedback_type: string
-  created_at:    string
+  label:      string
+  created_at: string
 }
 
 interface LabelLite {
@@ -213,13 +212,10 @@ function parseSignals(raw: unknown): RawSignal[] {
 // ─── Design constants ─────────────────────────────────────────────────────────
 
 const FEEDBACK_META: Record<string, { label: string; color: string }> = {
-  genuine_user:            { label: 'Genuine User',    color: '#16C784' },
-  false_positive:          { label: 'False Positive',  color: '#F59E0B' },
-  confirmed_fraud:         { label: 'Confirmed Fraud', color: '#EF4444' },
-  chargeback_received:     { label: 'Chargeback',      color: '#F97316' },
-  account_abuse_confirmed: { label: 'Account Abuse',   color: '#A78BFA' },
-  manual_review_correct:   { label: 'Review Correct',  color: '#38BDF8' },
-  manual_review_wrong:     { label: 'Review Wrong',    color: '#94A3B8' },
+  confirmed_fraud: { label: 'Confirmed Fraud', color: '#EF4444' },
+  suspected_fraud: { label: 'Suspected Fraud', color: '#F97316' },
+  false_positive:  { label: 'False Positive',  color: '#F59E0B' },
+  legitimate:      { label: 'Legitimate',       color: '#16C784' },
 }
 
 const SEV_COLOR: Record<string, string> = {
@@ -451,14 +447,14 @@ export default function Analytics() {
     const [evRes, fbRes, lblRes, intelData, featureData, dsData] = await Promise.all([
       supabase
         .from('risk_events')
-        .select('fraud_score, decision, signals_json, applied_rule_name, feedback_status, gnx_score, created_at')
+        .select('fraud_score, decision, signals_json, applied_rule_name, gnx_score, created_at')
         .eq('organization_id', profile.organization_id)
         .gte('created_at', since)
         .order('created_at', { ascending: true })
         .limit(5000),
       supabase
-        .from('event_feedback')
-        .select('feedback_type, created_at')
+        .from('fraud_labels')
+        .select('label, created_at')
         .eq('organization_id', profile.organization_id)
         .gte('created_at', since),
       supabase
@@ -536,7 +532,7 @@ export default function Analytics() {
   // ── Feedback breakdown ───────────────────────────────────────────────────────
   const feedbackBreakdown = useMemo(() => {
     const counts: Record<string, number> = {}
-    for (const f of currFb) counts[f.feedback_type] = (counts[f.feedback_type] ?? 0) + 1
+    for (const f of currFb) counts[f.label] = (counts[f.label] ?? 0) + 1
     return Object.entries(counts)
       .map(([type, count]) => ({ type, count, ...(FEEDBACK_META[type] ?? { label: type, color: '#94A3B8' }) }))
       .sort((a, b) => b.count - a.count)

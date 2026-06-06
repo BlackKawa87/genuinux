@@ -79,7 +79,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { data: { user }, error: authErr } = await userSupa.auth.getUser()
   if (authErr || !user) return res.status(401).json({ error: 'Invalid token' })
 
-  const { data: profile } = await userSupa.from('profiles').select('organization_id').eq('id', user.id).single()
+  const { data: profile } = await userSupa.from('profiles').select('organization_id').eq('user_id', user.id).single()
   if (!profile?.organization_id) return res.status(403).json({ error: 'No organization' })
   const orgId = profile.organization_id as string
 

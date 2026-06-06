@@ -165,7 +165,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { data: profile } = await userSupa
     .from('profiles')
     .select('organization_id')
-    .eq('id', user.id)
+    .eq('user_id', user.id)
     .single()
   if (!profile?.organization_id) return res.status(403).json({ error: 'No organization' })
   const orgId = profile.organization_id
