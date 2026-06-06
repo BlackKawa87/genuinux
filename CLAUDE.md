@@ -260,6 +260,8 @@ Valid `event_type` values: `signup`, `login`, `transaction`, `withdrawal`, `refe
 - `training_readiness` — all-time label counts, `progress_pct` (to 10k), `status` (`not_ready`/`collecting`/`near_ready`/`ready`), `data_quality_warnings[]`
 - Auth: user JWT (anon key + RLS scopes data to org automatically)
 
+**Critical — profiles table lookup in API endpoints:** The `profiles` table has two distinct UUID columns: `id` (own PK, `gen_random_uuid()`) and `user_id` (FK → `auth.users.id`). When resolving `organization_id` from a user JWT, always use `.eq('user_id', user.id)` — **never** `.eq('id', user.id)`. Using the wrong column returns 0 rows → `profile = null` → 403 "No organization". Reference: `schema.sql:191` uses `WHERE user_id = auth.uid()`. All intelligence and ML endpoints (`features.ts`, `dataset/stats.ts`, `ml/summary.ts`, `ml/disagreements.ts`) use the correct `user_id` column.
+
 **`GET|POST /api/cron/maintenance`** — Scheduled at 03:00 UTC via Vercel Cron. Auth: `x-vercel-cron: 1` header (auto) or `Authorization: Bearer <CRON_SECRET>`. 6 tasks in order:
 1. Purge expired `ai_summary_cache` rows
 2. Purge `webhook_deliveries` older than 90 days
@@ -340,7 +342,9 @@ Phase 2B Redis counters (implemented, env-gated): `writeFraudCounters()` writes 
 6. **Fraud Analytics** — 2-col grid: GNX Score Distribution (3 bands: Low/Review/High with progress bars + percentages) + Fraud Label Trends (stacked bar chart with 4 label types); full-width Top Fraud Patterns (4-col: countries, event types, risk levels, original decisions for confirmed-fraud events)
 7. **Training Readiness** — all-time progress to 10k labels, status badge (Not Ready/Collecting/Near Ready/Ready), label count grid, Data Quality Warnings
 8. **Intelligence Layer** — Avg GNX Score, Labels Submitted, Confirmed Fraud count, False Positive Rate from client-side computation; label distribution HBar chart
-Data fetched in parallel `Promise.all`: risk_events (5k limit), event_feedback, fraud_labels (2k limit), plus `GET /api/admin/intelligence/summary` for server-side aggregations (Feedback Loop, GNX distribution, patterns, training readiness).
+Data fetched in parallel `Promise.all`: risk_events (5k limit, fields: `fraud_score, decision, signals_json, applied_rule_name, gnx_score, created_at`), fraud_labels (2k limit, used for Feedback Coverage KPI and Feedback Breakdown), plus `GET /api/admin/intelligence/summary` for server-side aggregations (Feedback Loop, GNX distribution, patterns, training readiness).
+
+**Important — columns and tables that do NOT exist:** `risk_events.feedback_status` was never created (not in schema or any migration) — do not add it to any SELECT. The `event_feedback` table was never created — Feedback Coverage uses `fraud_labels` as the data source. `fraud_labels.label` values: `confirmed_fraud`, `suspected_fraud`, `false_positive`, `legitimate`.
 
 **`Overview.tsx`** — Real-time metrics for last 24h. Subscribes to `postgres_changes` on `risk_events`. Charts: events over time (area), decisions (donut), fraud score distribution (histogram), risk level bars, top signals, top countries. Recent events table.
 
