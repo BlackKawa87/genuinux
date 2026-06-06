@@ -137,6 +137,12 @@ ai_reset_at timestamptz NOT NULL DEFAULT now()
 - Safe to DROP+CREATE `ml_predictions` because `ML_SHADOW_ENABLED` was never true in production.
 - Run Section A then Section B separately in the Supabase SQL editor.
 
+**v23 migration** (`supabase/migrations/v23_fraud_labels_unique.sql`): UNIQUE constraints to prevent duplicate label rows (Feedback Coverage > 100% bug fix).
+- **Section A**: Delete duplicate `fraud_labels` rows keeping only the latest per `(organization_id, risk_event_id)`, then add `UNIQUE (organization_id, risk_event_id)` constraint named `fraud_labels_org_event_unique`.
+- **Section B**: Delete duplicate `training_dataset` rows, then add `UNIQUE (organization_id, risk_event_id)` constraint named `training_dataset_org_event_unique`.
+- **Root cause**: before this migration, calling `POST /api/risk/label` multiple times for the same event (relabeling) inserted duplicate rows, inflating `label_coverage_rate` above 100%. The fix requires both the DB constraint and UPSERT in `api/risk/label.ts` + `api/_lib/datasetBuilder.ts`.
+- Apply Section A before Section B, separately.
+
 **v21 migration** (`supabase/migrations/v21_training_dataset.sql`): Training Dataset table (Phase 3.6).
 - `training_dataset` table — PK `id UUID`, fields: `risk_event_id TEXT`, `label`, `decision`, `fraud_score`, `trust_score`, `gnx_score`, `feature_count`, `label_created_at`, `event_created_at`, `dataset_version INTEGER DEFAULT 1`.
 - 4 indexes: `idx_training_dataset_org_label`, `idx_training_dataset_org_event`, `idx_training_dataset_org_created`, `idx_training_dataset_version`.
@@ -260,6 +266,7 @@ Valid `event_type` values: `signup`, `login`, `transaction`, `withdrawal`, `refe
 - `top_patterns` — top 5 per category among confirmed-fraud events: `countries`, `event_types`, `risk_levels`, `original_decisions`
 - `training_readiness` — all-time label counts, `progress_pct` (to 10k), `status` (`not_ready`/`collecting`/`near_ready`/`ready`), `data_quality_warnings[]`
 - Auth: user JWT (anon key + RLS scopes data to org automatically)
+- **Dedup invariant**: both `periodLabels` and `allLabels` are deduplicated by `risk_event_id` (Map keyed on event ID, keep latest) before any metric calculation. `label_coverage_rate` and all counts therefore reflect distinct labeled events — never inflated by duplicate rows.
 
 **Critical — profiles table lookup in API endpoints:** The `profiles` table has two distinct UUID columns: `id` (own PK, `gen_random_uuid()`) and `user_id` (FK → `auth.users.id`). When resolving `organization_id` from a user JWT, always use `.eq('user_id', user.id)` — **never** `.eq('id', user.id)`. Using the wrong column returns 0 rows → `profile = null` → 403 "No organization". Reference: `schema.sql:191` uses `WHERE user_id = auth.uid()`. All intelligence and ML endpoints (`features.ts`, `dataset/stats.ts`, `ml/summary.ts`, `ml/disagreements.ts`) use the correct `user_id` column.
 
@@ -343,13 +350,17 @@ Phase 2B Redis counters (implemented, env-gated): `writeFraudCounters()` writes 
 6. **Fraud Analytics** — 2-col grid: GNX Score Distribution (3 bands: Low/Review/High with progress bars + percentages) + Fraud Label Trends (stacked bar chart with 4 label types); full-width Top Fraud Patterns (4-col: countries, event types, risk levels, original decisions for confirmed-fraud events)
 7. **Training Readiness** — all-time progress to 10k labels, status badge (Not Ready/Collecting/Near Ready/Ready), label count grid, Data Quality Warnings
 8. **Intelligence Layer** — Avg GNX Score, Labels Submitted, Confirmed Fraud count, False Positive Rate from client-side computation; label distribution HBar chart
-Data fetched in parallel `Promise.all`: risk_events (5k limit, fields: `fraud_score, decision, signals_json, applied_rule_name, gnx_score, created_at`), fraud_labels (2k limit, used for Feedback Coverage KPI and Feedback Breakdown), plus `GET /api/admin/intelligence/summary` for server-side aggregations (Feedback Loop, GNX distribution, patterns, training readiness).
+Data fetched in parallel `Promise.all`: risk_events (5k limit, fields: `fraud_score, decision, signals_json, applied_rule_name, gnx_score, created_at`), fraud_labels (2k limit, fields: `risk_event_id, label, created_at`, used for Feedback Coverage KPI and Feedback Breakdown), plus `GET /api/admin/intelligence/summary` for server-side aggregations (Feedback Loop, GNX distribution, patterns, training readiness).
+`FbLite` and `LabelLite` interfaces include `risk_event_id: string`. The `currFb`, `prevFb`, and `currLabels` memos deduplicate by `risk_event_id` (keeping latest `created_at`) before computing Feedback Coverage — prevents Coverage > 100% when multiple label rows exist for the same event.
 
 **Important — columns and tables that do NOT exist:** `risk_events.feedback_status` was never created (not in schema or any migration) — do not add it to any SELECT. The `event_feedback` table was never created — Feedback Coverage uses `fraud_labels` as the data source. `fraud_labels.label` values: `confirmed_fraud`, `suspected_fraud`, `false_positive`, `legitimate`.
 
 **`Overview.tsx`** — Real-time metrics for last 24h. Subscribes to `postgres_changes` on `risk_events`. Charts: events over time (area), decisions (donut), fraud score distribution (histogram), risk level bars, top signals, top countries. Recent events table.
 
 **`Events.tsx`** — Full risk events table. Client-side filtering on up to 500 events: search (user/email/IP/device), risk level, decision, event type, date range. 480px slide-out detail panel with signals, AI summary, related events (same user / IP / device). `key={selected.id}` forces panel remount on selection change.
+- **Label column**: each table row has a `LabelCell` — native `<select>` styled as a colored badge. `fetchLabels(evs)` queries `fraud_labels` on load and deduplicates client-side by `risk_event_id`. `submitLabel(eventId, label)` POSTs to `/api/risk/label` with the Supabase session JWT.
+- **"Outcome Label" section** in `EventDetailPanel` — 4 pill buttons (Confirmed Fraud / Suspected / False Positive / Legitimate) that call the same `submitLabel()`.
+- **Filter bar fix**: all 5 filter controls use `height: 36, paddingTop: 0, paddingBottom: 0`. Zero vertical padding is required because `.g-input` sets `padding: 10px` and `box-sizing: border-box` makes `height` the total — a 36px box with 20px of vertical padding leaves only 16px content area, clipping 14px text. Zeroing vertical padding lets the browser center text natively within the full 36px.
 
 **`Queue.tsx`** — Manual review interface. Status tabs: pending / approved / rejected / escalated. 500px detail panel with action buttons (Approve / Block / Escalate / Reopen / Add Note). Each action writes to `audit_logs`. Optimistic state updates.
 
@@ -465,11 +476,11 @@ Register adds **company name** and **website** fields. On successful sign-up, ca
 - `REPUTATION_ENRICHMENT_ENABLED=true` — phase 3.5 gate to read entity reputation in the `/api/risk/check` hot path.
 
 **Phase 3 — Implemented:**
-- `POST /api/risk/label` — client API for ground-truth fraud labels (Phase 3.1/3.2)
-- `api/_lib/gnxScore.ts` — `computeGnxScore()` — deterministic 0–1000 score, written to `risk_events.gnx_score` fire-and-forget (Phase 3.0)
+- `POST /api/risk/label` — ground-truth fraud label submission (Phase 3.1/3.2). **Dual auth**: detects JWT vs API key by counting dots in the token (`(token.match(/\./g) ?? []).length === 2` → JWT). JWT path resolves `organization_id` via `profiles.user_id`; API key path unchanged. Uses `.upsert({ ... }, { onConflict: 'organization_id,risk_event_id' })` so relabeling the same event updates in place rather than inserting a duplicate. Returns HTTP 200 (not 201).
+- `api/_lib/gnxScore.ts` — `computeGnxScore()` — deterministic 0–1000 score, written to `risk_events.gnx_score` fire-and-forget (Phase 3.0). Formula: base `= fraud_score × 10`, then additive bonuses — critical signals `+20` each (max 4, +80), high `+12` (max 3, +36), medium `+2` (max 7, +14), device prior block `+40`, IP distinct users +10/+20/+30 (capped), device distinct users +5/+10/+20 (capped), IP signup surge +5/+15 (capped), minus trust dampener `−floor(trust_score / 10)` (max −10). Clamped to [0, 1000].
 - `api/_lib/featureExtractor.ts` — `extractFeatures()` — derives 17 features across 5 groups (velocity/reputation/behavior/risk/context) with `feature_group`, `feature_version`, `source` (Phase 3.3)
 - `api/_lib/featureStore.ts` — `persistFeatures()` — writes extracted feature vectors to `fraud_features` fire-and-forget (Phase 3.3), gated by `FEATURE_STORE_ENABLED`
-- `api/_lib/datasetBuilder.ts` — `buildTrainingDataset()` — joins risk_events + fraud_features into `training_dataset` fire-and-forget (Phase 3.6), gated by `DATASET_BUILDER_ENABLED`
+- `api/_lib/datasetBuilder.ts` — `buildTrainingDataset()` — joins risk_events + fraud_features into `training_dataset` fire-and-forget (Phase 3.6), gated by `DATASET_BUILDER_ENABLED`. Uses `.upsert({ ... }, { onConflict: 'organization_id,risk_event_id' })` so relabeling an event updates the training row rather than inserting a duplicate.
 - `api/_lib/reputationNetwork.ts` — `updateEntityReputation()` / `getEntityReputation()` — atomic cross-org reputation via PostgreSQL RPC (Phase 3.5)
 - `api/_lib/shadowPredictor.ts` — `predictShadow(features[])` — pure function, deterministic heuristic model shadow-v1, returns `{ prediction: block|review|allow, prediction_score, confidence, model_name, model_version }` (Phase 3.7)
 - `api/_lib/mlPredictionStore.ts` — `savePrediction()`, `getPredictions()`, `getAgreementStats()`, `getModelStats()`, `runShadowPrediction()` — all persistence for ML shadow pipeline; `agreement` computed at write time as `prediction === engineDecision` (Phase 3.7)
@@ -505,6 +516,18 @@ Register adds **company name** and **website** fields. On successful sign-up, ca
 - Blog: 3 real articles live at `/blog/:slug`.
 - Invite flow to same org: currently new invited users are assigned to the invited org via the `/join` page, but the auto-created org from the DB trigger remains. A cleanup step (deleting the auto-created org) can be added later.
 - Rules cache invalidation: `Rules.tsx` mutations (create/update/delete/toggle) should call `invalidateCachedRules(orgId)` via a new API endpoint so rule changes take effect immediately instead of after the 60s Redis TTL.
+
+### Maintenance Scripts (`supabase/maintenance/`)
+
+Local operational scripts for controlled database resets and validation. Never run in automated production pipelines.
+
+- **`reset.mjs`** — Node.js controlled reset. Reads `.env.local` directly for credentials. Three phases: 1) Audit — row counts, duplicate detection per `(org_id, risk_event_id)`, live coverage calculation; 2) Cleanup — `DELETE` all rows from `fraud_labels`, `training_dataset`, `entity_reputation`, `ml_predictions`, writes `system.cleanup.controlled_reset` to `audit_logs`; 3) Validate — confirms tables are empty, runs 3-insert UPSERT idempotency test, confirms protected tables untouched. Run: `node supabase/maintenance/reset.mjs`.
+- **`cleanup_reset.sql`** — SQL equivalent of Phase 2. Uses `TRUNCATE` on derived tables. Writes `system.cleanup.pre_reset` and `system.cleanup.post_reset` entries to `audit_logs`. Protected tables verified in STEP 6. Run each STEP block separately in the Supabase SQL editor.
+- **`validate_constraints.sql`** — Post-cleanup integrity checks. V1: tables zeroed. V2: `fraud_labels_org_event_unique` UNIQUE active. V3: `training_dataset_org_event_unique` UNIQUE active. V4: `entity_reputation` UNIQUE active. V5: UPSERT idempotency via PL/pgSQL DO block (3 inserts → 1 row). V6: `fraud_labels` empty after test. V7: coverage = 0% baseline. V8: `ml_predictions` empty or non-existent.
+- **`validate_after_tests.sql`** — Post-test verification after controlled sandbox runs. T1: coverage ≤ 100%. T2: 1 row per event in `fraud_labels`. T3: multi-event coverage correctness. T4: `training_dataset` dedup check. T5: `entity_reputation` counter plausibility. T6: full consolidated state summary.
+- **`audit_contamination.sql`** — Pre-cleanup audit: duplicate detection, raw vs distinct-event coverage comparison, per-event label history.
+
+**Protected tables** (never touched by maintenance scripts): `risk_events`, `users_checked`, `fraud_features`, `organizations`, `profiles`, `api_keys`, `rules`, `review_queue`, `webhooks`, `audit_logs`.
 
 ## TypeScript Config
 
