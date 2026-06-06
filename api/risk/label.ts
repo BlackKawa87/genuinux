@@ -1,8 +1,9 @@
 /**
  * POST /api/risk/label
  *
- * Client-facing endpoint — receives ground-truth labels from customers' backends.
- * Auth: Authorization: Bearer <api_key> (same as /api/risk/check).
+ * Dual-auth endpoint for ground-truth fraud labels.
+ * Auth: Authorization: Bearer <api_key>  — client backends (hex, no dots)
+ *       Authorization: Bearer <jwt>       — dashboard users (Supabase session token)
  *
  * Body:
  *   event_id  string  — risk_event.id (UUID)
@@ -10,7 +11,7 @@
  *   notes?    string  — optional free-text context
  *
  * Writes to fraud_labels.
- * Fire-and-forget: updates entity_reputation for IP, device, email.
+ * Fire-and-forget: builds training dataset row + updates entity_reputation.
  *
  * These labels form the ground-truth dataset for Phase 3 ML training
  * (Module 6). Activation threshold: 10,000 labels collected.
@@ -53,6 +54,12 @@ function extractBearer(authHeader: string | undefined): string | null {
   return t.length > 0 ? t : null
 }
 
+// JWTs are base64url.base64url.base64url — exactly 2 dots.
+// API keys are hex strings — no dots.
+function isJwt(token: string): boolean {
+  return (token.match(/\./g) ?? []).length === 2
+}
+
 // ─── Handler ──────────────────────────────────────────────────────────────────
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -63,31 +70,50 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'OPTIONS') return res.status(204).end()
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  // ── 1. Auth — API key ─────────────────────────────────────────────────────
+  // ── 1. Auth — dual mode (API key or dashboard JWT) ────────────────────────
   const rawKey = extractBearer(req.headers['authorization'] as string | undefined)
   if (!rawKey) {
-    return res.status(401).json({ error: 'Authorization: Bearer <api_key> required' })
+    return res.status(401).json({ error: 'Authorization: Bearer <api_key|jwt> required' })
   }
 
   const supabase = adminClient()
-  const keyHash  = hashKey(rawKey)
+  let orgId: string
 
-  // Redis cache (same as check.ts)
-  let apiKey = await getCachedApiKey(keyHash)
-  if (!apiKey) {
-    const { data } = await supabase
-      .from('api_keys')
-      .select('id, organization_id, name, requests_count')
-      .eq('key_hash', keyHash)
-      .eq('status', 'active')
+  if (isJwt(rawKey)) {
+    // Dashboard user path — resolve org via Supabase JWT
+    const url    = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? ''
+    const anon   = process.env.VITE_SUPABASE_ANON_KEY ?? ''
+    const userClient = createClient(url, anon, {
+      global: { headers: { Authorization: `Bearer ${rawKey}` } },
+      auth:   { autoRefreshToken: false, persistSession: false },
+    })
+    const { data: { user }, error: authErr } = await userClient.auth.getUser()
+    if (authErr || !user) return res.status(401).json({ error: 'Invalid token' })
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('organization_id')
+      .eq('user_id', user.id)
       .single()
-
-    if (!data) return res.status(401).json({ error: 'Invalid or revoked API key' })
-    apiKey = data as typeof apiKey
-    void setCachedApiKey(keyHash, apiKey!)
+    if (!profile?.organization_id) return res.status(403).json({ error: 'No organization' })
+    orgId = profile.organization_id as string
+  } else {
+    // API key path (client backends) — Redis cache then DB lookup
+    const keyHash = hashKey(rawKey)
+    let apiKey = await getCachedApiKey(keyHash)
+    if (!apiKey) {
+      const { data } = await supabase
+        .from('api_keys')
+        .select('id, organization_id, name, requests_count')
+        .eq('key_hash', keyHash)
+        .eq('status', 'active')
+        .single()
+      if (!data) return res.status(401).json({ error: 'Invalid or revoked API key' })
+      apiKey = data as typeof apiKey
+      void setCachedApiKey(keyHash, apiKey!)
+    }
+    orgId = apiKey!.organization_id
   }
-
-  const orgId = apiKey!.organization_id
 
   // ── 2. Validate payload ───────────────────────────────────────────────────
   const body = req.body as Record<string, unknown> | null | undefined

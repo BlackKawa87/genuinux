@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import {
   Search, X, RefreshCw, ChevronDown,
   Shield, User, Globe, Monitor, AlertTriangle, Zap,
-  Mail, Activity, CheckCircle2, ShieldCheck, Eye, Network,
+  Mail, Activity, CheckCircle2, ShieldCheck, Eye, Network, Tag,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
@@ -41,6 +41,21 @@ const DATE_RANGES = [
 const SEV_COLORS: Record<string, string> = {
   low: '#16C784', medium: '#F59E0B', high: '#F97316', critical: '#EF4444',
 }
+
+// ─── Label constants ──────────────────────────────────────────────────────────
+
+const LABEL_OPTIONS = [
+  { value: 'legitimate',      label: 'Legitimate',      color: '#16C784', bg: 'rgba(22,199,132,0.12)',  border: 'rgba(22,199,132,0.3)'  },
+  { value: 'confirmed_fraud', label: 'Confirmed Fraud', color: '#EF4444', bg: 'rgba(239,68,68,0.12)',   border: 'rgba(239,68,68,0.3)'   },
+  { value: 'suspected_fraud', label: 'Suspected Fraud', color: '#F59E0B', bg: 'rgba(245,158,11,0.12)',  border: 'rgba(245,158,11,0.3)'  },
+  { value: 'false_positive',  label: 'False Positive',  color: '#F97316', bg: 'rgba(249,115,22,0.12)',  border: 'rgba(249,115,22,0.3)'  },
+] as const
+
+type LabelValue = typeof LABEL_OPTIONS[number]['value']
+
+const LABEL_META: Record<string, { label: string; color: string; bg: string; border: string }> = Object.fromEntries(
+  LABEL_OPTIONS.map(o => [o.value, o])
+)
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -564,11 +579,14 @@ function TrustGraphSection({ event }: { event: RiskEvent }) {
 // ─── EventDetailPanel ─────────────────────────────────────────────────────────
 
 function EventDetailPanel({
-  event, onClose, onSelectRelated,
+  event, onClose, onSelectRelated, labels, onLabel, labeling,
 }: {
   event: RiskEvent
   onClose: () => void
   onSelectRelated: (id: string) => void
+  labels: Record<string, LabelValue>
+  onLabel: (eventId: string, label: LabelValue) => void
+  labeling: Record<string, boolean>
 }) {
   const T = useT()
   const [related,        setRelated]        = useState<RelatedData | null>(null)
@@ -724,6 +742,54 @@ function EventDetailPanel({
           >
             <ScoreBar label="Trust Score" score={event.trust_score} color={trustColor(event.trust_score)} />
             <ScoreBar label="Fraud Score" score={event.fraud_score} color={fraudColor(event.fraud_score)} />
+          </div>
+
+          {/* Label */}
+          <div className="px-6 py-4" style={{ borderBottom: `1px solid ${T.deep}` }}>
+            <div className="flex items-center gap-2 mb-3">
+              <Tag size={12} style={{ color: T.textDim }} />
+              <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.textDim }}>
+                Outcome Label
+              </p>
+              <span className="text-[10px]" style={{ color: T.textDim }}>
+                — powers Feedback Loop &amp; ML training
+              </span>
+            </div>
+            <div className="flex items-center gap-3 flex-wrap">
+              {LABEL_OPTIONS.map(o => {
+                const current = labels[event.id]
+                const isActive = current === o.value
+                const isLoading = labeling[event.id] ?? false
+                return (
+                  <button
+                    key={o.value}
+                    disabled={isLoading}
+                    onClick={() => onLabel(event.id, o.value)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all disabled:opacity-50"
+                    style={{
+                      background: isActive ? o.bg    : 'transparent',
+                      color:      isActive ? o.color : T.textDim,
+                      border:     `1px solid ${isActive ? o.border : T.border}`,
+                    }}
+                    onMouseEnter={e => {
+                      if (!isActive) {
+                        (e.currentTarget as HTMLElement).style.borderColor = o.border
+                        ;(e.currentTarget as HTMLElement).style.color = o.color
+                      }
+                    }}
+                    onMouseLeave={e => {
+                      if (!isActive) {
+                        (e.currentTarget as HTMLElement).style.borderColor = T.border
+                        ;(e.currentTarget as HTMLElement).style.color = T.textDim
+                      }
+                    }}
+                  >
+                    {isLoading && isActive && <RefreshCw size={9} className="animate-spin" />}
+                    {o.label}
+                  </button>
+                )
+              })}
+            </div>
           </div>
 
           {/* AI Summary */}
@@ -953,13 +1019,60 @@ function Empty({ msg }: { msg: string }) {
   return <p className="text-xs" style={{ color: T.textDim }}>{msg}</p>
 }
 
+// ─── LabelCell ────────────────────────────────────────────────────────────────
+
+function LabelCell({
+  currentLabel,
+  onLabel,
+  isLoading,
+}: {
+  currentLabel: LabelValue | undefined
+  onLabel: (label: LabelValue) => void
+  isLoading: boolean
+}) {
+  const T = useT()
+  const meta = currentLabel ? LABEL_META[currentLabel] : null
+
+  return (
+    <td
+      className="px-3 py-2.5"
+      onClick={e => e.stopPropagation()}
+    >
+      {isLoading ? (
+        <RefreshCw size={10} className="animate-spin" style={{ color: T.textDim }} />
+      ) : (
+        <select
+          value={currentLabel ?? ''}
+          onChange={e => {
+            if (e.target.value) onLabel(e.target.value as LabelValue)
+          }}
+          className="text-[10px] rounded-full px-2 py-0.5 cursor-pointer font-medium"
+          style={{
+            background:   meta ? meta.bg     : T.deep,
+            color:        meta ? meta.color  : T.textDim,
+            border:       `1px solid ${meta ? meta.border : T.border}`,
+            outline:      'none',
+            appearance:   'auto',
+            minWidth:     90,
+          }}
+        >
+          <option value="">Add label…</option>
+          {LABEL_OPTIONS.map(o => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+      )}
+    </td>
+  )
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 const FREE_HISTORY_HOURS = 48 // 2-day history for free plan
 
 export default function Events() {
   const T = useT()
-  const { user } = useAuth()
+  const { user, session } = useAuth()
   const [orgId,    setOrgId]    = useState<string | null>(null)
   const [freePlan, setFreePlan] = useState(false)
   const [events,   setEvents]   = useState<RiskEvent[]>([])
@@ -975,6 +1088,17 @@ export default function Events() {
 
   // Detail panel
   const [selected, setSelected] = useState<RiskEvent | null>(null)
+
+  // Labels
+  const [labels,   setLabels]   = useState<Record<string, LabelValue>>({})
+  const [labeling, setLabeling] = useState<Record<string, boolean>>({})
+  const [toast,    setToast]    = useState<{ msg: string; ok: boolean } | null>(null)
+
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(null), 3500)
+    return () => clearTimeout(t)
+  }, [toast])
 
   useEffect(() => {
     if (!user) return
@@ -996,6 +1120,26 @@ export default function Events() {
     })()
   }, [user])
 
+  const fetchLabels = useCallback(async (evs: RiskEvent[]) => {
+    if (!orgId || evs.length === 0) return
+    const ids = evs.map(e => e.id)
+    const { data } = await supabase
+      .from('fraud_labels')
+      .select('risk_event_id, label, created_at')
+      .eq('organization_id', orgId)
+      .in('risk_event_id', ids)
+      .order('created_at', { ascending: false })
+    if (data) {
+      const map: Record<string, LabelValue> = {}
+      for (const row of data as { risk_event_id: string; label: string }[]) {
+        if (!map[row.risk_event_id]) {
+          map[row.risk_event_id] = row.label as LabelValue
+        }
+      }
+      setLabels(map)
+    }
+  }, [orgId])
+
   const fetchEvents = useCallback(async () => {
     if (!orgId) return
     // Free plan: cap to 2-day history regardless of selected range
@@ -1011,11 +1155,49 @@ export default function Events() {
       .order('created_at', { ascending: false })
       .limit(500)
     if (err) setError(err.message)
-    else setEvents((data ?? []) as RiskEvent[])
+    else {
+      const evs = (data ?? []) as RiskEvent[]
+      setEvents(evs)
+      void fetchLabels(evs)
+    }
     setLoading(false)
-  }, [orgId, rangeIdx, freePlan])
+  }, [orgId, rangeIdx, freePlan, fetchLabels])
 
   useEffect(() => { void fetchEvents() }, [fetchEvents])
+
+  const submitLabel = useCallback(async (eventId: string, label: LabelValue) => {
+    const token = session?.access_token
+    if (!token) {
+      setToast({ msg: 'Not authenticated', ok: false })
+      return
+    }
+    setLabeling(prev => ({ ...prev, [eventId]: true }))
+    try {
+      const res = await fetch('/api/risk/label', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          event_id: eventId,
+          label,
+          notes: 'Marked from Risk Events dashboard',
+        }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { error?: string }
+        const msg = body.error ?? `HTTP ${res.status}`
+        console.error('[label] error', res.status, body)
+        setToast({ msg: `Could not save label: ${msg}`, ok: false })
+        return
+      }
+      setLabels(prev => ({ ...prev, [eventId]: label }))
+      setToast({ msg: 'Label saved — powers Feedback Loop, Training Dataset and ML readiness.', ok: true })
+    } catch (err) {
+      console.error('[label] network error', err)
+      setToast({ msg: 'Could not save label: network error', ok: false })
+    } finally {
+      setLabeling(prev => ({ ...prev, [eventId]: false }))
+    }
+  }, [session])
 
   const filtered = useMemo(() => events.filter(ev => {
     if (search) {
@@ -1059,6 +1241,21 @@ export default function Events() {
 
   return (
     <div className="p-7">
+
+      {/* Toast */}
+      {toast && (
+        <div
+          className="fixed bottom-6 right-6 z-50 flex items-start gap-3 px-4 py-3 rounded-xl shadow-xl max-w-sm"
+          style={{
+            background: toast.ok ? 'rgba(22,199,132,0.12)' : 'rgba(239,68,68,0.12)',
+            border: `1px solid ${toast.ok ? 'rgba(22,199,132,0.35)' : 'rgba(239,68,68,0.35)'}`,
+            color: toast.ok ? '#16C784' : '#EF4444',
+          }}
+        >
+          <Tag size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+          <p className="text-xs leading-relaxed">{toast.msg}</p>
+        </div>
+      )}
 
       {/* Free plan history cap banner */}
       {freePlan && (
@@ -1199,11 +1396,11 @@ export default function Events() {
             <table className="w-full">
               <thead>
                 <tr style={{ borderBottom: `1px solid ${T.border}` }}>
-                  {['Event ID','User','Type','IP','Device','Trust','Fraud','Risk Level','Decision','Created at'].map(h => (
+                  {['Event ID','User','Type','IP','Device','Trust','Fraud','Risk Level','Decision','Label','Created at'].map(h => (
                     <th
                       key={h}
                       className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap"
-                      style={{ color: T.textDim, background: T.deep }}
+                      style={{ color: h === 'Label' ? '#16C784' : T.textDim, background: T.deep }}
                     >
                       {h}
                     </th>
@@ -1317,6 +1514,13 @@ export default function Events() {
                       </div>
                     </td>
 
+                    {/* Label */}
+                    <LabelCell
+                      currentLabel={labels[ev.id]}
+                      onLabel={lv => void submitLabel(ev.id, lv)}
+                      isLoading={labeling[ev.id] ?? false}
+                    />
+
                     {/* Created at */}
                     <td className="px-4 py-3 whitespace-nowrap">
                       <p className="text-[10px] mono" style={{ color: T.textSec }}>
@@ -1341,6 +1545,9 @@ export default function Events() {
           event={selected}
           onClose={() => setSelected(null)}
           onSelectRelated={id => void handleSelectRelated(id)}
+          labels={labels}
+          onLabel={(eventId, lv) => void submitLabel(eventId, lv)}
+          labeling={labeling}
         />
       )}
     </div>
