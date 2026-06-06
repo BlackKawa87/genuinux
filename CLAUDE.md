@@ -210,6 +210,7 @@ Supported condition types: `fraud_score`, `trust_score`, `risk_level`, `event_ty
 - Runs `analyze()` from risk engine, then evaluates custom rules (`applyCustomRules`)
 - **Early response**: `res.status(200).json(response)` is sent before DB writes — `upsertUserChecked` + `insertRiskEvent` run after the client receives the response
 - `crypto.randomUUID()` is pre-generated before the early response so the event_id in the response matches the DB row
+- **Fire-and-forget critical invariant**: any unhandled exception thrown between `res.json()` and `await Promise.all([upsertUserChecked, insertRiskEvent])` (line ~1079) will kill the handler before any writes execute. All code in that gap must be free of `ReferenceError`, import errors, or uncaught throws. This was the root cause of zero events being persisted — `captureMessage` was called but not imported, causing `ReferenceError` on every request (fixed 2026-06-06, commit `ab401ef`).
 - Fire-and-forget after response: `review_queue` insert (if decision=review) + webhook dispatch + `incrementMonthlyUsage`
 - Webhook dispatch: HMAC-SHA256 signature (`X-Genuinux-Signature: sha256=<sig>`), logs to `webhook_deliveries` (table optional)
 - Response maps `allow` → `approve`
@@ -320,7 +321,7 @@ Phase 2B Redis counters (implemented, env-gated): `writeFraudCounters()` writes 
 - `monthlyUsage.ts` — Redis-backed monthly event counter. Key: `gnx:monthly_events:{orgId}:{YYYY-MM}`. TTL expires 5 days after end of month. `getMonthlyUsage()` reads Redis (O(1)) or syncs from Supabase COUNT(*) on miss. `incrementMonthlyUsage()` is fire-and-forget via Redis `INCR`. Never throws.
 - `orgStats.ts` — Redis Hash daily stats counter. Key: `gnx:stats:{orgId}:{YYYY-MM-DD}`, TTL 33 days. `incrementOrgStats(orgId, decision, latencyMs)` — pipeline of 4 commands (total, decision bucket, latency_sum, expire). `getTodayStats(orgId)` — reads hash + computes avg_latency. Written fire-and-forget after every `/api/risk/check` response.
 - `fraudCounters.ts` — Redis fraud velocity counters (Phase 2B). 6 signals replacing `get_risk_context()` RPC subqueries. `writeFraudCounters(orgId, userId, ip, deviceId, email, decision, eventType)` — fire-and-forget dual-write. `readFraudCounters(orgId, userId, ip, deviceId, email)` — 8-slot fixed pipeline, returns `RiskEngineContext | null`. Activated in `fetchContext` when `REDIS_COUNTERS_ENABLED=true`. Uses `NOOP = 'gnx:noop'` key for optional pipeline slots (SCARD/GET on nonexistent → 0/null).
-- `monitoring.ts` — `captureException` / `captureMessage` wrappers for error tracking.
+- `monitoring.ts` — exports `captureException` AND `captureMessage` for error tracking. **Both must be explicitly imported** wherever used — esbuild does not catch missing references at build time, causing `ReferenceError` at runtime. Any `ReferenceError` thrown between `res.status(200).json()` and the `await Promise.all([...])` writes will kill the handler and silently discard ALL post-response DB writes.
 - `rateLimit.ts` — Upstash sliding window rate limiter. Limits per API key by plan tier.
 - `adminAuth.ts` — Owner-only auth guard for admin endpoints.
 - `aiEnricher.ts` / `aiSummary.ts` — GPT-4o-mini AI signal enrichment and event summaries.
@@ -479,6 +480,7 @@ Register adds **company name** and **website** fields. On successful sign-up, ca
 - `GET /api/admin/ml/summary?days=N` — ML Shadow summary: total_predictions, agreement_rate, coverage_rate, accuracy/precision/recall/f1_score (null until labels exist), model_name, model_version (Phase 3.7)
 - `GET /api/admin/ml/disagreements?page=N&limit=N&days=N` — Paginated disagreements: official_decision, shadow_prediction, confidence (Phase 3.7)
 - `GET /api/admin/ml/features?model=shadow-v1` — Feature weights from feature_importance table: `[{ feature, weight }]` (Phase 3.7)
+- `api/admin/intelligence/ml/stats.ts` — **DELETED** (stale Phase 3.7 file from first iteration, imported from deleted `mlShadowRunner.ts`; not referenced by any route)
 - Analytics.tsx — Intelligence Layer overview + Feedback Loop + Fraud Analytics + Training Readiness + Feature Store (Phase 3.3) + Training Dataset (Phase 3.6) sections
 - `src/pages/dashboard/ML.tsx` — Machine Learning dashboard at `/dashboard/ml`: ML Readiness, Shadow Performance, Agreement Analysis, Prediction Coverage, Feature Importance, Dataset Health (Phase 3.7)
 
