@@ -47,7 +47,7 @@ export async function buildTrainingDataset(
       created_at: string | null
     } | null
 
-    await supabase.from('training_dataset').insert({
+    await supabase.from('training_dataset').upsert({
       organization_id:  orgId,
       risk_event_id:    eventId,
       label,
@@ -59,7 +59,7 @@ export async function buildTrainingDataset(
       label_created_at: labelCreatedAt,
       event_created_at: ev?.created_at        ?? null,
       dataset_version:  DATASET_VERSION,
-    })
+    }, { onConflict: 'organization_id,risk_event_id' })
   } catch {
     // Never rethrow — fire-and-forget
   }

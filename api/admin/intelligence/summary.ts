@@ -37,7 +37,7 @@ function userClient(accessToken: string): SupabaseClient {
 
 type LabelRow  = { risk_event_id: string; label: string; created_at: string }
 type EventRow  = { id: string; decision: string; gnx_score: number | null; event_type: string; country: string | null; risk_level: string }
-type LabelOnly = { label: string }
+type LabelOnly = { risk_event_id: string; label: string }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -126,10 +126,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .select('id, decision, gnx_score, event_type, country, risk_level')
       .gte('created_at', since)
       .limit(5000),
-    // All-time label counts for Training Readiness (select only label column)
+    // All-time label counts for Training Readiness — include risk_event_id for dedup
     supabase
       .from('fraud_labels')
-      .select('label')
+      .select('risk_event_id, label')
+      .order('created_at', { ascending: true })
       .limit(50000),
   ])
 
@@ -142,11 +143,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const periodEvents = (eventsRes.data ?? []) as EventRow[]
   const allLabels    = (allLabelsRes.data ?? []) as LabelOnly[]
 
+  // Deduplicate labels by risk_event_id — keep the latest label per event.
+  // Query is ordered ascending so the last entry for each event is the most recent.
+  // This prevents label_coverage_rate from exceeding 100% when duplicate rows exist.
+  const labelByEvent = new Map<string, LabelRow>()
+  for (const l of periodLabels) labelByEvent.set(l.risk_event_id, l)
+  const dedupedLabels = [...labelByEvent.values()]
+
+  const allLabelsByEvent = new Map<string, LabelOnly>()
+  for (const l of allLabels) allLabelsByEvent.set(l.risk_event_id, l)
+  const dedupedAllLabels = [...allLabelsByEvent.values()]
+
   // ── Phase 2: Resolve events referenced by labels ──────────────────────────
   // Labels may reference events created before the current period window.
   // Build a map from phase 1 first, then fetch only the missing IDs.
   const eventMap = new Map<string, EventRow>(periodEvents.map(e => [e.id, e]))
-  const missingIds = [...new Set(periodLabels.map(l => l.risk_event_id))]
+  const missingIds = [...new Set(dedupedLabels.map(l => l.risk_event_id))]
     .filter(id => !eventMap.has(id))
     .slice(0, 500)
 
@@ -163,7 +175,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let correct_block   = 0, incorrect_block   = 0
   let correct_review  = 0, incorrect_review  = 0
 
-  for (const lbl of periodLabels) {
+  for (const lbl of dedupedLabels) {
     const ev = eventMap.get(lbl.risk_event_id)
     if (!ev) continue
     const isFraud = lbl.label === 'confirmed_fraud' || lbl.label === 'suspected_fraud'
@@ -173,7 +185,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     else if (ev.decision === 'review') { if (isFraud) correct_review++;  else if (isLegit) incorrect_review++  }
   }
 
-  const total_labeled   = periodLabels.length
+  const total_labeled   = dedupedLabels.length
   const total_evaluated = correct_approve + incorrect_approve + correct_block + incorrect_block + correct_review + incorrect_review
   const total_events    = periodEvents.length
 
@@ -200,9 +212,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } else if (correct_review + incorrect_review >= 5 && incorrect_review > correct_review) {
     insight = 'Most reviewed events are turning out to be legitimate. Consider loosening review thresholds to reduce manual workload.'
   } else {
-    const remaining = Math.max(0, 10000 - allLabels.length)
+    const remaining = Math.max(0, 10000 - dedupedAllLabels.length)
     insight = remaining > 0
-      ? `${allLabels.length.toLocaleString()} labels collected — ${remaining.toLocaleString()} more needed to activate ML training.`
+      ? `${dedupedAllLabels.length.toLocaleString()} labels collected — ${remaining.toLocaleString()} more needed to activate ML training.`
       : 'Dataset is ready for ML shadow mode. Activate Shadow ML in Infrastructure settings.'
   }
 
@@ -217,7 +229,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // ── Label counts (period) ─────────────────────────────────────────────────
   const label_counts = { confirmed_fraud: 0, suspected_fraud: 0, false_positive: 0, legitimate: 0, total: 0 }
-  for (const l of periodLabels) {
+  for (const l of dedupedLabels) {
     label_counts.total++
     if      (l.label === 'confirmed_fraud') label_counts.confirmed_fraud++
     else if (l.label === 'suspected_fraud') label_counts.suspected_fraud++
@@ -227,7 +239,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // ── Fraud Label Trends (daily buckets) ────────────────────────────────────
   const trendMap = new Map<string, { confirmed_fraud: number; suspected_fraud: number; false_positive: number; legitimate: number }>()
-  for (const l of periodLabels) {
+  for (const l of dedupedLabels) {
     const d = l.created_at.slice(0, 10) // YYYY-MM-DD
     if (!trendMap.has(d)) trendMap.set(d, { confirmed_fraud: 0, suspected_fraud: 0, false_positive: 0, legitimate: 0 })
     const b = trendMap.get(d)!
@@ -241,7 +253,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     .sort((a, b) => a.date.localeCompare(b.date))
 
   // ── Top Fraud Patterns ────────────────────────────────────────────────────
-  const confirmedIds = new Set(periodLabels.filter(l => l.label === 'confirmed_fraud').map(l => l.risk_event_id))
+  const confirmedIds = new Set(dedupedLabels.filter(l => l.label === 'confirmed_fraud').map(l => l.risk_event_id))
   const confirmedEvs = [...eventMap.values()].filter(e => confirmedIds.has(e.id))
 
   const top_patterns = {
@@ -253,7 +265,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // ── Training Readiness (all-time) ─────────────────────────────────────────
   const atc = { total: 0, confirmed_fraud: 0, suspected_fraud: 0, false_positive: 0, legitimate: 0 }
-  for (const l of allLabels) {
+  for (const l of dedupedAllLabels) {
     atc.total++
     if      (l.label === 'confirmed_fraud') atc.confirmed_fraud++
     else if (l.label === 'suspected_fraud') atc.suspected_fraud++

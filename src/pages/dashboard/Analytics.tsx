@@ -22,13 +22,15 @@ interface EventLite {
 }
 
 interface FbLite {
-  label:      string
-  created_at: string
+  risk_event_id: string
+  label:         string
+  created_at:    string
 }
 
 interface LabelLite {
-  label:      string
-  created_at: string
+  risk_event_id: string
+  label:         string
+  created_at:    string
 }
 
 interface FraudTrend {
@@ -454,12 +456,12 @@ export default function Analytics() {
         .limit(5000),
       supabase
         .from('fraud_labels')
-        .select('label, created_at')
+        .select('risk_event_id, label, created_at')
         .eq('organization_id', profile.organization_id)
         .gte('created_at', since),
       supabase
         .from('fraud_labels')
-        .select('label, created_at')
+        .select('risk_event_id, label, created_at')
         .eq('organization_id', profile.organization_id)
         .gte('created_at', since)
         .limit(2000),
@@ -499,8 +501,24 @@ export default function Analytics() {
 
   const curr = useMemo(() => events.filter(e => e.created_at >= mid),   [events, mid])
   const prev = useMemo(() => events.filter(e => e.created_at <  mid),   [events, mid])
-  const currFb = useMemo(() => feedback.filter(f => f.created_at >= mid), [feedback, mid])
-  const prevFb = useMemo(() => feedback.filter(f => f.created_at <  mid), [feedback, mid])
+  const currFb = useMemo(() => {
+    const m = new Map<string, FbLite>()
+    for (const f of feedback) {
+      if (f.created_at < mid) continue
+      const ex = m.get(f.risk_event_id)
+      if (!ex || f.created_at > ex.created_at) m.set(f.risk_event_id, f)
+    }
+    return [...m.values()]
+  }, [feedback, mid])
+  const prevFb = useMemo(() => {
+    const m = new Map<string, FbLite>()
+    for (const f of feedback) {
+      if (f.created_at >= mid) continue
+      const ex = m.get(f.risk_event_id)
+      if (!ex || f.created_at > ex.created_at) m.set(f.risk_event_id, f)
+    }
+    return [...m.values()]
+  }, [feedback, mid])
 
   // ── KPIs ────────────────────────────────────────────────────────────────────
   const kpi = useMemo(() => {
@@ -570,7 +588,15 @@ export default function Analytics() {
   const maxSig  = Math.max(...topSignals.map(s => s.count), 1)
 
   // ── Intelligence KPIs ───────────────────────────────────────────────────────
-  const currLabels = useMemo(() => labels.filter(l => l.created_at >= mid), [labels, mid])
+  const currLabels = useMemo(() => {
+    const m = new Map<string, LabelLite>()
+    for (const l of labels) {
+      if (l.created_at < mid) continue
+      const ex = m.get(l.risk_event_id)
+      if (!ex || l.created_at > ex.created_at) m.set(l.risk_event_id, l)
+    }
+    return [...m.values()]
+  }, [labels, mid])
 
   const intelKpi = useMemo(() => {
     const withGnx = curr.filter(e => e.gnx_score !== null)

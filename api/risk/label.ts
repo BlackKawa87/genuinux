@@ -140,27 +140,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: 'notes must be a string if provided' })
   }
 
-  // ── 3. Insert fraud_label ─────────────────────────────────────────────────
-  const { data: labelRow, error: insertErr } = await supabase
+  // ── 3. Upsert fraud_label (one label per event — unique constraint enforced) ──
+  const { data: labelRow, error: upsertErr } = await supabase
     .from('fraud_labels')
-    .insert({
+    .upsert({
       organization_id: orgId,
       risk_event_id:   eventId.trim(),
       label,
       notes:           notes ?? null,
-    })
+    }, { onConflict: 'organization_id,risk_event_id' })
     .select('id, risk_event_id, label, created_at')
     .single()
 
-  if (insertErr) {
-    captureException(insertErr, { context: 'risk/label: fraud_labels insert', orgId, eventId })
-    return res.status(500).json({ error: 'Failed to save label', details: insertErr.message })
+  if (upsertErr) {
+    captureException(upsertErr, { context: 'risk/label: fraud_labels upsert', orgId, eventId })
+    return res.status(500).json({ error: 'Failed to save label', details: upsertErr.message })
   }
 
   const row = labelRow as { id: string; risk_event_id: string; label: string; created_at: string }
 
   // ── 4. Respond immediately ────────────────────────────────────────────────
-  res.status(201).json({
+  res.status(200).json({
     label_id:  row.id,
     event_id:  row.risk_event_id,
     label:     row.label,
