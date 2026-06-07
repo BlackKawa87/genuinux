@@ -7,6 +7,7 @@ import {
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useT } from '../../lib/themeTokens'
+import { useWindowSize } from '../../hooks/useWindowSize'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -426,6 +427,7 @@ function LabelStackedChart({ trends, textDim }: { trends: FraudTrend[]; textDim:
 export default function Analytics() {
   const { profile, session } = useAuth()
   const T = useT()
+  const { isMobile } = useWindowSize()
 
   const [range,        setRange]        = useState<Range>('30d')
   const [events,       setEvents]       = useState<EventLite[]>([])
@@ -638,7 +640,7 @@ export default function Analytics() {
   )
 
   return (
-    <div className="p-7 max-w-6xl space-y-5">
+    <div className="max-w-6xl space-y-5" style={{ padding: isMobile ? '16px' : '28px' }}>
 
       {/* Header */}
       <div className="flex items-center justify-between">

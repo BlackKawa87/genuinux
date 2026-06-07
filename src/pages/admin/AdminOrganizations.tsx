@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { RefreshCw, Search, CheckCircle, XCircle, MoreHorizontal, Building2 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useT } from '../../lib/themeTokens'
+import { useWindowSize } from '../../hooks/useWindowSize'
 
 const ACCENT = '#F59E0B'
 const API    = import.meta.env.VITE_API_URL ?? ''
@@ -28,6 +29,7 @@ function PlanBadge({ plan }: { plan: string }) {
 
 export default function AdminOrganizations() {
   const T = useT()
+  const { isMobile } = useWindowSize()
   const { session } = useAuth()
   const [orgs,        setOrgs]        = useState<OrgRow[]>([])
   const [loading,     setLoading]     = useState(true)
@@ -118,8 +120,8 @@ export default function AdminOrganizations() {
       </div>
 
       {/* Table */}
-      <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, overflow: 'hidden', overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: isMobile ? 700 : undefined }}>
           <thead>
             <tr style={{ borderBottom: `1px solid ${T.border}` }}>
               {['Organization', 'Plan', 'Status', 'Users', 'API Keys', 'Events/mo', 'Last Activity', 'Created', ''].map(h => (

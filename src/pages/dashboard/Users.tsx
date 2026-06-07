@@ -8,6 +8,7 @@ import {
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useT } from '../../lib/themeTokens'
+import { useWindowSize } from '../../hooks/useWindowSize'
 import type { UserChecked, RiskEvent, Decision } from '../../types'
 import { getRelatedRiskEntities, SEV_COLORS as TG_SEV } from '../../lib/trustGraph'
 import type { TrustGraphResult } from '../../lib/trustGraph'
@@ -181,6 +182,7 @@ function UserDetailPanel({
   onClose: () => void
 }) {
   const T = useT()
+  const { isMobile } = useWindowSize()
   const [events, setEvents] = useState<RiskEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState<string>('profile')
@@ -254,7 +256,7 @@ function UserDetailPanel({
 
       <div
         className="fixed top-0 right-0 h-screen z-50 flex flex-col"
-        style={{ width: 520, background: T.card, borderLeft: `1px solid ${T.border}` }}
+        style={{ width: isMobile ? '100%' : 520, background: T.card, borderLeft: isMobile ? 'none' : `1px solid ${T.border}` }}
       >
         {/* Top bar */}
         <div
@@ -756,6 +758,7 @@ const FREE_HISTORY_HOURS = 48
 
 export default function UsersPage() {
   const T = useT()
+  const { isMobile: isMobileMain } = useWindowSize()
   const { user } = useAuth()
   const [orgId,    setOrgId]    = useState<string | null>(null)
   const [freePlan, setFreePlan] = useState(false)
@@ -863,7 +866,7 @@ export default function UsersPage() {
   )
 
   return (
-    <div className="p-7">
+    <div style={{ padding: isMobileMain ? '16px' : '28px' }}>
 
       {freePlan && (
         <div

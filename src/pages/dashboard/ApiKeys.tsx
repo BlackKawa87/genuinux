@@ -7,6 +7,7 @@ import {
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useT } from '../../lib/themeTokens'
+import { useWindowSize } from '../../hooks/useWindowSize'
 import type { ApiKey } from '../../types'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -125,6 +126,7 @@ type Tab = 'curl' | 'node' | 'python'
 export default function ApiKeys() {
   const { user } = useAuth()
   const T = useT()
+  const { isMobile } = useWindowSize()
 
   const [keys,     setKeys]     = useState<ApiKey[]>([])
   const [loading,  setLoading]  = useState(true)
@@ -291,7 +293,7 @@ export default function ApiKeys() {
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
-    <div className="p-8" style={{ maxWidth: '900px' }}>
+    <div style={{ padding: isMobile ? '16px' : '32px', maxWidth: '900px' }}>
 
       {/* ── Header ──────────────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between mb-8">

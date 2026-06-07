@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { Copy, Check, ChevronRight, ExternalLink, Menu, X } from 'lucide-react'
+import { useWindowSize } from '../hooks/useWindowSize'
 
 const NAV = [
   { id: 'introduction',     label: 'Introduction' },
@@ -450,6 +451,7 @@ elif decision == "review":
 export default function Docs() {
   const [active, setActive] = useState('introduction')
   const [mobileOpen, setMobileOpen] = useState(false)
+  const { isMobile } = useWindowSize()
   const observerRef = useRef<IntersectionObserver | null>(null)
 
   useEffect(() => {
@@ -514,7 +516,7 @@ export default function Docs() {
   return (
     <div style={{ minHeight: '100vh', background: '#050B14', color: '#F1F5F9' }}>
       {/* Mobile header */}
-      <div style={{ display: 'none', position: 'sticky', top: 0, zIndex: 50, background: '#07111F', borderBottom: '1px solid #1E2D3D', padding: '12px 20px', alignItems: 'center', justifyContent: 'space-between' }} className="mobile-header">
+      <div style={{ display: isMobile ? 'flex' : 'none', position: 'sticky', top: 0, zIndex: 50, background: '#07111F', borderBottom: '1px solid #1E2D3D', padding: '12px 20px', alignItems: 'center', justifyContent: 'space-between' }}>
         <Link to="/" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
           <img src="/logo-full.png" alt="Genuinux" style={{ height: '72px', display: 'block', filter: 'brightness(0) invert(1)' }} />
         </Link>
@@ -525,12 +527,26 @@ export default function Docs() {
 
       <div style={{ display: 'flex', maxWidth: 1200, margin: '0 auto' }}>
         {/* Sidebar */}
-        <aside style={{ width: 240, flexShrink: 0, background: '#07111F', borderRight: '1px solid #1E2D3D', minHeight: '100vh' }}>
+        {isMobile && mobileOpen && (
+          <div
+            onClick={() => setMobileOpen(false)}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 199 }}
+          />
+        )}
+        <aside style={{
+          width: 240, flexShrink: 0,
+          background: '#07111F', borderRight: '1px solid #1E2D3D', minHeight: '100vh',
+          display: isMobile ? (mobileOpen ? 'block' : 'none') : 'block',
+          position: isMobile ? 'fixed' : 'sticky',
+          top: 0, left: 0, bottom: 0,
+          zIndex: isMobile ? 200 : undefined,
+          overflowY: 'auto',
+        }}>
           <Sidebar />
         </aside>
 
         {/* Content */}
-        <main style={{ flex: 1, minWidth: 0, padding: '56px 60px 80px' }}>
+        <main style={{ flex: 1, minWidth: 0, padding: isMobile ? '24px 20px 60px' : '56px 60px 80px' }}>
 
           {/* Page header */}
           <div style={{ marginBottom: 56, paddingBottom: 32, borderBottom: '1px solid #1E2D3D' }}>

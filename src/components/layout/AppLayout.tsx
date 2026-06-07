@@ -4,12 +4,13 @@ import {
   LayoutDashboard, Key, Activity, ListChecks,
   Users, Settings, LogOut, Globe, GitBranch, BookOpen,
   ChevronRight, BarChart2, Sun, Moon, AlertTriangle,
-  ShieldCheck, Server, FlaskConical, BrainCircuit,
+  ShieldCheck, Server, FlaskConical, BrainCircuit, Menu, X,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
 import { supabase } from '../../lib/supabase'
 import { can, ROLE_META } from '../../lib/permissions'
+import { useWindowSize } from '../../hooks/useWindowSize'
 
 interface NavItem {
   to: string
@@ -68,6 +69,9 @@ export default function AppLayout() {
   const [shadowMode,   setShadowMode]   = useState(true)
   const [monthlyUsed,  setMonthlyUsed]  = useState(0)
   const [monthlyLimit, setMonthlyLimit] = useState(Infinity)
+  const [sidebarOpen,  setSidebarOpen]  = useState(false)
+
+  const { isMobile } = useWindowSize()
 
   const role     = profile?.role ?? null
   const roleMeta = ROLE_META[role ?? ''] ?? null
@@ -111,6 +115,9 @@ export default function AppLayout() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.organization_id])
 
+  // Close sidebar on navigation (mobile)
+  useEffect(() => { setSidebarOpen(false) }, [location.pathname])
+
   const isActive = (path: string) =>
     path === '/dashboard'
       ? location.pathname === path
@@ -150,10 +157,29 @@ export default function AppLayout() {
   return (
     <div className="flex min-h-screen" style={{ background: S.outer }}>
 
+      {/* ── Mobile Backdrop ──────────────────────────────────────── */}
+      {isMobile && sidebarOpen && (
+        <div
+          onClick={() => setSidebarOpen(false)}
+          style={{
+            position: 'fixed', inset: 0,
+            background: 'rgba(0,0,0,0.5)',
+            zIndex: 199,
+          }}
+        />
+      )}
+
       {/* ── Sidebar ──────────────────────────────────────────────── */}
       <aside
-        className="fixed left-0 top-0 h-screen w-[216px] flex flex-col z-30"
-        style={{ background: S.sidebar, borderRight: `1px solid ${S.sidebarBorder}` }}
+        className="fixed left-0 top-0 h-screen flex flex-col"
+        style={{
+          width: 216,
+          transform: isMobile ? (sidebarOpen ? 'translateX(0)' : 'translateX(-216px)') : 'translateX(0)',
+          transition: 'transform 0.25s ease',
+          zIndex: isMobile ? 200 : 30,
+          background: S.sidebar,
+          borderRight: `1px solid ${S.sidebarBorder}`,
+        }}
       >
         {/* Logo + mode */}
         <div className="flex items-center justify-between px-4 py-3.5 flex-shrink-0"
@@ -258,7 +284,7 @@ export default function AppLayout() {
       </aside>
 
       {/* ── Main ─────────────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col min-h-screen" style={{ marginLeft: '216px' }}>
+      <div className="flex-1 flex flex-col min-h-screen" style={{ marginLeft: isMobile ? 0 : '216px' }}>
 
         {/* Header */}
         <header
@@ -271,11 +297,21 @@ export default function AppLayout() {
             WebkitBackdropFilter: 'blur(10px)',
           }}
         >
-          {/* Page title */}
-          <div className="flex items-center gap-2 text-xs" style={{ color: S.pageSub }}>
-            <span>Dashboard</span>
-            <ChevronRight size={11} style={{ color: S.pageSub }} />
-            <span className="font-semibold" style={{ color: S.pageTitle }}>{currentPage}</span>
+          {/* Hamburger (mobile only) + Page title */}
+          <div className="flex items-center gap-3">
+            {isMobile && (
+              <button
+                onClick={() => setSidebarOpen(o => !o)}
+                style={{ color: S.pageTitle, background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}
+              >
+                {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
+              </button>
+            )}
+            <div className="flex items-center gap-2 text-xs" style={{ color: S.pageSub }}>
+              <span className="hidden sm:inline">Dashboard</span>
+              <ChevronRight size={11} className="hidden sm:inline" style={{ color: S.pageSub }} />
+              <span className="font-semibold" style={{ color: S.pageTitle }}>{currentPage}</span>
+            </div>
           </div>
 
           {/* Right */}

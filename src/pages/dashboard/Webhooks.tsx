@@ -7,6 +7,7 @@ import {
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useT } from '../../lib/themeTokens'
+import { useWindowSize } from '../../hooks/useWindowSize'
 import type { Webhook } from '../../types'
 
 // ─── Event catalogue ──────────────────────────────────────────────────────────
@@ -908,6 +909,7 @@ function DeliveryLogs({ orgId, webhooks }: { orgId: string; webhooks: Webhook[] 
 
 export default function Webhooks() {
   const T = useT()
+  const { isMobile } = useWindowSize()
   const { user, profile } = useAuth()
   const orgId = profile?.organization_id ?? null
 
@@ -1041,7 +1043,7 @@ export default function Webhooks() {
   const activeCount = webhooks.filter(w => w.status === 'active').length
 
   return (
-    <div className="p-7" style={{ maxWidth: 960 }}>
+    <div style={{ padding: isMobile ? '16px' : '28px', maxWidth: 960 }}>
 
       {/* ── Top bar ──────────────────────────────────── */}
       <div className="flex items-center justify-between mb-5">

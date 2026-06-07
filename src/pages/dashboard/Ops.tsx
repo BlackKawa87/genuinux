@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { RefreshCw, Server, Database, GitBranch, Clock, AlertTriangle, Activity, Cpu, Mail, Plus, Trash2, Copy, Check, Send, ExternalLink, FlaskConical, ChevronDown, ChevronUp } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useT } from '../../lib/themeTokens'
+import { useWindowSize } from '../../hooks/useWindowSize'
 import { supabase } from '../../lib/supabase'
 
 interface SystemSummary {
@@ -684,6 +685,7 @@ function MetricRow({ label, value, sub }: { label: string; value: string | numbe
 
 export default function Ops() {
   const T = useT()
+  const { isMobile } = useWindowSize()
   const { profile, session } = useAuth()
   const [summary,    setSummary]    = useState<SystemSummary | null>(null)
   const [health,     setHealth]     = useState<HealthData | null>(null)
@@ -759,7 +761,7 @@ export default function Ops() {
   }
 
   return (
-    <div className="p-7 max-w-5xl">
+    <div className="max-w-5xl" style={{ padding: isMobile ? '16px' : '28px' }}>
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>

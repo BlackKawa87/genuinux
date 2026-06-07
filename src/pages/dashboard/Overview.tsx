@@ -7,6 +7,7 @@ import {
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useT } from '../../lib/themeTokens'
+import { useWindowSize } from '../../hooks/useWindowSize'
 import type { RiskEvent } from '../../types'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -186,6 +187,7 @@ function HorizBar({ label, count, max, color, pct: pctOverride, textSec, border 
 export default function Overview() {
   const { user } = useAuth()
   const T = useT()
+  const { isMobile } = useWindowSize()
   const [orgId,      setOrgId]      = useState<string | null>(null)
   const [shadowMode, setShadowMode] = useState(false)
   const [events,     setEvents]     = useState<RiskEvent[]>([])
@@ -434,7 +436,7 @@ export default function Overview() {
   // ── Render ────────────────────────────────────────────────────
 
   return (
-    <div className="p-7" style={{ maxWidth: 1400 }}>
+    <div style={{ padding: isMobile ? '16px' : '28px', maxWidth: 1400 }}>
 
       {/* ── Shadow Mode Banner ────────────────────────────────── */}
       {shadowMode && (
@@ -499,10 +501,10 @@ export default function Overview() {
       </div>
 
       {/* ── Main 3-col layout ─────────────────────────────────── */}
-      <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 1fr 340px' }}>
+      <div className="grid gap-4" style={{ gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 340px' }}>
 
         {/* ── Col 1-2: Charts + Alerts ──────────────────────── */}
-        <div className="col-span-2 space-y-4">
+        <div className="space-y-4" style={{ gridColumn: isMobile ? undefined : 'span 2' }}>
 
           {/* Risk Spike Alerts */}
           <div>
@@ -589,7 +591,7 @@ export default function Overview() {
           </div>
 
           {/* Decision Breakdown + Risk Distribution */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid gap-4" style={{ gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr' }}>
 
             {/* Decision Breakdown */}
             <div className="g-card p-5">
@@ -643,7 +645,7 @@ export default function Overview() {
           </div>
 
           {/* Fraud Score Histogram + Top Countries */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid gap-4" style={{ gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr' }}>
             <div className="g-card p-5">
               <p className="text-sm font-semibold mb-0.5" style={{ color: T.text }}>Fraud Score Distribution</p>
               <p className="text-xs mb-4" style={{ color: T.textDim }}>Events by score bucket</p>
@@ -816,7 +818,7 @@ export default function Overview() {
             <p className="text-[11px] mb-4" style={{ color: T.textDim }}>
               Based on your data — last 24 hours
             </p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-3" style={{ gridTemplateColumns: '1fr 1fr' }}>
               {[
                 {
                   label: 'Blocked Attempts',

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Building2, Users, Key, Zap, TrendingUp, Tag, Brain, AlertTriangle, CheckCircle, XCircle, MinusCircle, RefreshCw } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useT } from '../../lib/themeTokens'
+import { useWindowSize } from '../../hooks/useWindowSize'
 
 const ACCENT = '#F59E0B'
 const API    = import.meta.env.VITE_API_URL ?? ''
@@ -50,6 +51,7 @@ function StatusDot({ status }: { status: string }) {
 
 export default function AdminDashboard() {
   const T = useT()
+  const { isMobile } = useWindowSize()
   const { session } = useAuth()
   const [data,    setData]    = useState<Metrics | null>(null)
   const [loading, setLoading] = useState(true)
@@ -105,7 +107,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Row 1 — Orgs & Users */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 14, marginBottom: 14 }}>
         <KpiCard label="Total Organizations" value={d.orgs.total}  sub={`${d.orgs.active} active · ${d.orgs.suspended} suspended`} icon={Building2} />
         <KpiCard label="Total Users"         value={d.users.total ?? '—'} icon={Users} />
         <KpiCard label="Active API Keys"     value={d.api_keys.active ?? '—'} icon={Key} />
@@ -113,7 +115,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Row 2 — Intelligence */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 14, marginBottom: 14 }}>
         <KpiCard label="Labels Today"        value={d.labels.today ?? '—'} icon={Tag} accent="#8B5CF6" />
         <KpiCard label="ML Predictions Today" value={d.ml.today ?? '—'} icon={Brain} accent="#8B5CF6" />
         <KpiCard label="Slow Requests Today" value={d.slow_today ?? '—'} sub=">1000ms" icon={AlertTriangle} accent={d.slow_today && d.slow_today > 10 ? '#EF4444' : '#F59E0B'} />
@@ -121,7 +123,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Row 3 — Plans + System */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
 
         {/* Plan breakdown */}
         <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: '16px 20px' }}>

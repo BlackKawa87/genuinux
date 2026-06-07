@@ -1,11 +1,13 @@
-import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, Building2, Users, CreditCard, BarChart2,
   Monitor, Activity, FileText, Heart, Shield, Flag,
-  ArrowLeft, ChevronRight,
+  ArrowLeft, ChevronRight, Menu, X,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useT } from '../../lib/themeTokens'
+import { useWindowSize } from '../../hooks/useWindowSize'
 
 const NAV = [
   { path: '/admin',               label: 'Dashboard',        icon: LayoutDashboard, exact: true },
@@ -26,16 +28,32 @@ const ACCENT = '#F59E0B'
 export default function AdminLayout() {
   const T   = useT()
   const nav = useNavigate()
+  const location = useLocation()
   const { profile, signOut } = useAuth()
+  const { isMobile } = useWindowSize()
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  useEffect(() => { setSidebarOpen(false) }, [location.pathname])
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: T.bg, fontFamily: 'Inter, sans-serif' }}>
+
+      {/* ── Mobile Backdrop ──────────────────────────────────────── */}
+      {isMobile && sidebarOpen && (
+        <div
+          onClick={() => setSidebarOpen(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 199 }}
+        />
+      )}
 
       {/* ── Sidebar ───────────────────────────────────────────────────────────── */}
       <aside style={{
         width: 220, flexShrink: 0, position: 'fixed', top: 0, left: 0, bottom: 0,
         background: T.deep, borderRight: `1px solid ${T.border}`,
-        display: 'flex', flexDirection: 'column', zIndex: 40,
+        display: 'flex', flexDirection: 'column',
+        zIndex: isMobile ? 200 : 40,
+        transform: isMobile ? (sidebarOpen ? 'translateX(0)' : 'translateX(-220px)') : 'translateX(0)',
+        transition: 'transform 0.25s ease',
       }}>
         {/* Logo / header */}
         <div style={{ padding: '16px 16px 12px', borderBottom: `1px solid ${T.border}` }}>
@@ -117,24 +135,32 @@ export default function AdminLayout() {
       </aside>
 
       {/* ── Main ──────────────────────────────────────────────────────────────── */}
-      <main style={{ marginLeft: 220, flex: 1, minHeight: '100vh' }}>
+      <main style={{ marginLeft: isMobile ? 0 : 220, flex: 1, minHeight: '100vh' }}>
         {/* Top bar */}
         <div style={{
           height: 48, borderBottom: `1px solid ${T.border}`,
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '0 24px', background: T.card, position: 'sticky', top: 0, zIndex: 30,
+          padding: '0 16px', background: T.card, position: 'sticky', top: 0, zIndex: 30,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {isMobile && (
+              <button
+                onClick={() => setSidebarOpen(o => !o)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.text, display: 'flex', alignItems: 'center', marginRight: 4 }}
+              >
+                {sidebarOpen ? <X size={18} /> : <Menu size={18} />}
+              </button>
+            )}
             <Shield size={13} color={ACCENT} />
             <span style={{ fontSize: 11, fontWeight: 700, color: ACCENT, letterSpacing: '0.06em' }}>ADMIN CONSOLE</span>
           </div>
-          <div style={{ fontSize: 11, color: T.textDim }}>
+          <div style={{ fontSize: 11, color: T.textDim, display: isMobile ? 'none' : undefined }}>
             Genuinux Internal — Restricted Access
           </div>
         </div>
 
         {/* Page content */}
-        <div style={{ padding: '24px 28px', maxWidth: 1400 }}>
+        <div style={{ padding: isMobile ? '16px' : '24px 28px', maxWidth: 1400 }}>
           <Outlet />
         </div>
       </main>

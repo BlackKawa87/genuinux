@@ -6,6 +6,7 @@ import {
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useT } from '../../lib/themeTokens'
+import { useWindowSize } from '../../hooks/useWindowSize'
 import type { Rule, RuleAction, RuleStatus, ConditionGroup, ConditionOperator } from '../../types'
 
 // ─── Condition field definitions ──────────────────────────────────────────────
@@ -573,6 +574,7 @@ function RuleModal({ rule, orgId, onSave, onClose }: {
 export default function Rules() {
   const { user } = useAuth()
   const T = useT()
+  const { isMobile } = useWindowSize()
   const [orgId,      setOrgId]      = useState<string | null>(null)
   const [rules,      setRules]      = useState<Rule[]>([])
   const [loading,    setLoading]    = useState(true)
@@ -682,7 +684,7 @@ export default function Rules() {
   )
 
   return (
-    <div className="p-7" style={{ maxWidth: 1000 }}>
+    <div style={{ padding: isMobile ? '16px' : '28px', maxWidth: 1000 }}>
 
       {/* Sub-header */}
       <div className="flex items-center justify-between mb-5">

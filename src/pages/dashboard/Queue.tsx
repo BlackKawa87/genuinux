@@ -10,6 +10,7 @@ import {
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useT } from '../../lib/themeTokens'
+import { useWindowSize } from '../../hooks/useWindowSize'
 import { buildRiskReasons, calcConfidence } from '../../lib/riskEngine'
 import { can } from '../../lib/permissions'
 import type { RiskEvent, ReviewStatus, Profile } from '../../types'
@@ -313,6 +314,7 @@ function CaseDetailPanel({
   const [loadingRelDev,   setLoadingRelDev]   = useState(false)
 
   const T       = useT()
+  const { isMobile } = useWindowSize()
   const ev      = item.risk_events
   const signals = parseSignals(ev?.signals_json)
   const meta    = STATUS_META[item.status]
@@ -495,7 +497,7 @@ function CaseDetailPanel({
       />
 
       <div className="fixed top-0 right-0 h-screen z-50 flex flex-col"
-        style={{ width: 520, background: T.card, borderLeft: `1px solid ${T.border}` }}>
+        style={{ width: isMobile ? '100%' : 520, background: T.card, borderLeft: isMobile ? 'none' : `1px solid ${T.border}` }}>
 
         {/* ── Top bar ───────────────────────────────────────────── */}
         <div className="flex items-center justify-between px-6 py-4 flex-shrink-0"
@@ -909,6 +911,7 @@ const STATUS_TABS: { value: ReviewStatus | ''; label: string }[] = [
 export default function Queue() {
   const { user, profile } = useAuth()
   const T      = useT()
+  const { isMobile } = useWindowSize()
   const orgId  = profile?.organization_id ?? null
   const canAct = can(profile?.role, 'act_queue')
 
@@ -995,7 +998,7 @@ export default function Queue() {
   const inReviewCount = counts['in_review'] ?? 0
 
   return (
-    <div className="p-7">
+    <div style={{ padding: isMobile ? '16px' : '28px' }}>
 
       {/* Sub-header */}
       <div className="flex items-center justify-between mb-6">

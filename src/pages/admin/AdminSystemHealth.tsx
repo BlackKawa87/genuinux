@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { RefreshCw, CheckCircle, XCircle, MinusCircle } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useT } from '../../lib/themeTokens'
+import { useWindowSize } from '../../hooks/useWindowSize'
 
 const API = import.meta.env.VITE_API_URL ?? ''
 
@@ -18,6 +19,7 @@ type HealthData = {
 
 export default function AdminSystemHealth() {
   const T = useT()
+  const { isMobile } = useWindowSize()
   const { session } = useAuth()
   const [data,    setData]    = useState<HealthData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -82,7 +84,7 @@ export default function AdminSystemHealth() {
       )}
 
       {/* Service cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)', gap: 12 }}>
         {services.map(svc => (
           <div key={svc.name} style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: '16px 20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>

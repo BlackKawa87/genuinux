@@ -14,6 +14,7 @@ import { can, ROLE_META, ROLE_ORDER, ASSIGNABLE_ROLES, ADMIN_ASSIGNABLE_ROLES } 
 import type { Role } from '../../lib/permissions'
 import type { Organization, Profile, AuditLog } from '../../types'
 import { useT } from '../../lib/themeTokens'
+import { useWindowSize } from '../../hooks/useWindowSize'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1795,6 +1796,7 @@ app.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
 
 export default function SettingsPage() {
   const T = useT()
+  const { isMobile } = useWindowSize()
   const { user } = useAuth()
   const [searchParams] = useSearchParams()
   const initialTab = (searchParams.get('tab') as TabId | null) ?? 'org'
@@ -1864,7 +1866,7 @@ export default function SettingsPage() {
   const isOwner = profile.role === 'owner'
 
   return (
-    <div className="p-7 max-w-4xl">
+    <div className="max-w-4xl" style={{ padding: isMobile ? '16px' : '28px' }}>
 
       {/* Page header */}
       <div className="mb-6">

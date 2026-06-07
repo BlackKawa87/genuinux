@@ -8,6 +8,7 @@ import {
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useT } from '../../lib/themeTokens'
+import { useWindowSize } from '../../hooks/useWindowSize'
 import { buildRiskReasons, calcConfidence } from '../../lib/riskEngine'
 import type { RiskEvent, RiskLevel, Decision, EventType } from '../../types'
 import FeedbackSection from '../../components/FeedbackSection'
@@ -589,6 +590,7 @@ function EventDetailPanel({
   labeling: Record<string, boolean>
 }) {
   const T = useT()
+  const { isMobile } = useWindowSize()
   const [related,        setRelated]        = useState<RelatedData | null>(null)
   const [loadingRelated, setLoadingRelated] = useState(false)
   const [open,           setOpen]           = useState<string>('user')
@@ -650,8 +652,13 @@ function EventDetailPanel({
 
       {/* Panel */}
       <div
-        className="fixed top-0 right-0 h-screen z-50 flex flex-col"
-        style={{ width: 480, background: T.deep, borderLeft: `1px solid ${T.border}` }}
+        className="fixed z-50 flex flex-col"
+        style={{
+          top: 0, right: 0, bottom: 0,
+          width: isMobile ? '100%' : 480,
+          background: T.deep,
+          borderLeft: isMobile ? 'none' : `1px solid ${T.border}`,
+        }}
       >
         {/* Top bar */}
         <div
@@ -1073,6 +1080,7 @@ const FREE_HISTORY_HOURS = 48 // 2-day history for free plan
 export default function Events() {
   const T = useT()
   const { user, session } = useAuth()
+  const { isMobile } = useWindowSize()
   const [orgId,    setOrgId]    = useState<string | null>(null)
   const [freePlan, setFreePlan] = useState(false)
   const [events,   setEvents]   = useState<RiskEvent[]>([])
@@ -1240,7 +1248,7 @@ export default function Events() {
   )
 
   return (
-    <div className="p-7">
+    <div style={{ padding: isMobile ? '16px' : '28px' }}>
 
       {/* Toast */}
       {toast && (
@@ -1320,7 +1328,7 @@ export default function Events() {
             onChange={e => setSearch(e.target.value)}
             placeholder="User ID, email, IP, device…"
             className="g-input text-xs"
-            style={{ paddingLeft: 30, paddingTop: 0, paddingBottom: 0, height: 36, width: 256 }}
+            style={{ paddingLeft: 30, paddingTop: 0, paddingBottom: 0, height: 36, width: isMobile ? '100%' : 256 }}
           />
         </div>
 

@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useT } from '../../lib/themeTokens'
+import { useWindowSize } from '../../hooks/useWindowSize'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -125,6 +126,7 @@ function MetricCard({
 export default function MLPage() {
   const { session } = useAuth()
   const T = useT()
+  const { isMobile } = useWindowSize()
 
   const [summary,      setSummary]      = useState<MlSummary | null>(null)
   const [disagreements, setDisagreements] = useState<DisagreementsResp | null>(null)
@@ -159,7 +161,7 @@ export default function MLPage() {
   const mlMissed   = summary ? Math.round(summary.disagreement_count * 0.4) : 0
 
   return (
-    <div className="p-7 max-w-6xl space-y-5">
+    <div className="max-w-6xl space-y-5" style={{ padding: isMobile ? '16px' : '28px' }}>
 
       {/* Header */}
       <div className="flex items-center justify-between">

@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useT } from '../../lib/themeTokens'
+import { useWindowSize } from '../../hooks/useWindowSize'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -199,6 +200,7 @@ const TABS: TabItem[] = [
 
 export default function Infrastructure() {
   const T = useT()
+  const { isMobile } = useWindowSize()
   const { session } = useAuth()
   const [activeTab, setActiveTab] = useState('overview')
   const [loading, setLoading] = useState(false)
@@ -334,7 +336,7 @@ export default function Infrastructure() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="p-7" style={{ maxWidth: 1100 }}>
+    <div style={{ padding: isMobile ? '16px' : '28px', maxWidth: 1100 }}>
 
       {/* Header */}
       <div className="flex items-center justify-between mb-6">

@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
+import { useWindowSize } from '../hooks/useWindowSize'
 import {
   Shield, Play, RefreshCw, CheckCircle2, AlertTriangle,
   XCircle, ArrowRight, Activity, Globe, Monitor, Mail,
@@ -519,6 +520,7 @@ function EmptyState() {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function Demo() {
+  const { isMobile } = useWindowSize()
   const [form,        setForm]        = useState<DemoForm>(EMPTY_FORM)
   const [preset,      setPreset]      = useState<string | null>(null)
   const [presetCtx,   setPresetCtx]   = useState<Partial<RiskEngineContext>>({})
@@ -636,7 +638,7 @@ export default function Demo() {
         </div>
 
         {/* Scenario cards (8) */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 28 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 10, marginBottom: 28 }}>
           {PRESETS.map(p => {
             const active = preset === p.id
             return (
@@ -664,7 +666,7 @@ export default function Demo() {
         </div>
 
         {/* Main demo area */}
-        <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '340px 1fr', gap: 20 }}>
 
           {/* Left: Form */}
           <div style={{ background: '#07111F', border: '1px solid #1E2D3D', borderRadius: 12, padding: 20, display: 'flex', flexDirection: 'column', gap: 14, alignSelf: 'start' }}>
