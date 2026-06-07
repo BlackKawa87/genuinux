@@ -112,6 +112,14 @@ export interface RiskEvent {
   shadow_mode: boolean
   suggested_decision: string | null
   gnx_score: number | null
+  gnx_score_factors: Array<{
+    feature: string
+    group:   string
+    weight:  number
+    raw:     number
+    impact:  number
+  }> | null
+  gnx_version: string | null
   ml_score: number | null
   ml_decision: string | null
   created_at: string

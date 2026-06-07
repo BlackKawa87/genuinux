@@ -1008,7 +1008,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // Genuinux Fraud Score™ — computed synchronously before the response.
   // Pure function ~0.01ms — adds no meaningful latency.
-  const gnxScore = computeGnxScore(result, context)
+  const gnxResult = computeGnxScore(result, context)
+  const gnxScore  = gnxResult.score
 
   // ── 9. Respond first — client gets the decision immediately ──────────
   // DB writes (upsert, insert, review queue, webhooks) happen after the
@@ -1024,7 +1025,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     risk_level:         effectiveResult.risk_level,
     trust_score:        effectiveResult.trust_score,
     fraud_score:        effectiveResult.fraud_score,
-    gnx_score:          gnxScore,
+    gnx_score:          gnxResult.score,
     confidence_level:   effectiveResult.confidence_level,
     shadow_mode:        isShadowMode,
     signals: effectiveResult.signals.map(s => ({
@@ -1100,10 +1101,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       payload.event_type,
     )
 
-    // Genuinux Fraud Score™ — update risk_events.gnx_score (fire-and-forget)
+    // Genuinux Fraud Score™ — persist score, factor breakdown, and version (fire-and-forget)
     void supabase
       .from('risk_events')
-      .update({ gnx_score: gnxScore })
+      .update({
+        gnx_score:         gnxResult.score,
+        gnx_score_factors: gnxResult.top_factors,
+        gnx_version:       gnxResult.version,
+      })
       .eq('id', insertedId)
       .then(() => {})
 
