@@ -79,7 +79,9 @@ Routes:
   - `/dashboard/ops`            → `Ops.tsx`
 
 ### Auth (`src/contexts/AuthContext.tsx`)
-`AuthProvider` wraps the full app in `main.tsx`. Exposes `useAuth()` with: `user`, `session`, `loading`, `signIn`, `signUp`, `signOut`. Backed by Supabase Auth.
+`AuthProvider` wraps the full app in `main.tsx`. Exposes `useAuth()` with: `user`, `session`, `profile`, `loading`, `profileLoading`, `signIn`, `signUp`, `signOut`. Backed by Supabase Auth.
+
+**Two-phase loading**: `loading` becomes `false` after `getSession()` resolves. `profileLoading` starts `true` and becomes `false` only after the `profiles` row fetch completes (success or failure). Both must be `false` before auth-gated routes make a decision — using only `loading` causes a race condition where `profile` is still `null` while `user` is set, causing premature redirects.
 
 `ProtectedRoute` guards `/dashboard/*` — redirects to `/login` if unauthenticated.
 
@@ -406,8 +408,31 @@ Data fetched in parallel `Promise.all`: risk_events (5k limit, fields: `fraud_sc
 - **Go Live tab**: Post-launch operational health overview. 8 sections: Go Live Status badge (Healthy/Warning/Critical + reasons list), API Health (24h totals + decision breakdown + today Redis stats), Latency (avg today + 7-day trend bar chart), Slow Requests table (last 20 requests >1000ms with per-step breakdown, cold_start, context_path), Redis Health (connected/fraud_counters_enabled/context_path), Sentry Health (DSN configured flag), Data Pipeline (5-table status cards from last 24h counts), GNX Health (v2 coverage, null rate, score band distribution). Fetches `/api/admin/monitoring/go-live`, `/api/admin/monitoring/slow-requests?limit=20`, `/api/admin/monitoring/pipeline-health`.
 - All 14 fetches run in `Promise.allSettled` — individual failures don't break the page.
 
+### Admin Console (`/admin`)
+Completely separate section from `/dashboard`. Guarded by `AdminRoute` — only users with `profiles.is_platform_admin = true` can access it. All others are hard-redirected to `/dashboard`. Requires v24 migration.
+
+**Route tree**: `/admin` → `AdminLayout` (orange sidebar, "ADMIN CONSOLE" badge) + nested:
+- `/admin` → `AdminDashboard.tsx` — platform KPIs: total orgs, users, API keys, events today/month, labels, ML predictions, slow requests. Plan breakdown bar + system health.
+- `/admin/organizations` → `AdminOrganizations.tsx` — all orgs table. Inline plan dropdown (changes take effect immediately). MoreHorizontal menu: suspend/reactivate, plan_source selector. Filters: search, plan, status.
+- `/admin/users` → `AdminUsers.tsx` — all users table. **Grant Admin / Revoke Admin** button toggles `is_platform_admin`. Role change via inline dropdown. **Delete user**: trash icon opens 2-step confirmation modal (requires clicking "Yes, delete permanently" — prevents accidental deletion). Backend: `DELETE /api/admin/platform/users` deletes profile row + auth user via service role, writes `user.deleted` audit log. Cannot delete own account.
+- `/admin/system` → `AdminSystemHealth.tsx` — 6 service cards + env checklist.
+- `/admin/audit` → `AdminAuditLogs.tsx` — platform-wide audit log, expandable metadata.
+- `/admin/go-live` → `AdminGoLive.tsx` — reuses monitoring endpoints.
+- Stub pages: `AdminBilling`, `AdminUsage`, `AdminCustomers`, `AdminSecurity`, `AdminFeatureFlags`.
+
+**Platform API endpoints** (`api/admin/platform/`):
+- `GET /api/admin/platform/metrics` — platform-wide KPIs
+- `GET /api/admin/platform/orgs` + `PATCH` — org list + update plan/plan_source/suspend/reactivate
+- `GET /api/admin/platform/users` + `PATCH` + `DELETE` — user list + update role/is_platform_admin + delete user
+- `GET /api/admin/platform/audit?limit=N` — audit logs across all orgs
+
+**Auth**: all platform endpoints verify `is_platform_admin` via user JWT + service-role profile lookup. Returns 403 if not a platform admin.
+
+**v24 migration** (`supabase/migrations/v24_admin_console.sql`): adds `is_platform_admin boolean DEFAULT false` to `profiles`; adds `plan_source`, `suspended_at`, `suspended_by` to `organizations`. After running: `UPDATE profiles SET is_platform_admin = true WHERE user_id = (SELECT id FROM auth.users WHERE email = 'your@email.com')`.
+
 ### Components
-- `src/components/layout/AppLayout.tsx` — fixed 220px sidebar + sticky 52px top header with breadcrumb and org/plan badge. NAV_ALL has 10 items: Overview, Risk Events, Users, Review Queue, Analytics, Rules, API Keys, Webhooks, Infrastructure, Beta Ops. Bottom section has Documentation + Settings links. Items are filtered by role permission — `owner_only` items (Infrastructure, Beta Ops) only show to owners. **Mobile**: sidebar collapses behind hamburger (Menu icon), slides in as overlay with dark backdrop, auto-closes on route change.
+- `src/components/layout/AppLayout.tsx` — fixed 220px sidebar + sticky 52px top header with breadcrumb and org/plan badge. NAV_ALL has 10 items: Overview, Risk Events, Users, Review Queue, Analytics, Rules, API Keys, Webhooks, Infrastructure, Beta Ops. Bottom section has Documentation + Settings links. Items are filtered by role permission — `owner_only` items (Infrastructure, Beta Ops) only show to owners. **Mobile**: sidebar collapses behind hamburger (Menu icon), slides in as overlay with dark backdrop, auto-closes on route change. **Admin Console button**: shown in header only for users with `is_platform_admin = true` — orange shield badge linking to `/admin`.
+- `src/components/AdminRoute.tsx` — platform admin guard. Waits for both `loading` and `profileLoading` from AuthContext before deciding. Unauthenticated → `/login`. Authenticated without `is_platform_admin` → `/dashboard` (hard redirect, no info leak). Only `is_platform_admin = true` reaches the Admin Console.
 - `src/components/ProtectedRoute.tsx` — auth guard, shows spinner while loading
 - `src/hooks/useWindowSize.ts` — returns `{ width, isMobile, isTablet, isDesktop }` (breakpoints: 640px / 1024px). Used across all pages for responsive inline styles.
 
@@ -463,7 +488,9 @@ All CTAs previously labelled "Request Beta Access" are now **"Start Free Trial"*
 ### Login (`src/pages/Login.tsx`) & Register (`src/pages/Register.tsx`)
 Both in **light mode** (`#F8FAFC` bg, `#FFFFFF` card with soft shadow). Include "← Back to home" link above the card. Logo: `logo-horizontal.png` at **112px** height.
 
-Register adds **company name** and **website** fields. On successful sign-up, calls `supabase.auth.getUser()` to get the new user ID, then updates the org `name` (and `website` if provided) that was auto-created by the DB trigger.
+Register adds **company name**, **website**, **use case** (industry), and **estimated events/month** fields. On successful sign-up, calls `supabase.auth.getUser()` to get the new user ID, then updates the org `name` (and `website` if provided) that was auto-created by the DB trigger.
+
+**USE_CASES** (industry dropdown): Startup, Marketplace, Fintech / Payments, SaaS Platform, Crypto / Web3, Ticketing / Events, Community / Social, Affiliate / Referrals, Digital Products, AI SaaS, Other.
 
 **Invite-only gate**: controlled by `VITE_INVITE_ONLY_MODE` env var (default: `false`). When `false`, invite code field is hidden and signup proceeds without a code, setting `plan_source = 'self_signup'`. When `true`, invite code is required and validated via `/api/beta/validate-invite`. Flag exported from `src/lib/featureFlags.ts`.
 
