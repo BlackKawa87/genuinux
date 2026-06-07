@@ -14,6 +14,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { RiskEngineContext } from './riskEngine.js'
 import { extractFeatures } from './featureExtractor.js'
+import { captureException } from './monitoring.js'
 
 interface EngineSignal { severity: string }
 
@@ -63,7 +64,12 @@ export async function persistFeatures(
     }))
 
     await supabase.from('fraud_features').insert(rows)
-  } catch {
-    // Never rethrow — fire-and-forget
+  } catch (err) {
+    captureException(err, {
+      source:          'feature_store',
+      operation:       'persist_features',
+      organization_id: orgId,
+      risk_event_id:   eventId,
+    })
   }
 }

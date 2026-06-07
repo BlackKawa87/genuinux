@@ -1139,7 +1139,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // ── 7. Review queue (after response, skipped in shadow mode) ──────────
   if (effectiveResult.decision === 'review') {
-    createReviewQueueItem(supabase, orgId, eventId).catch(() => {})
+    createReviewQueueItem(supabase, orgId, eventId).catch((err: unknown) => {
+      captureException(err, { source: 'check', operation: 'create_review_queue_item', orgId, eventId })
+    })
   }
 
   // ── 8. Webhooks (fire-and-forget) ─────────────────────────────────────
@@ -1147,6 +1149,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     dispatchWebhooks(
       supabase, orgId, eventId, payload, effectiveResult, ruleMatch,
       isShadowMode, isShadowMode ? suggestedDecision : null,
-    ).catch(() => {})
+    ).catch((err: unknown) => {
+      captureException(err, { source: 'check', operation: 'dispatch_webhooks', orgId, eventId })
+    })
   }
 }

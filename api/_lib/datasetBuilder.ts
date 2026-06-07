@@ -12,6 +12,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { captureException } from './monitoring.js'
 
 export const DATASET_VERSION = 1
 
@@ -60,7 +61,12 @@ export async function buildTrainingDataset(
       event_created_at: ev?.created_at        ?? null,
       dataset_version:  DATASET_VERSION,
     }, { onConflict: 'organization_id,risk_event_id' })
-  } catch {
-    // Never rethrow — fire-and-forget
+  } catch (err) {
+    captureException(err, {
+      source:          'dataset_builder',
+      operation:       'build_training_dataset',
+      organization_id: orgId,
+      risk_event_id:   eventId,
+    })
   }
 }

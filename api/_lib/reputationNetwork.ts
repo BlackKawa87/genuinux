@@ -17,6 +17,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { captureException } from './monitoring.js'
 
 export type LabelValue = 'confirmed_fraud' | 'suspected_fraud' | 'false_positive' | 'legitimate'
 
@@ -87,8 +88,12 @@ export async function updateEntityReputation(
     }
 
     if (ops.length > 0) await Promise.allSettled(ops)
-  } catch {
-    // Never rethrow — reputation updates are non-critical
+  } catch (err) {
+    captureException(err, {
+      source:    'reputation_network',
+      operation: 'update_entity_reputation',
+      label,
+    })
   }
 }
 
@@ -140,7 +145,11 @@ export async function getEntityReputation(
     )
 
     return results
-  } catch {
+  } catch (err) {
+    captureException(err, {
+      source:    'reputation_network',
+      operation: 'get_entity_reputation',
+    })
     return []
   }
 }
