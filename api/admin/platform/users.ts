@@ -1,6 +1,7 @@
 /**
- * GET  /api/admin/platform/users   — list all users across all orgs
- * PATCH /api/admin/platform/users  — change role or disable/enable user
+ * GET    /api/admin/platform/users  — list all users across all orgs
+ * PATCH  /api/admin/platform/users  — change role or is_platform_admin
+ * DELETE /api/admin/platform/users  — permanently delete user + profile
  *
  * Auth: Bearer <supabase_access_token> (is_platform_admin only)
  */
@@ -96,6 +97,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       actor_id:        user.id,
       action:          'user.role_changed',
       metadata:        { profile_id: body.profile_id, updates, admin_user_id: user.id },
+    })
+
+    return res.status(200).json({ ok: true })
+  }
+
+  // ── DELETE — remove user permanently ────────────────────────────────────────
+  if (req.method === 'DELETE') {
+    type DeleteBody = { profile_id?: string }
+    const body = req.body as DeleteBody
+    if (!body.profile_id) return res.status(400).json({ error: 'profile_id required' })
+
+    const { data: target } = await supa.from('profiles')
+      .select('user_id, email, organization_id').eq('id', body.profile_id).single()
+    if (!target) return res.status(404).json({ error: 'User not found' })
+
+    const t = target as { user_id: string; email: string; organization_id: string }
+
+    // Prevent self-deletion
+    if (t.user_id === user.id) return res.status(400).json({ error: 'Cannot delete your own account' })
+
+    // Delete profile row first (no cascade needed — auth user may have no profile)
+    const { error: profileErr } = await supa.from('profiles').delete().eq('id', body.profile_id)
+    if (profileErr) return res.status(500).json({ error: profileErr.message })
+
+    // Delete auth user via service role
+    const { error: authErr2 } = await supa.auth.admin.deleteUser(t.user_id)
+    if (authErr2) return res.status(500).json({ error: authErr2.message })
+
+    await supa.from('audit_logs').insert({
+      organization_id: t.organization_id,
+      actor_id:        user.id,
+      action:          'user.deleted',
+      metadata:        { deleted_user_id: t.user_id, email: t.email, admin_user_id: user.id },
     })
 
     return res.status(200).json({ ok: true })

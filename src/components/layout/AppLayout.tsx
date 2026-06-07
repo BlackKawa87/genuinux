@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Key, Activity, ListChecks,
   Users, Settings, LogOut, Globe, GitBranch, BookOpen,
   ChevronRight, BarChart2, Sun, Moon, AlertTriangle,
-  ShieldCheck, Server, FlaskConical, BrainCircuit, Menu, X,
+  ShieldCheck, Server, FlaskConical, BrainCircuit, Menu, X, Shield,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
@@ -334,12 +334,19 @@ export default function AppLayout() {
 
             <div className="w-px h-3.5 flex-shrink-0" style={{ background: S.divider }} />
 
-            <span className="text-[9px] mono px-1.5 py-0.5 rounded font-semibold"
-              style={{ background: 'rgba(245,158,11,0.07)', color: '#F59E0B', border: '1px solid rgba(245,158,11,0.18)' }}>
-              CONTROLLED BETA
-            </span>
-
-            <div className="w-px h-3.5 flex-shrink-0" style={{ background: S.divider }} />
+            {profile?.is_platform_admin && (
+              <>
+                <Link
+                  to="/admin"
+                  className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-opacity hover:opacity-80"
+                  style={{ background: 'rgba(245,158,11,0.12)', color: '#F59E0B', border: '1px solid rgba(245,158,11,0.28)', textDecoration: 'none' }}
+                >
+                  <Shield size={11} />
+                  Admin Console
+                </Link>
+                <div className="w-px h-3.5 flex-shrink-0" style={{ background: S.divider }} />
+              </>
+            )}
 
             <span className="flex items-center gap-1.5 text-xs mono"
               style={{ color: shadowMode ? S.shadowColor : S.liveColor }}>

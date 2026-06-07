@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase'
 import { INVITE_ONLY_MODE } from '../lib/featureFlags'
 
 const USE_CASES = [
+  { value: 'startup',          label: 'Startup' },
   { value: 'marketplace',      label: 'Marketplace' },
   { value: 'fintech',          label: 'Fintech / Payments' },
   { value: 'saas',             label: 'SaaS Platform' },

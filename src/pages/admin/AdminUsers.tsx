@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { RefreshCw, Search, Shield, User } from 'lucide-react'
+import { RefreshCw, Search, Shield, User, Trash2, X } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useT } from '../../lib/themeTokens'
 
@@ -19,12 +19,16 @@ const ROLE_COLORS: Record<string, string> = { owner: '#F59E0B', admin: '#8B5CF6'
 export default function AdminUsers() {
   const T = useT()
   const { session } = useAuth()
-  const [users,   setUsers]   = useState<UserRow[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error,   setError]   = useState<string | null>(null)
-  const [search,  setSearch]  = useState('')
+  const [users,      setUsers]      = useState<UserRow[]>([])
+  const [loading,    setLoading]    = useState(true)
+  const [error,      setError]      = useState<string | null>(null)
+  const [search,     setSearch]     = useState('')
   const [roleFilter, setRoleFilter] = useState('all')
-  const [saving,  setSaving]  = useState<string | null>(null)
+  const [saving,     setSaving]     = useState<string | null>(null)
+
+  // Two-step delete state
+  const [deleteStep, setDeleteStep] = useState<{ id: string; email: string } | null>(null)
+  const [deleting,   setDeleting]   = useState(false)
 
   const load = async () => {
     setLoading(true); setError(null)
@@ -61,11 +65,63 @@ export default function AdminUsers() {
     finally { setSaving(null) }
   }
 
+  const confirmDelete = async () => {
+    if (!deleteStep) return
+    setDeleting(true)
+    try {
+      const r = await fetch(`${API}/api/admin/platform/users`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${session?.access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profile_id: deleteStep.id }),
+      })
+      if (!r.ok) throw new Error(((await r.json()) as { error: string }).error)
+      setDeleteStep(null)
+      await load()
+    } catch (e) { alert((e as Error).message) }
+    finally { setDeleting(false) }
+  }
+
   if (loading) return <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#94A3B8', padding: 40 }}><RefreshCw size={14} />Loading users…</div>
   if (error)   return <div style={{ padding: 40, color: '#EF4444', fontSize: 13 }}>⚠ {error}</div>
 
   return (
     <div>
+      {/* Delete confirmation modal */}
+      {deleteStep && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.5)' }}>
+          <div style={{ background: T.card, border: `1px solid #EF444440`, borderRadius: 12, padding: 28, width: 380, boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: '#EF4444' }}>Delete User</div>
+              <button onClick={() => setDeleteStep(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.textDim }}><X size={16} /></button>
+            </div>
+            <p style={{ fontSize: 13, color: T.textSec, marginBottom: 8 }}>
+              Are you sure you want to permanently delete:
+            </p>
+            <p style={{ fontSize: 13, fontWeight: 600, color: T.text, marginBottom: 20, fontFamily: 'IBM Plex Mono, monospace' }}>
+              {deleteStep.email}
+            </p>
+            <p style={{ fontSize: 12, color: '#EF4444', marginBottom: 20 }}>
+              This action cannot be undone. The user and their profile will be permanently removed.
+            </p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setDeleteStep(null)}
+                style={{ padding: '7px 16px', background: T.elevated, border: `1px solid ${T.border}`, borderRadius: 7, color: T.textSec, fontSize: 12, cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => void confirmDelete()}
+                disabled={deleting}
+                style={{ padding: '7px 16px', background: '#EF444420', border: '1px solid #EF444460', borderRadius: 7, color: '#EF4444', fontSize: 12, fontWeight: 600, cursor: deleting ? 'not-allowed' : 'pointer', opacity: deleting ? 0.6 : 1 }}
+              >
+                {deleting ? 'Deleting…' : 'Yes, delete permanently'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, color: T.text, margin: 0 }}>Users</h1>
@@ -89,12 +145,12 @@ export default function AdminUsers() {
         </select>
       </div>
 
-      <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 760 }}>
           <thead>
             <tr style={{ borderBottom: `1px solid ${T.border}` }}>
-              {['User', 'Organization', 'Role', 'Platform Admin', 'Joined', 'Change Role'].map(h => (
-                <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: T.textDim, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</th>
+              {['User', 'Organization', 'Role', 'Platform Admin', 'Joined', 'Actions'].map(h => (
+                <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: T.textDim, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{h}</th>
               ))}
             </tr>
           </thead>
@@ -106,7 +162,7 @@ export default function AdminUsers() {
               <tr key={u.id} style={{ borderBottom: `1px solid ${T.border}` }}>
                 <td style={{ padding: '10px 14px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ width: 28, height: 28, borderRadius: '50%', background: `${ACCENT}20`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ width: 28, height: 28, borderRadius: '50%', background: u.is_platform_admin ? `${ACCENT}20` : `${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       {u.is_platform_admin ? <Shield size={12} color={ACCENT} /> : <User size={12} color={T.textDim} />}
                     </div>
                     <div>
@@ -120,28 +176,34 @@ export default function AdminUsers() {
                   <div style={{ fontSize: 10, color: T.textDim, textTransform: 'capitalize' }}>{u.org_plan}</div>
                 </td>
                 <td style={{ padding: '10px 14px' }}>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, textTransform: 'capitalize', background: `${ROLE_COLORS[u.role] ?? '#64748B'}20`, color: ROLE_COLORS[u.role] ?? '#64748B', border: `1px solid ${ROLE_COLORS[u.role] ?? '#64748B'}40` }}>{u.role}</span>
+                  <select
+                    value={u.role}
+                    onChange={e => void patchUser(u.id, { role: e.target.value })}
+                    disabled={saving === u.id}
+                    style={{ fontSize: 11, background: T.elevated, border: `1px solid ${T.border}`, borderRadius: 5, color: ROLE_COLORS[u.role] ?? T.textSec, padding: '4px 8px', cursor: 'pointer', fontWeight: 600 }}
+                  >
+                    {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                  </select>
                 </td>
                 <td style={{ padding: '10px 14px' }}>
                   <button
                     onClick={() => void patchUser(u.id, { is_platform_admin: !u.is_platform_admin })}
                     disabled={saving === u.id}
-                    style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '3px 8px', background: u.is_platform_admin ? `${ACCENT}20` : T.elevated, border: `1px solid ${u.is_platform_admin ? ACCENT : T.border}`, borderRadius: 5, cursor: 'pointer', fontSize: 11, color: u.is_platform_admin ? ACCENT : T.textDim, fontWeight: u.is_platform_admin ? 600 : 400 }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px', background: u.is_platform_admin ? `${ACCENT}18` : T.elevated, border: `1px solid ${u.is_platform_admin ? ACCENT + '60' : T.border}`, borderRadius: 5, cursor: saving === u.id ? 'not-allowed' : 'pointer', fontSize: 11, color: u.is_platform_admin ? ACCENT : T.textDim, fontWeight: u.is_platform_admin ? 700 : 400, whiteSpace: 'nowrap' }}
                   >
                     <Shield size={10} />
-                    {u.is_platform_admin ? 'Admin' : 'Grant'}
+                    {u.is_platform_admin ? 'Revoke Admin' : 'Grant Admin'}
                   </button>
                 </td>
-                <td style={{ padding: '10px 14px', fontSize: 11, color: T.textDim }}>{new Date(u.created_at).toLocaleDateString()}</td>
+                <td style={{ padding: '10px 14px', fontSize: 11, color: T.textDim, whiteSpace: 'nowrap' }}>{new Date(u.created_at).toLocaleDateString()}</td>
                 <td style={{ padding: '10px 14px' }}>
-                  <select
-                    value={u.role}
-                    onChange={e => void patchUser(u.id, { role: e.target.value })}
-                    disabled={saving === u.id}
-                    style={{ fontSize: 11, background: T.elevated, border: `1px solid ${T.border}`, borderRadius: 5, color: T.textSec, padding: '4px 8px', cursor: 'pointer' }}
+                  <button
+                    onClick={() => setDeleteStep({ id: u.id, email: u.email })}
+                    title="Delete user"
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, background: 'none', border: `1px solid ${T.border}`, borderRadius: 5, cursor: 'pointer', color: '#EF4444' }}
                   >
-                    {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
-                  </select>
+                    <Trash2 size={12} />
+                  </button>
                 </td>
               </tr>
             ))}
