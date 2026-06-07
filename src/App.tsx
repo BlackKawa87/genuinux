@@ -9,6 +9,7 @@ import Join from './pages/Join'
 import NotFound from './pages/NotFound'
 import AppLayout from './components/layout/AppLayout'
 import ProtectedRoute from './components/ProtectedRoute'
+import AdminRoute from './components/AdminRoute'
 
 // Heavy pages — loaded on demand
 const Demo          = lazy(() => import('./pages/Demo'))
@@ -30,6 +31,20 @@ const Analytics     = lazy(() => import('./pages/dashboard/Analytics'))
 const OpsPage            = lazy(() => import('./pages/dashboard/Ops'))
 const InfrastructurePage = lazy(() => import('./pages/dashboard/Infrastructure'))
 const MLPage             = lazy(() => import('./pages/dashboard/ML'))
+
+// Admin Console pages
+const AdminLayout        = lazy(() => import('./pages/admin/AdminLayout'))
+const AdminDashboard     = lazy(() => import('./pages/admin/AdminDashboard'))
+const AdminOrganizations = lazy(() => import('./pages/admin/AdminOrganizations'))
+const AdminUsers         = lazy(() => import('./pages/admin/AdminUsers'))
+const AdminBilling       = lazy(() => import('./pages/admin/AdminBilling'))
+const AdminUsage         = lazy(() => import('./pages/admin/AdminUsage'))
+const AdminGoLive        = lazy(() => import('./pages/admin/AdminGoLive'))
+const AdminSystemHealth  = lazy(() => import('./pages/admin/AdminSystemHealth'))
+const AdminAuditLogs     = lazy(() => import('./pages/admin/AdminAuditLogs'))
+const AdminCustomers     = lazy(() => import('./pages/admin/AdminCustomers'))
+const AdminSecurity      = lazy(() => import('./pages/admin/AdminSecurity'))
+const AdminFeatureFlags  = lazy(() => import('./pages/admin/AdminFeatureFlags'))
 
 function PageSpinner() {
   return (
@@ -82,6 +97,28 @@ export default function App() {
             <Route path="infrastructure" element={<InfrastructurePage />} />
             <Route path="ml" element={<MLPage />} />
           </Route>
+          {/* ── Admin Console ───────────────────────────────────── */}
+          <Route
+            path="/admin"
+            element={
+              <AdminRoute>
+                <AdminLayout />
+              </AdminRoute>
+            }
+          >
+            <Route index              element={<AdminDashboard />} />
+            <Route path="organizations" element={<AdminOrganizations />} />
+            <Route path="users"         element={<AdminUsers />} />
+            <Route path="billing"       element={<AdminBilling />} />
+            <Route path="usage"         element={<AdminUsage />} />
+            <Route path="go-live"       element={<AdminGoLive />} />
+            <Route path="system"        element={<AdminSystemHealth />} />
+            <Route path="audit"         element={<AdminAuditLogs />} />
+            <Route path="customers"     element={<AdminCustomers />} />
+            <Route path="security"      element={<AdminSecurity />} />
+            <Route path="features"      element={<AdminFeatureFlags />} />
+          </Route>
+
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>

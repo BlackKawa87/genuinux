@@ -61,6 +61,7 @@ export interface Profile {
   role: 'owner' | 'admin' | 'analyst' | 'viewer' | 'member'
   organization_id: string
   created_at: string
+  is_platform_admin?: boolean
 }
 
 export interface ApiKey {
