@@ -21,7 +21,7 @@ No test framework is configured.
 - **Tailwind CSS v4** via `@tailwindcss/vite` plugin — no `tailwind.config.js`, all config lives in `vite.config.ts`
 - **Supabase** for auth + PostgreSQL database (`@supabase/supabase-js`)
 - **lucide-react** for all icons
-- **Resend** (`resend`) for transactional email — beta invite delivery
+- **Resend** (`resend`) for transactional email — invite delivery
 - **Upstash Redis** (`@upstash/redis` + `@upstash/ratelimit`) — sliding window rate limiting + hot-path caching (API key, org plan, rules, monthly usage) + fraud velocity counters + per-org daily stats
 - **Vercel** deployment — `vercel.json` rewrites non-API paths to `/index.html`
 
@@ -407,8 +407,17 @@ Data fetched in parallel `Promise.all`: risk_events (5k limit, fields: `fraud_sc
 - All 14 fetches run in `Promise.allSettled` — individual failures don't break the page.
 
 ### Components
-- `src/components/layout/AppLayout.tsx` — fixed 220px sidebar + sticky 52px top header with breadcrumb and org/plan badge. NAV_ALL has 10 items: Overview, Risk Events, Users, Review Queue, Analytics, Rules, API Keys, Webhooks, Infrastructure, Beta Ops. Bottom section has Documentation + Settings links. Items are filtered by role permission — `owner_only` items (Infrastructure, Beta Ops) only show to owners.
+- `src/components/layout/AppLayout.tsx` — fixed 220px sidebar + sticky 52px top header with breadcrumb and org/plan badge. NAV_ALL has 10 items: Overview, Risk Events, Users, Review Queue, Analytics, Rules, API Keys, Webhooks, Infrastructure, Beta Ops. Bottom section has Documentation + Settings links. Items are filtered by role permission — `owner_only` items (Infrastructure, Beta Ops) only show to owners. **Mobile**: sidebar collapses behind hamburger (Menu icon), slides in as overlay with dark backdrop, auto-closes on route change.
 - `src/components/ProtectedRoute.tsx` — auth guard, shows spinner while loading
+- `src/hooks/useWindowSize.ts` — returns `{ width, isMobile, isTablet, isDesktop }` (breakpoints: 640px / 1024px). Used across all pages for responsive inline styles.
+
+### Responsive / Mobile-First
+All pages and layouts are mobile-first as of commit `8ab79b4`. Breakpoints: mobile < 640px, tablet 640–1024px, desktop > 1024px.
+- **Sidebar** (AppLayout + AdminLayout): hidden on mobile, toggles as full-height overlay via `translateX` transition
+- **Grids**: 1-col mobile → 2-col tablet → 3–4-col desktop
+- **Detail panels** (Events, Queue, Users): `width: 100%` full-screen overlay on mobile, 480–520px slide-out on desktop
+- **Tables**: `overflow-x: auto` wrapper with `minWidth` so data scrolls horizontally on small screens
+- **Docs sidebar**: hidden on mobile, accessible via toggle button in sticky header
 
 ### GitHub & Deployment
 - **GitHub**: `https://github.com/BlackKawa87/genuinux`
@@ -449,10 +458,16 @@ No fake metrics — "Built for scale" strip uses only real product claims: `< 50
 
 Footer uses **light background** (`#F8FAFC`), `logo-color.png` at 112px. CTA text sitewide is **"Start 7-Day Trial"** (not "Start for free").
 
+All CTAs previously labelled "Request Beta Access" are now **"Start Free Trial"** linking to `/register`. Badge "Controlled Beta" replaced with "Production Ready".
+
 ### Login (`src/pages/Login.tsx`) & Register (`src/pages/Register.tsx`)
 Both in **light mode** (`#F8FAFC` bg, `#FFFFFF` card with soft shadow). Include "← Back to home" link above the card. Logo: `logo-horizontal.png` at **112px** height.
 
 Register adds **company name** and **website** fields. On successful sign-up, calls `supabase.auth.getUser()` to get the new user ID, then updates the org `name` (and `website` if provided) that was auto-created by the DB trigger.
+
+**Invite-only gate**: controlled by `VITE_INVITE_ONLY_MODE` env var (default: `false`). When `false`, invite code field is hidden and signup proceeds without a code, setting `plan_source = 'self_signup'`. When `true`, invite code is required and validated via `/api/beta/validate-invite`. Flag exported from `src/lib/featureFlags.ts`.
+
+**v25 migration** (`supabase/migrations/v25_plan_source_self_signup.sql`): adds `'self_signup'` to the `plan_source` CHECK constraint on `organizations`.
 
 ### Auth Flows
 - **Password reset**: `/forgot-password` → Supabase email → `/reset-password` (token auto-exchanged from URL fragment).
