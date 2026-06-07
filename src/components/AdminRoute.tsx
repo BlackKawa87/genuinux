@@ -18,6 +18,9 @@ function Spinner() {
 export default function AdminRoute({ children }: { children: React.ReactNode }) {
   const { user, profile, loading, profileLoading } = useAuth()
 
+  // Debug: log state to console
+  console.log('[AdminRoute]', { loading, profileLoading, user: user?.email, is_platform_admin: profile?.is_platform_admin })
+
   // Wait for both auth session and profile fetch to complete
   if (loading || profileLoading) return <Spinner />
 
