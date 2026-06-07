@@ -19,6 +19,7 @@
 -- ══════════════════════════════════════════════════════════════
 -- STEP 1 — AUDITORIA (read-only, execute sempre primeiro)
 -- ══════════════════════════════════════════════════════════════
+-- Tabelas que existem sempre:
 SELECT
   'risk_events'        AS tabela, COUNT(*) AS registros FROM risk_events
 UNION ALL SELECT 'users_checked',       COUNT(*) FROM users_checked
@@ -29,22 +30,27 @@ UNION ALL SELECT 'entity_reputation',   COUNT(*) FROM entity_reputation
 UNION ALL SELECT 'audit_logs',          COUNT(*) FROM audit_logs
 UNION ALL SELECT 'org_daily_stats',     COUNT(*) FROM org_daily_stats
 UNION ALL SELECT 'review_queue',        COUNT(*) FROM review_queue
-UNION ALL SELECT 'webhook_deliveries',
-  CASE WHEN EXISTS (
-    SELECT FROM information_schema.tables
-    WHERE table_schema = 'public' AND table_name = 'webhook_deliveries'
-  ) THEN (SELECT COUNT(*)::bigint FROM webhook_deliveries) ELSE -1 END
-UNION ALL SELECT 'ai_summary_cache',
-  CASE WHEN EXISTS (
-    SELECT FROM information_schema.tables
-    WHERE table_schema = 'public' AND table_name = 'ai_summary_cache'
-  ) THEN (SELECT COUNT(*)::bigint FROM ai_summary_cache) ELSE -1 END
-UNION ALL SELECT 'ml_predictions',
-  CASE WHEN EXISTS (
-    SELECT FROM information_schema.tables
-    WHERE table_schema = 'public' AND table_name = 'ml_predictions'
-  ) THEN (SELECT COUNT(*)::bigint FROM ml_predictions) ELSE -1 END
 ORDER BY tabela;
+
+-- Tabelas opcionais (execute cada uma só se existir):
+DO $$
+DECLARE v_count BIGINT;
+BEGIN
+  IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema='public' AND table_name='webhook_deliveries') THEN
+    EXECUTE 'SELECT COUNT(*) FROM webhook_deliveries' INTO v_count;
+    RAISE NOTICE 'webhook_deliveries: %', v_count;
+  ELSE RAISE NOTICE 'webhook_deliveries: tabela não existe'; END IF;
+
+  IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema='public' AND table_name='ai_summary_cache') THEN
+    EXECUTE 'SELECT COUNT(*) FROM ai_summary_cache' INTO v_count;
+    RAISE NOTICE 'ai_summary_cache: %', v_count;
+  ELSE RAISE NOTICE 'ai_summary_cache: tabela não existe'; END IF;
+
+  IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema='public' AND table_name='ml_predictions') THEN
+    EXECUTE 'SELECT COUNT(*) FROM ml_predictions' INTO v_count;
+    RAISE NOTICE 'ml_predictions: %', v_count;
+  ELSE RAISE NOTICE 'ml_predictions: tabela não existe'; END IF;
+END $$;
 
 -- Tabelas protegidas (devem ter registros após limpeza):
 SELECT
