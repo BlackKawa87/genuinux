@@ -389,6 +389,7 @@ async function insertRiskEvent(
   shadowMode: boolean,
   suggestedDecision: string | null,
   pregenId?: string,
+  gnxResult?: import('../_lib/gnxScore.js').GnxResult,
 ): Promise<string | null> {
   const { data, error } = await supabase
     .from('risk_events')
@@ -415,6 +416,12 @@ async function insertRiskEvent(
       applied_rule_name:   ruleMatch.applied_rule_name,
       shadow_mode:         shadowMode,
       suggested_decision:  suggestedDecision,
+      // GNX Fraud Score™ — included in INSERT so values are available immediately
+      ...(gnxResult ? {
+        gnx_score:         gnxResult.score,
+        gnx_score_factors: gnxResult.top_factors,
+        gnx_version:       gnxResult.version,
+      } : {}),
     })
     .select('id')
     .single()
@@ -1082,7 +1089,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     insertRiskEvent(
       supabase, orgId, payload, effectiveResult, ruleMatch,
       isShadowMode, isShadowMode ? suggestedDecision : null,
-      eventId,  // use pre-generated UUID
+      eventId,      // use pre-generated UUID
+      gnxResult,    // GNX score included in INSERT — no separate UPDATE needed
     ),
   ])
 
@@ -1100,17 +1108,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       effectiveResult.decision,
       payload.event_type,
     )
-
-    // Genuinux Fraud Score™ — persist score, factor breakdown, and version (fire-and-forget)
-    void supabase
-      .from('risk_events')
-      .update({
-        gnx_score:         gnxResult.score,
-        gnx_score_factors: gnxResult.top_factors,
-        gnx_version:       gnxResult.version,
-      })
-      .eq('id', insertedId)
-      .then(() => {})
 
     // Feature Store (Phase 3.3) — gated by FEATURE_STORE_ENABLED=true
     void persistFeatures(supabase, orgId, insertedId, effectiveResult, context, gnxScore, {
