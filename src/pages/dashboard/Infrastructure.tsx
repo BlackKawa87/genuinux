@@ -366,14 +366,13 @@ export default function Infrastructure() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className="flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium flex-shrink-0 transition-colors duration-150"
+              className="flex items-center px-2.5 py-2.5 text-xs font-medium flex-shrink-0 transition-colors duration-150 whitespace-nowrap"
               style={{
                 color:       isActive ? '#16C784' : T.textSec,
                 borderBottom: isActive ? '2px solid #16C784' : '2px solid transparent',
                 background:  'transparent',
               }}
             >
-              <tab.icon size={12} />
               {tab.label}
             </button>
           )
