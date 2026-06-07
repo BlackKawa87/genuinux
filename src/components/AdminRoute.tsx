@@ -16,11 +16,10 @@ function Spinner() {
 }
 
 export default function AdminRoute({ children }: { children: React.ReactNode }) {
-  const { user, profile, loading } = useAuth()
+  const { user, profile, loading, profileLoading } = useAuth()
 
-  // Wait for auth AND profile to fully load before deciding
-  // profile=null while user!=null means profile query is still in-flight
-  if (loading || (user !== null && profile === null)) return <Spinner />
+  // Wait for both auth session and profile fetch to complete
+  if (loading || profileLoading) return <Spinner />
 
   if (!user) return <Navigate to="/login" replace />
 
