@@ -400,16 +400,16 @@ const PRICING_PLANS: {
     id: 'starter', name: 'Starter',
     price: '£99', sub: '/mo',
     subtitle: 'For startups shipping their first fraud defense layer.',
-    badge: null, featured: false, trialNote: 'Beta access · invite required',
-    cta: 'Request Beta Access', ctaTo: '/register', external: false,
+    badge: null, featured: false, trialNote: null,
+    cta: 'Start Free Trial', ctaTo: '/register', external: false,
     features: ['50,000 events/month', 'RiskScore API', 'Webhooks', '30-day event history', 'Basic rules engine', 'Dashboard analytics', 'Shadow mode', 'Email support'],
   },
   {
     id: 'growth', name: 'Growth',
     price: '£499', sub: '/mo',
     subtitle: 'For platforms scaling with real fraud exposure.',
-    badge: 'Most Popular', featured: true, trialNote: 'Beta access · invite required',
-    cta: 'Request Beta Access', ctaTo: '/register', external: false,
+    badge: 'Most Popular', featured: true, trialNote: null,
+    cta: 'Start Free Trial', ctaTo: '/register', external: false,
     features: ['500,000 events/month', 'All core modules', 'Device Intelligence', 'BehaviorAI', 'SessionGuard', 'Real-time risk alerts', 'Advanced rules engine', 'Behavioral anomaly detection', 'Velocity analysis', 'Team access', '90-day history', 'Priority support'],
   },
   {
@@ -515,7 +515,7 @@ export default function Landing() {
               style={{ background: C.dark, color: '#FFFFFF', fontFamily: "'Inter Tight', sans-serif" }}
               onMouseEnter={e => (e.currentTarget.style.background = '#0B1016')}
               onMouseLeave={e => (e.currentTarget.style.background = C.dark)}>
-              Request Beta Access
+              Start Free Trial
             </Link>
           </div>
 
@@ -547,7 +547,7 @@ export default function Landing() {
               <Link to="/register" onClick={() => setMobileMenuOpen(false)}
                 className="flex-1 text-sm py-2.5 rounded-lg text-center font-semibold"
                 style={{ background: C.dark, color: '#FFFFFF', fontFamily: "'Inter Tight', sans-serif" }}>
-                Request Beta Access
+                Start Free Trial
               </Link>
             </div>
           </div>
@@ -589,7 +589,7 @@ export default function Landing() {
               <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest"
                 style={{ color: C.trust, letterSpacing: '0.1em', fontFamily: "'Inter Tight', sans-serif" }}>
                 <span className="pulse-dot inline-block w-1.5 h-1.5 rounded-full bg-current" />
-                Risk Intelligence API · Controlled Beta
+                Risk Intelligence API · Production Ready
               </span>
             </div>
 
@@ -626,7 +626,7 @@ export default function Landing() {
             {/* CTAs */}
             <div className="flex flex-wrap items-center justify-center gap-3 mb-9 anim-3">
               <Link to="/register" className="btn-trust px-5 py-2.5 text-sm gap-1.5">
-                Request Beta Access <ArrowRight size={14} />
+                Start Free Trial <ArrowRight size={14} />
               </Link>
               <Link to="/docs"
                 className="flex items-center gap-1.5 px-5 py-2.5 text-sm font-medium transition-all duration-150"

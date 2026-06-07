@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Loader2, CheckCircle, Lock, ArrowLeft } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
+import { INVITE_ONLY_MODE } from '../lib/featureFlags'
 
 const USE_CASES = [
   { value: 'marketplace',      label: 'Marketplace' },
@@ -64,21 +65,22 @@ export default function Register() {
     setLoading(true)
     setError('')
 
-    const code = inviteCode.trim().toUpperCase()
-
-    try {
-      const params = new URLSearchParams({ code, email: email.trim().toLowerCase() })
-      const res = await fetch(`/api/beta/validate-invite?${params.toString()}`)
-      const json = await res.json() as { valid: boolean; message?: string }
-      if (!json.valid) {
-        setError(json.message ?? 'Invalid invite code.')
+    if (INVITE_ONLY_MODE) {
+      const code = inviteCode.trim().toUpperCase()
+      try {
+        const params = new URLSearchParams({ code, email: email.trim().toLowerCase() })
+        const res = await fetch(`/api/beta/validate-invite?${params.toString()}`)
+        const json = await res.json() as { valid: boolean; message?: string }
+        if (!json.valid) {
+          setError(json.message ?? 'Invalid invite code.')
+          setLoading(false)
+          return
+        }
+      } catch {
+        setError('Unable to validate invite code. Check your connection and try again.')
         setLoading(false)
         return
       }
-    } catch {
-      setError('Unable to validate invite code. Check your connection and try again.')
-      setLoading(false)
-      return
     }
 
     const { error: signUpErr } = await signUp(email, password)
@@ -102,21 +104,28 @@ export default function Register() {
         if (website.trim())  updates.website                  = website.trim()
         if (useCase)         updates.use_case                 = useCase
         if (estimatedEvents) updates.estimated_monthly_events = estimatedEvents
+        if (!INVITE_ONLY_MODE) {
+          updates.plan        = 'starter'
+          updates.plan_source = 'self_signup'
+        }
         if (Object.keys(updates).length > 0) {
           await supabase.from('organizations').update(updates).eq('id', prof.organization_id)
         }
       }
 
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session?.access_token) {
-        fetch('/api/beta/use-invite', {
-          method: 'POST',
-          headers: {
-            'Content-Type':  'application/json',
-            'Authorization': `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({ code, email: email.trim() }),
-        }).catch(() => {})
+      if (INVITE_ONLY_MODE) {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session?.access_token) {
+          const code = inviteCode.trim().toUpperCase()
+          fetch('/api/beta/use-invite', {
+            method: 'POST',
+            headers: {
+              'Content-Type':  'application/json',
+              'Authorization': `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({ code, email: email.trim() }),
+          }).catch(() => {})
+        }
       }
     }
 
@@ -168,23 +177,25 @@ export default function Register() {
           <img src="/logo-horizontal.png" alt="Genuinux" style={{ height: 88, display: 'block' }} />
         </Link>
 
-        {/* Beta notice */}
-        <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl mb-5 text-xs"
-          style={{
-            background: 'rgba(245,158,11,0.06)',
-            border: '1px solid rgba(245,158,11,0.18)',
-            color: '#92400E',
-            fontFamily: "'DM Sans', sans-serif",
-          }}>
-          <Lock size={11} style={{ color: '#F59E0B', flexShrink: 0 }} />
-          <span>
-            Genuinux is in <strong>controlled beta</strong>. Access is invite-only.
-            No invite?{' '}
-            <a href="mailto:beta@genuinux.io" style={{ color: '#D97706', textDecoration: 'underline' }}>
-              Request one →
-            </a>
-          </span>
-        </div>
+        {/* Invite-only beta notice */}
+        {INVITE_ONLY_MODE && (
+          <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl mb-5 text-xs"
+            style={{
+              background: 'rgba(245,158,11,0.06)',
+              border: '1px solid rgba(245,158,11,0.18)',
+              color: '#92400E',
+              fontFamily: "'DM Sans', sans-serif",
+            }}>
+            <Lock size={11} style={{ color: '#F59E0B', flexShrink: 0 }} />
+            <span>
+              Genuinux is in <strong>controlled beta</strong>. Access is invite-only.
+              No invite?{' '}
+              <a href="mailto:beta@genuinux.io" style={{ color: '#D97706', textDecoration: 'underline' }}>
+                Request one →
+              </a>
+            </span>
+          </div>
+        )}
 
         {/* Card */}
         <div style={{
@@ -209,24 +220,26 @@ export default function Register() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
 
-            {/* Invite code */}
-            <div>
-              <label className="block text-xs font-semibold mb-1.5"
-                style={{ color: '#5B6480', fontFamily: "'DM Sans', sans-serif", letterSpacing: '-0.01em' }}>
-                Invite code <span style={{ color: '#EF4444' }}>*</span>
-              </label>
-              <input
-                type="text"
-                value={inviteCode}
-                onChange={e => setInviteCode(e.target.value)}
-                placeholder="BETA-XXXX-XXXX"
-                required
-                className="w-full px-4 py-2.5 rounded-xl text-sm mono tracking-wider uppercase"
-                style={inputBase}
-                onFocus={onFocus}
-                onBlur={onBlur}
-              />
-            </div>
+            {/* Invite code — shown only in invite-only mode */}
+            {INVITE_ONLY_MODE && (
+              <div>
+                <label className="block text-xs font-semibold mb-1.5"
+                  style={{ color: '#5B6480', fontFamily: "'DM Sans', sans-serif", letterSpacing: '-0.01em' }}>
+                  Invite code <span style={{ color: '#EF4444' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  value={inviteCode}
+                  onChange={e => setInviteCode(e.target.value)}
+                  placeholder="BETA-XXXX-XXXX"
+                  required
+                  className="w-full px-4 py-2.5 rounded-xl text-sm mono tracking-wider uppercase"
+                  style={inputBase}
+                  onFocus={onFocus}
+                  onBlur={onBlur}
+                />
+              </div>
+            )}
 
             {/* Company + website */}
             <div className="grid grid-cols-2 gap-3">
