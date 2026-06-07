@@ -177,7 +177,7 @@ RLS helpers: `current_org_id()` and `current_user_role()` (SECURITY DEFINER func
 
 Role matrix: owner > admin > member. Only owners can manage API keys and webhooks.
 
-Audit logs: Written by the frontend for key actions — `api_key.created`, `api_key.revoked`, `rule.created`, `rule.updated`, `rule.deleted`, `webhook.created`, `webhook.updated`, `webhook.deleted`, `org.updated`, `review.*`. Backend writes `beta_invite.created`, `beta_invite.email_sent`, `beta_invite.email_failed`, `beta_invite.resent`, `beta_invite.used`. Requires the v4 `audit_logs_insert` RLS policy to be in place.
+Audit logs: Written by the frontend for key actions — `api_key.created`, `api_key.revoked`, `rule.created`, `rule.updated`, `rule.deleted`, `webhook.created`, `webhook.updated`, `webhook.deleted`, `org.updated`, `review.*`. Backend writes `beta_invite.created`, `beta_invite.email_sent`, `beta_invite.email_failed`, `beta_invite.resent`, `beta_invite.used`. Backend also writes `risk.check.slow` fire-and-forget from `/api/risk/check` when `total_ms > 1000` — queryable by the Go Live Monitor slow-requests endpoint. Requires the v4 `audit_logs_insert` RLS policy to be in place.
 
 ### Types (`src/types/index.ts`)
 Mirrors DB schema. Key types: `RiskEvent`, `ApiKey`, `Organization`, `Profile`, `Rule`, `ReviewQueueItem`, `Webhook`, `WebhookDelivery`, `AuditLog`, `DashboardMetrics`.
@@ -216,6 +216,10 @@ Supported condition types: `fraud_score`, `trust_score`, `risk_level`, `event_ty
 - Runs `analyze()` from risk engine, then evaluates custom rules (`applyCustomRules`)
 - **Early response**: `res.status(200).json(response)` is sent before DB writes — `upsertUserChecked` + `insertRiskEvent` run after the client receives the response
 - `crypto.randomUUID()` is pre-generated before the early response so the event_id in the response matches the DB row
+- **Cold start detection**: `const coldStart = _supabase === null` is captured before `adminClient()` — detects first Vercel function invocation where the module-level singleton is uninitialized. Logged in `captureMessage` and slow-request audit entries.
+- **Per-step instrumentation**: `step(label)` helper records timestamps for key_ms, org_ms, rate_ms, monthly_ms, context_ms, engine_ms, gnx_ms. `context_path` logged as `'redis'` or `'rpc'`.
+- **Slow-request sink**: when `total_ms > 1000`, a `captureMessage('risk.check.slow', 'warning', {...})` is emitted AND a fire-and-forget `audit_logs.insert` with `event_type: 'risk.check.slow'` is written — queryable by `/api/admin/monitoring/slow-requests`.
+- **Post-response persist timing**: `persist_ms` measures the `await Promise.all([upsertUserChecked, insertRiskEvent])` duration; emits `risk.check.slow_persist` warning if > 800ms.
 - **Fire-and-forget critical invariant**: any unhandled exception thrown between `res.json()` and `await Promise.all([upsertUserChecked, insertRiskEvent])` (line ~1079) will kill the handler before any writes execute. All code in that gap must be free of `ReferenceError`, import errors, or uncaught throws. This was the root cause of zero events being persisted — `captureMessage` was called but not imported, causing `ReferenceError` on every request (fixed 2026-06-06, commit `ab401ef`).
 - Fire-and-forget after response: `review_queue` insert (if decision=review) + webhook dispatch + `incrementMonthlyUsage`
 - Webhook dispatch: HMAC-SHA256 signature (`X-Genuinux-Signature: sha256=<sig>`), logs to `webhook_deliveries` (table optional)
@@ -290,8 +294,10 @@ The `/api/risk/check` hot path is optimized to minimize Supabase round-trips:
 | Org plan lookup | Redis cache — `gnx:org:{orgId}` — 60s TTL | 1 round-trip |
 | 6 context queries | Redis fraud counters (when `REDIS_COUNTERS_ENABLED=true`) — else `supabase.rpc('get_risk_context')` | 5 round-trips |
 | Rules fetch | Redis cache — `gnx:rules:{orgId}` — 60s TTL | 1 round-trip |
+| GNX v2 score | `computeGnxScore()` pure function — measured as `gnx_ms` step | <1ms |
 | DB writes | Fire-and-forget after early `res.status(200).json()` | Off critical path |
 | Org stats + fraud counters write | Fire-and-forget after response — `incrementOrgStats` + `writeFraudCounters` | Off critical path |
+| Cold start detection | `const coldStart = _supabase === null` before `adminClient()` — logged in slow-request audit | Detection only |
 
 Observed latency — Phase 2A baseline (Supabase RPC path):
 - p50: ~565ms | p95: ~620ms | p99: ~890ms | error rate: 0%
@@ -395,9 +401,10 @@ Data fetched in parallel `Promise.all`: risk_events (5k limit, fields: `fraud_sc
 - **API Test Sandbox** — interactive form to send real risk events without a terminal. Includes 4 presets (Normal user, Suspicious, Bot/Headless, Withdrawal), editable fields (user ID, email, IP, event type, country, device ID, user agent), API key input (password-masked), and inline response showing trust score, fraud score, decision badge, and detected signals. Events sent here are real — they appear in Risk Events and Overview.
 - Beta invites section: create form, active invite rows with copy-code / copy-invite-link / resend-email buttons and email-sent badge, used/expired/revoked archive.
 
-**`Infrastructure.tsx`** — 11-tab owner-only control center. Tabs: Overview, Environment, Database, Rate Limits, Webhooks, AI, Cron, Security, Incidents, Readiness, **Performance**.
+**`Infrastructure.tsx`** — 12-tab owner-only control center. Tabs: Overview, Environment, Database, Rate Limits, Webhooks, AI, Cron, Security, Incidents, Readiness, Performance, **Go Live**.
 - **Performance tab**: Today real-time stats (approve/review/block/latency from Redis), last 7 days bar chart, 7-day summary, Redis cache health per namespace (org, rules TTL remaining, monthly counter, fraud counters mode). Fetches `/api/admin/metrics/per-org?days=7` + `/api/admin/metrics/cache-stats`.
-- All 11 fetches run in `Promise.allSettled` — individual failures don't break the page.
+- **Go Live tab**: Post-launch operational health overview. 8 sections: Go Live Status badge (Healthy/Warning/Critical + reasons list), API Health (24h totals + decision breakdown + today Redis stats), Latency (avg today + 7-day trend bar chart), Slow Requests table (last 20 requests >1000ms with per-step breakdown, cold_start, context_path), Redis Health (connected/fraud_counters_enabled/context_path), Sentry Health (DSN configured flag), Data Pipeline (5-table status cards from last 24h counts), GNX Health (v2 coverage, null rate, score band distribution). Fetches `/api/admin/monitoring/go-live`, `/api/admin/monitoring/slow-requests?limit=20`, `/api/admin/monitoring/pipeline-health`.
+- All 14 fetches run in `Promise.allSettled` — individual failures don't break the page.
 
 ### Components
 - `src/components/layout/AppLayout.tsx` — fixed 220px sidebar + sticky 52px top header with breadcrumb and org/plan badge. NAV_ALL has 10 items: Overview, Risk Events, Users, Review Queue, Analytics, Rules, API Keys, Webhooks, Infrastructure, Beta Ops. Bottom section has Documentation + Settings links. Items are filtered by role permission — `owner_only` items (Infrastructure, Beta Ops) only show to owners.
@@ -466,7 +473,13 @@ Register adds **company name** and **website** fields. On successful sign-up, ca
 
 **Production activation (Phase 2C):**
 - `DROP TABLE risk_events_legacy` — run after 24-48h of validating the partitioned table in production.
-- Set `REDIS_COUNTERS_ENABLED=true` in Vercel — activate after 24-48h of dual-write warm-up.
+- Set `REDIS_COUNTERS_ENABLED=true` in Vercel — **primary remaining gate**. Activates Redis-first `fetchContext()` reads (~5-15ms vs ~400-600ms RPC). Controls ONLY the read path (line ~263 of check.ts). Redis writes (writeFraudCounters, keyCache, orgStats, rateLimit) are always active when UPSTASH env vars are set. Activate after 24-48h of dual-write warm-up. Absence of this env var is the root cause of max latency spikes (cold start + RPC = 1500-2200ms total).
+
+**Go Live Monitor (Phase 4.0 observability — implemented):**
+- `GET /api/admin/monitoring/go-live` — operational health snapshot ✅
+- `GET /api/admin/monitoring/slow-requests` — slow request audit table ✅
+- `GET /api/admin/monitoring/pipeline-health` — derived table health ✅
+- Infrastructure.tsx Go Live tab ✅
 
 **Intelligence Layer — Phase 3 activation:**
 - Run `supabase/migrations/v19_intelligence_layer.sql` (4 sections A–D separately in SQL editor) — creates `fraud_labels`, `fraud_features`, `entity_reputation` tables and `increment_entity_reputation()` RPC.
@@ -477,11 +490,11 @@ Register adds **company name** and **website** fields. On successful sign-up, ca
 
 **Phase 3 — Implemented:**
 - `POST /api/risk/label` — ground-truth fraud label submission (Phase 3.1/3.2). **Dual auth**: detects JWT vs API key by counting dots in the token (`(token.match(/\./g) ?? []).length === 2` → JWT). JWT path resolves `organization_id` via `profiles.user_id`; API key path unchanged. Uses `.upsert({ ... }, { onConflict: 'organization_id,risk_event_id' })` so relabeling the same event updates in place rather than inserting a duplicate. Returns HTTP 200 (not 201).
-- `api/_lib/gnxScore.ts` — `computeGnxScore()` — deterministic 0–1000 score, written to `risk_events.gnx_score` fire-and-forget (Phase 3.0). Formula: base `= fraud_score × 10`, then additive bonuses — critical signals `+20` each (max 4, +80), high `+12` (max 3, +36), medium `+2` (max 7, +14), device prior block `+40`, IP distinct users +10/+20/+30 (capped), device distinct users +5/+10/+20 (capped), IP signup surge +5/+15 (capped), minus trust dampener `−floor(trust_score / 10)` (max −10). Clamped to [0, 1000].
+- `api/_lib/gnxScore.ts` — `computeGnxScore()` — deterministic 0–1000 score, written to `risk_events.gnx_score` + `gnx_score_factors` JSONB + `gnx_version TEXT` fire-and-forget (Phase 3.0, v2 upgraded). GNX v2 uses a 13-feature weighted linear model (`GNX_VERSION = 'v2'`): `fraud_score_base` (weight 0.30), `trust_score_base` (−0.15), `critical_signals` (0.18), `high_signals` (0.12), `device_prior_block` (0.10), `ip_distinct_users` (0.06), `device_distinct_users` (0.04), `ip_signup_surge` (0.03), `velocity_events` (0.05), `email_risk` (0.04), `country_risk` (0.02), `event_type_risk` (0.02), `behavioral_risk` (0.04) — weights sum to 1.00 (minus trust factor). Returns `GnxResult { score, top_factors[], version }`. Stores per-factor breakdown in `gnx_score_factors` JSONB for explainability. Clamped to [0, 1000].
 - `api/_lib/featureExtractor.ts` — `extractFeatures()` — derives 17 features across 5 groups (velocity/reputation/behavior/risk/context) with `feature_group`, `feature_version`, `source` (Phase 3.3)
-- `api/_lib/featureStore.ts` — `persistFeatures()` — writes extracted feature vectors to `fraud_features` fire-and-forget (Phase 3.3), gated by `FEATURE_STORE_ENABLED`
-- `api/_lib/datasetBuilder.ts` — `buildTrainingDataset()` — joins risk_events + fraud_features into `training_dataset` fire-and-forget (Phase 3.6), gated by `DATASET_BUILDER_ENABLED`. Uses `.upsert({ ... }, { onConflict: 'organization_id,risk_event_id' })` so relabeling an event updates the training row rather than inserting a duplicate.
-- `api/_lib/reputationNetwork.ts` — `updateEntityReputation()` / `getEntityReputation()` — atomic cross-org reputation via PostgreSQL RPC (Phase 3.5)
+- `api/_lib/featureStore.ts` — `persistFeatures()` — writes extracted feature vectors to `fraud_features` fire-and-forget (Phase 3.3), gated by `FEATURE_STORE_ENABLED`. All errors caught and forwarded to `captureException` (never silent-swallowed).
+- `api/_lib/datasetBuilder.ts` — `buildTrainingDataset()` — joins risk_events + fraud_features into `training_dataset` fire-and-forget (Phase 3.6), gated by `DATASET_BUILDER_ENABLED`. Uses `.upsert({ ... }, { onConflict: 'organization_id,risk_event_id' })` so relabeling an event updates the training row rather than inserting a duplicate. All errors caught and forwarded to `captureException`.
+- `api/_lib/reputationNetwork.ts` — `updateEntityReputation()` / `getEntityReputation()` — atomic cross-org reputation via PostgreSQL RPC (Phase 3.5). Both catch blocks use `captureException` (previously silent).
 - `api/_lib/shadowPredictor.ts` — `predictShadow(features[])` — pure function, deterministic heuristic model shadow-v1, returns `{ prediction: block|review|allow, prediction_score, confidence, model_name, model_version }` (Phase 3.7)
 - `api/_lib/mlPredictionStore.ts` — `savePrediction()`, `getPredictions()`, `getAgreementStats()`, `getModelStats()`, `runShadowPrediction()` — all persistence for ML shadow pipeline; `agreement` computed at write time as `prediction === engineDecision` (Phase 3.7)
 - `GET /api/admin/intelligence/summary` — aggregated Feedback Loop + GNX distribution + fraud trends + top patterns + training readiness
@@ -492,6 +505,9 @@ Register adds **company name** and **website** fields. On successful sign-up, ca
 - `GET /api/admin/ml/disagreements?page=N&limit=N&days=N` — Paginated disagreements: official_decision, shadow_prediction, confidence (Phase 3.7)
 - `GET /api/admin/ml/features?model=shadow-v1` — Feature weights from feature_importance table: `[{ feature, weight }]` (Phase 3.7)
 - `api/admin/intelligence/ml/stats.ts` — **DELETED** (stale Phase 3.7 file from first iteration, imported from deleted `mlShadowRunner.ts`; not referenced by any route)
+- `GET /api/admin/monitoring/go-live` — Owner-only. Post-Go Live operational health snapshot. Aggregates: `api_health` (24h event totals, decision breakdown, today Redis stats), `latency` (avg today + 7-day trend from `org_daily_stats`), `gnx_health` (v2 coverage, null rate, score band distribution), `redis_health` (connected, fraud_counters_enabled, context_path), `sentry_enabled` (SENTRY_DSN flag), `slow_count_24h` (audit_logs count), `go_live_status` (healthy/warning/critical with reasons[]). Status escalation: critical gates = Redis down, gnx_null_rate > 5%, avg_latency ≥ 1500ms; warning gates = gnx_null_rate > 0%, REDIS_COUNTERS_ENABLED off, avg_latency ≥ 800ms, slow_count > 10.
+- `GET /api/admin/monitoring/slow-requests?limit=20` — Owner-only. Last N requests where total_ms > 1000ms. Reads `audit_logs` WHERE `event_type = 'risk.check.slow'` (written fire-and-forget by check.ts). Returns per-request step breakdown: key_ms, org_ms, rate_ms, monthly_ms, context_ms, engine_ms, gnx_ms, persist_ms, plus cold_start, context_path.
+- `GET /api/admin/monitoring/pipeline-health` — Owner-only. Row counts for all 5 derived pipeline tables in last 24h: risk_events, fraud_labels, fraud_features, training_dataset, ml_predictions. Returns `status: 'migration_pending'` (error code `42P01`) for tables not yet created — never crashes on missing tables.
 - Analytics.tsx — Intelligence Layer overview + Feedback Loop + Fraud Analytics + Training Readiness + Feature Store (Phase 3.3) + Training Dataset (Phase 3.6) sections
 - `src/pages/dashboard/ML.tsx` — Machine Learning dashboard at `/dashboard/ml`: ML Readiness, Shadow Performance, Agreement Analysis, Prediction Coverage, Feature Importance, Dataset Health (Phase 3.7)
 
