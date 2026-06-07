@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import {
   Database, Shield, Globe, Cpu, Clock, AlertTriangle,
   CheckCircle, XCircle, MinusCircle, RefreshCw, ChevronDown, ChevronUp,
-  AlertOctagon, Zap, FileDown, Activity, TrendingUp,
+  AlertOctagon, Zap, FileDown, Activity, TrendingUp, Monitor,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useT } from '../../lib/themeTokens'
@@ -192,6 +192,7 @@ const TABS: TabItem[] = [
   { id: 'incidents',   label: 'Incidents',    icon: AlertOctagon },
   { id: 'readiness',    label: 'Readiness',    icon: CheckCircle  },
   { id: 'performance',  label: 'Performance',  icon: TrendingUp   },
+  { id: 'golive',       label: 'Go Live',      icon: Monitor      },
 ]
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -213,6 +214,9 @@ export default function Infrastructure() {
   const [healthData,      setHealthData]      = useState<Record<string, unknown> | null>(null)
   const [perfData,        setPerfData]        = useState<Record<string, unknown> | null>(null)
   const [cacheStatsData,  setCacheStatsData]  = useState<Record<string, unknown> | null>(null)
+  const [goLiveData,      setGoLiveData]      = useState<Record<string, unknown> | null>(null)
+  const [slowReqData,     setSlowReqData]     = useState<Record<string, unknown> | null>(null)
+  const [pipelineData,    setPipelineData]    = useState<Record<string, unknown> | null>(null)
   const [incidents,    setIncidents]    = useState<Record<string, unknown>[]>([])
   const [incidentError,setIncidentError]= useState<string | null>(null)
   const [newIncident,  setNewIncident]  = useState({ title: '', description: '', severity: 'medium', affected_system: '' })
@@ -230,19 +234,23 @@ export default function Infrastructure() {
 
     const headers = { Authorization: `Bearer ${token}` }
 
-    const [env, db, rl, wh, ai, cron, sec, exp, health, perf, cacheStats] = await Promise.allSettled([
-      fetch('/api/admin/env-check',              { headers }).then(r => r.json()),
-      fetch('/api/admin/db-health',              { headers }).then(r => r.json()),
-      fetch('/api/admin/rate-limit-status',      { headers }).then(r => r.json()),
-      fetch('/api/admin/webhook-health',         { headers }).then(r => r.json()),
-      fetch('/api/admin/ai-health',              { headers }).then(r => r.json()),
-      fetch('/api/admin/cron-health',            { headers }).then(r => r.json()),
-      fetch('/api/admin/security-health',        { headers }).then(r => r.json()),
-      fetch('/api/admin/export-summary',         { headers }).then(r => r.json()),
-      fetch('/api/health').then(r => r.json()),
-      fetch('/api/admin/metrics/per-org?days=7', { headers }).then(r => r.json()),
-      fetch('/api/admin/metrics/cache-stats',    { headers }).then(r => r.json()),
-    ])
+    const [env, db, rl, wh, ai, cron, sec, exp, health, perf, cacheStats, goLive, slowReqs, pipeline] =
+      await Promise.allSettled([
+        fetch('/api/admin/env-check',                        { headers }).then(r => r.json()),
+        fetch('/api/admin/db-health',                        { headers }).then(r => r.json()),
+        fetch('/api/admin/rate-limit-status',                { headers }).then(r => r.json()),
+        fetch('/api/admin/webhook-health',                   { headers }).then(r => r.json()),
+        fetch('/api/admin/ai-health',                        { headers }).then(r => r.json()),
+        fetch('/api/admin/cron-health',                      { headers }).then(r => r.json()),
+        fetch('/api/admin/security-health',                  { headers }).then(r => r.json()),
+        fetch('/api/admin/export-summary',                   { headers }).then(r => r.json()),
+        fetch('/api/health').then(r => r.json()),
+        fetch('/api/admin/metrics/per-org?days=7',           { headers }).then(r => r.json()),
+        fetch('/api/admin/metrics/cache-stats',              { headers }).then(r => r.json()),
+        fetch('/api/admin/monitoring/go-live',               { headers }).then(r => r.json()),
+        fetch('/api/admin/monitoring/slow-requests?limit=20',{ headers }).then(r => r.json()),
+        fetch('/api/admin/monitoring/pipeline-health',       { headers }).then(r => r.json()),
+      ])
 
     if (env.status        === 'fulfilled') setEnvData(env.value as Record<string, unknown>)
     if (db.status         === 'fulfilled') setDbData(db.value as Record<string, unknown>)
@@ -255,6 +263,9 @@ export default function Infrastructure() {
     if (health.status     === 'fulfilled') setHealthData(health.value as Record<string, unknown>)
     if (perf.status       === 'fulfilled') setPerfData(perf.value as Record<string, unknown>)
     if (cacheStats.status === 'fulfilled') setCacheStatsData(cacheStats.value as Record<string, unknown>)
+    if (goLive.status     === 'fulfilled') setGoLiveData(goLive.value as Record<string, unknown>)
+    if (slowReqs.status   === 'fulfilled') setSlowReqData(slowReqs.value as Record<string, unknown>)
+    if (pipeline.status   === 'fulfilled') setPipelineData(pipeline.value as Record<string, unknown>)
 
     // Incidents (from Supabase directly)
     try {
@@ -1187,6 +1198,378 @@ export default function Infrastructure() {
                 </>
               )}
             </SectionCard>
+          </div>
+        )
+      })()}
+
+      {/* ── GO LIVE MONITOR tab ──────────────────────────────────── */}
+      {activeTab === 'golive' && (() => {
+        type GoLiveStatus = { status: string; reasons: string[] }
+        type ApiHealth    = { total_24h: number; approve: number; review: number; block: number; today_redis: { avg_latency_ms: number | null; total: number } | null }
+        type LatencyData  = { avg_ms_today: number | null; trend_7d: { date: string; avg_ms: number | null; requests: number }[]; note: string }
+        type GnxHealth    = { total_24h: number; v2_count: number; v2_rate_pct: number | null; null_count: number; null_rate_pct: number; distribution: { low: number; review: number; high: number } }
+        type RedisHealth  = { connected: boolean; fraud_counters_enabled: boolean; context_path: string }
+        type PipeTable    = { count: number | null; status: string }
+        type PipeTables   = { risk_events: PipeTable; fraud_labels: PipeTable; fraud_features: PipeTable; training_dataset: PipeTable; ml_predictions: PipeTable }
+        type SlowReq      = { id: string; created_at: string; total_ms: number | null; cold_start: boolean | null; context_path: string | null; key_ms: number | null; org_ms: number | null; context_ms: number | null; engine_ms: number | null; gnx_ms: number | null; persist_ms: number | null; cache: Record<string, string> }
+
+        const glStatus    = (goLiveData?.go_live_status  as GoLiveStatus | undefined) ?? null
+        const apiHealth   = (goLiveData?.api_health       as ApiHealth    | undefined) ?? null
+        const latency     = (goLiveData?.latency          as LatencyData  | undefined) ?? null
+        const gnxHealth   = (goLiveData?.gnx_health       as GnxHealth   | undefined) ?? null
+        const redisHealth = (goLiveData?.redis_health     as RedisHealth | undefined) ?? null
+        const sentryOn    = (goLiveData?.sentry_enabled   as boolean     | undefined) ?? null
+        const slowCnt24h  = (goLiveData?.slow_count_24h   as number      | undefined) ?? null
+        const slowList    = ((slowReqData?.slow_requests  as SlowReq[]   | undefined) ?? [])
+        const pipeTables  = ((pipelineData?.tables        as PipeTables  | undefined) ?? null)
+
+        const statusBig = glStatus?.status ?? 'loading'
+        const statusBigColor = statusBig === 'healthy' ? '#16C784' : statusBig === 'warning' ? '#F59E0B' : statusBig === 'critical' ? '#EF4444' : '#94A3B8'
+        const statusBigLabel = statusBig === 'healthy' ? 'HEALTHY' : statusBig === 'warning' ? 'WARNING' : statusBig === 'critical' ? 'CRITICAL' : 'LOADING'
+        const statusBigIcon  = statusBig === 'healthy' ? CheckCircle : statusBig === 'loading' ? RefreshCw : AlertTriangle
+
+        const msColor = (ms: number | null, warn: number, crit: number) =>
+          ms === null ? T.textDim : ms >= crit ? '#EF4444' : ms >= warn ? '#F59E0B' : '#16C784'
+
+
+        return (
+          <div>
+
+            {/* ── Big status badge ─────────────────────────────────── */}
+            <div
+              className="rounded-xl p-5 mb-5 flex items-center justify-between"
+              style={{ background: `${statusBigColor}10`, border: `1.5px solid ${statusBigColor}40` }}
+            >
+              <div className="flex items-center gap-3">
+                {React.createElement(statusBigIcon, { size: 22, color: statusBigColor })}
+                <div>
+                  <div className="text-sm font-bold mono" style={{ color: statusBigColor }}>
+                    GO LIVE STATUS: {statusBigLabel}
+                  </div>
+                  <div className="text-xs mt-0.5" style={{ color: T.textSec }}>
+                    {glStatus?.reasons?.[0] ?? (goLiveData === null ? 'Loading…' : '—')}
+                  </div>
+                </div>
+              </div>
+              <div className="text-right">
+                {glStatus?.reasons && glStatus.reasons.length > 1 && (
+                  <div className="space-y-0.5">
+                    {glStatus.reasons.slice(1).map((r, i) => (
+                      <div key={i} className="text-[10px] mono" style={{ color: T.textSec }}>• {r}</div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* ── Row 1: API Health + Latency ──────────────────────── */}
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <SectionCard title="API HEALTH — LAST 24H">
+                {apiHealth === null ? (
+                  <p className="text-xs py-2" style={{ color: T.textDim }}>Loading…</p>
+                ) : (
+                  <>
+                    <Row label="Total requests" value={apiHealth.total_24h.toLocaleString()} />
+                    <Row label="Approve" value={apiHealth.approve.toLocaleString()} accent="#16C784" />
+                    <Row label="Review"  value={apiHealth.review.toLocaleString()}  accent="#F59E0B" />
+                    <Row label="Block"   value={apiHealth.block.toLocaleString()}   accent="#EF4444" />
+                    {apiHealth.today_redis && (
+                      <>
+                        <Row label="Today (Redis total)" value={(apiHealth.today_redis.total ?? 0).toLocaleString()} />
+                        <Row
+                          label="Avg latency (Redis)"
+                          value={apiHealth.today_redis.avg_latency_ms !== null ? `${Math.round(apiHealth.today_redis.avg_latency_ms)}ms` : '—'}
+                          accent={msColor(apiHealth.today_redis.avg_latency_ms, 800, 1500)}
+                        />
+                      </>
+                    )}
+                  </>
+                )}
+              </SectionCard>
+
+              <SectionCard title="LATENCY">
+                {latency === null ? (
+                  <p className="text-xs py-2" style={{ color: T.textDim }}>Loading…</p>
+                ) : (
+                  <>
+                    <Row
+                      label="Avg today"
+                      value={latency.avg_ms_today !== null ? `${Math.round(latency.avg_ms_today)}ms` : '—'}
+                      accent={msColor(latency.avg_ms_today, 800, 1500)}
+                    />
+                    <Row label="p50 / p95 / p99 / max" value="— (load test only)" />
+                    <Row
+                      label="Slow requests (>1000ms) 24h"
+                      value={slowCnt24h !== null ? slowCnt24h.toLocaleString() : '—'}
+                      accent={slowCnt24h !== null && slowCnt24h > 10 ? '#F59E0B' : T.text}
+                    />
+                    {latency.trend_7d.length > 0 && (
+                      <div className="mt-3">
+                        <p className="text-[10px] mono mb-2" style={{ color: T.textDim }}>7-DAY AVG LATENCY TREND</p>
+                        <div className="space-y-1">
+                          {latency.trend_7d.slice(0, 5).map(d => (
+                            <div key={d.date} className="flex items-center justify-between">
+                              <span className="text-[10px] mono" style={{ color: T.textDim }}>{d.date}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] mono" style={{ color: T.textDim }}>{d.requests.toLocaleString()} req</span>
+                                <span
+                                  className="text-[10px] font-semibold mono"
+                                  style={{ color: msColor(d.avg_ms, 800, 1500) }}
+                                >
+                                  {d.avg_ms !== null ? `${Math.round(d.avg_ms)}ms` : '—'}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <p className="text-[9px] mt-2" style={{ color: T.textDim }}>{latency.note}</p>
+                  </>
+                )}
+              </SectionCard>
+            </div>
+
+            {/* ── Slow Requests table ───────────────────────────────── */}
+            <SectionCard title={`SLOW REQUESTS — LAST 20 (>${'>'}1000ms)`}>
+              {slowList.length === 0 ? (
+                <p className="text-xs py-2" style={{ color: T.textDim }}>
+                  {slowReqData === null ? 'Loading…' : 'No slow requests recorded yet. All requests under 1000ms.'}
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-[10px] mono">
+                    <thead>
+                      <tr style={{ color: T.textDim }}>
+                        <th className="text-left pb-2 pr-3">Time</th>
+                        <th className="text-right pb-2 pr-3">total_ms</th>
+                        <th className="text-right pb-2 pr-3">key</th>
+                        <th className="text-right pb-2 pr-3">org</th>
+                        <th className="text-right pb-2 pr-3">ctx</th>
+                        <th className="text-right pb-2 pr-3">engine</th>
+                        <th className="text-right pb-2 pr-3">gnx</th>
+                        <th className="text-right pb-2 pr-3">persist</th>
+                        <th className="text-left  pb-2 pr-3">ctx_path</th>
+                        <th className="text-left  pb-2">cold</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {slowList.map(r => (
+                        <tr key={r.id} style={{ borderTop: `1px solid ${T.border}` }}>
+                          <td className="py-1.5 pr-3" style={{ color: T.textSec }}>
+                            {new Date(r.created_at).toLocaleTimeString()}
+                          </td>
+                          <td className="text-right pr-3 font-semibold" style={{ color: msColor(r.total_ms, 1000, 1500) }}>
+                            {r.total_ms ?? '—'}
+                          </td>
+                          <td className="text-right pr-3" style={{ color: msColor(r.key_ms, 200, 400) }}>{r.key_ms ?? '—'}</td>
+                          <td className="text-right pr-3" style={{ color: msColor(r.org_ms, 200, 400) }}>{r.org_ms ?? '—'}</td>
+                          <td className="text-right pr-3" style={{ color: msColor(r.context_ms, 400, 700) }}>{r.context_ms ?? '—'}</td>
+                          <td className="text-right pr-3" style={{ color: T.text }}>{r.engine_ms ?? '—'}</td>
+                          <td className="text-right pr-3" style={{ color: T.text }}>{r.gnx_ms ?? '—'}</td>
+                          <td className="text-right pr-3" style={{ color: msColor(r.persist_ms, 400, 800) }}>{r.persist_ms ?? '—'}</td>
+                          <td className="pr-3" style={{ color: r.context_path === 'redis' ? '#16C784' : '#F59E0B' }}>
+                            {r.context_path ?? '—'}
+                          </td>
+                          <td style={{ color: r.cold_start ? '#EF4444' : T.textDim }}>
+                            {r.cold_start === null ? '—' : r.cold_start ? 'yes' : 'no'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </SectionCard>
+
+            {/* ── Row 2: Redis + Sentry ─────────────────────────────── */}
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <SectionCard title="REDIS HEALTH">
+                {redisHealth === null ? (
+                  <p className="text-xs py-2" style={{ color: T.textDim }}>Loading…</p>
+                ) : (
+                  <>
+                    <Row
+                      label="Connection"
+                      value={redisHealth.connected ? 'Connected' : 'Disconnected'}
+                      accent={redisHealth.connected ? '#16C784' : '#EF4444'}
+                    />
+                    <Row
+                      label="REDIS_COUNTERS_ENABLED"
+                      value={redisHealth.fraud_counters_enabled ? 'active' : 'not set'}
+                      accent={redisHealth.fraud_counters_enabled ? '#16C784' : '#F59E0B'}
+                    />
+                    <Row
+                      label="Context path"
+                      value={redisHealth.context_path}
+                      accent={redisHealth.context_path === 'redis' ? '#16C784' : '#F59E0B'}
+                    />
+                    {!redisHealth.fraud_counters_enabled && (
+                      <div
+                        className="mt-3 rounded-lg px-3 py-2 text-[10px]"
+                        style={{ background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.2)', color: '#B45309' }}
+                      >
+                        Set REDIS_COUNTERS_ENABLED=true in Vercel after 24-48h warm-up to activate Redis-first context (~10ms vs ~500ms RPC)
+                      </div>
+                    )}
+                  </>
+                )}
+              </SectionCard>
+
+              <SectionCard title="SENTRY HEALTH">
+                {goLiveData === null ? (
+                  <p className="text-xs py-2" style={{ color: T.textDim }}>Loading…</p>
+                ) : (
+                  <>
+                    <Row
+                      label="SENTRY_DSN"
+                      value={sentryOn === null ? '—' : sentryOn ? 'Configured' : 'Not set'}
+                      accent={sentryOn ? '#16C784' : sentryOn === false ? '#F59E0B' : T.textDim}
+                    />
+                    <Row
+                      label="Slow request events (24h)"
+                      value={slowCnt24h !== null ? slowCnt24h.toLocaleString() : '—'}
+                      accent={slowCnt24h !== null && slowCnt24h > 10 ? '#F59E0B' : T.text}
+                    />
+                    <Row label="Exceptions / warnings" value="See Sentry dashboard" />
+                    <div className="mt-3">
+                      <a
+                        href="https://sentry.io"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[10px] mono underline"
+                        style={{ color: '#16C784' }}
+                      >
+                        → Open Sentry dashboard
+                      </a>
+                    </div>
+                    {!sentryOn && (
+                      <div
+                        className="mt-2 rounded-lg px-3 py-2 text-[10px]"
+                        style={{ background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.2)', color: '#B45309' }}
+                      >
+                        Add SENTRY_DSN to Vercel env to enable exception forwarding
+                      </div>
+                    )}
+                  </>
+                )}
+              </SectionCard>
+            </div>
+
+            {/* ── Data Pipeline ─────────────────────────────────────── */}
+            <SectionCard title="DATA PIPELINE — LAST 24H">
+              {pipelineData === null ? (
+                <p className="text-xs py-2" style={{ color: T.textDim }}>Loading…</p>
+              ) : (
+                <div className="grid grid-cols-5 gap-3">
+                  {([
+                    { key: 'risk_events',      label: 'Risk Events',      migration: 'core'   },
+                    { key: 'fraud_labels',      label: 'Fraud Labels',     migration: 'v19'    },
+                    { key: 'fraud_features',    label: 'Fraud Features',   migration: 'v19+20' },
+                    { key: 'training_dataset',  label: 'Training Dataset', migration: 'v21'    },
+                    { key: 'ml_predictions',    label: 'ML Predictions',   migration: 'v22'    },
+                  ] as const).map(({ key, label, migration }) => {
+                    const t = pipeTables?.[key as keyof PipeTables]
+                    const isOk = t?.status === 'ok'
+                    const isPending = t?.status === 'migration_pending'
+                    return (
+                      <div
+                        key={key}
+                        className="rounded-lg p-3 text-center"
+                        style={{ background: T.deep, border: `1px solid ${T.border}` }}
+                      >
+                        <div className="text-[10px] mb-1" style={{ color: T.textDim }}>{label}</div>
+                        <div
+                          className="text-lg font-bold mono"
+                          style={{ color: isPending ? '#F59E0B' : isOk ? T.text : '#EF4444' }}
+                        >
+                          {t === undefined ? '—' : isPending ? '—' : (t.count ?? 0).toLocaleString()}
+                        </div>
+                        <div className="text-[9px] mt-1 mono" style={{ color: T.textDim }}>
+                          {isPending ? `needs ${migration}` : migration}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </SectionCard>
+
+            {/* ── GNX Health ────────────────────────────────────────── */}
+            <SectionCard title="GNX FRAUD SCORE™ HEALTH — LAST 24H">
+              {gnxHealth === null ? (
+                <p className="text-xs py-2" style={{ color: T.textDim }}>Loading…</p>
+              ) : (
+                <>
+                  <div className="grid grid-cols-3 gap-3 mb-4">
+                    <div
+                      className="rounded-lg p-3 text-center"
+                      style={{ background: T.deep, border: `1px solid ${T.border}` }}
+                    >
+                      <div className="text-[10px] mb-1" style={{ color: T.textDim }}>GNX v2 Coverage</div>
+                      <div
+                        className="text-lg font-bold mono"
+                        style={{ color: (gnxHealth.v2_rate_pct ?? 0) >= 99 ? '#16C784' : '#F59E0B' }}
+                      >
+                        {gnxHealth.v2_rate_pct !== null ? `${gnxHealth.v2_rate_pct}%` : '—'}
+                      </div>
+                      <div className="text-[9px] mt-1 mono" style={{ color: T.textDim }}>{gnxHealth.v2_count.toLocaleString()} events</div>
+                    </div>
+                    <div
+                      className="rounded-lg p-3 text-center"
+                      style={{ background: T.deep, border: `1px solid ${T.border}` }}
+                    >
+                      <div className="text-[10px] mb-1" style={{ color: T.textDim }}>NULL Rate</div>
+                      <div
+                        className="text-lg font-bold mono"
+                        style={{ color: gnxHealth.null_rate_pct > 5 ? '#EF4444' : gnxHealth.null_rate_pct > 0 ? '#F59E0B' : '#16C784' }}
+                      >
+                        {gnxHealth.null_rate_pct}%
+                      </div>
+                      <div className="text-[9px] mt-1 mono" style={{ color: T.textDim }}>{gnxHealth.null_count} nulls</div>
+                    </div>
+                    <div
+                      className="rounded-lg p-3 text-center"
+                      style={{ background: T.deep, border: `1px solid ${T.border}` }}
+                    >
+                      <div className="text-[10px] mb-1" style={{ color: T.textDim }}>Total Events</div>
+                      <div className="text-lg font-bold mono" style={{ color: T.text }}>
+                        {gnxHealth.total_24h.toLocaleString()}
+                      </div>
+                      <div className="text-[9px] mt-1 mono" style={{ color: T.textDim }}>last 24h</div>
+                    </div>
+                  </div>
+
+                  <p className="text-[10px] mono mb-2" style={{ color: T.textDim }}>SCORE DISTRIBUTION</p>
+                  {gnxHealth.total_24h > 0 ? (
+                    <div className="space-y-2">
+                      {([
+                        { label: 'Low Risk   (0–300)',   count: gnxHealth.distribution.low,    color: '#16C784' },
+                        { label: 'Review     (301–700)', count: gnxHealth.distribution.review, color: '#F59E0B' },
+                        { label: 'High Risk  (701–1000)',count: gnxHealth.distribution.high,   color: '#EF4444' },
+                      ]).map(({ label, count, color }) => {
+                        const scored = gnxHealth.distribution.low + gnxHealth.distribution.review + gnxHealth.distribution.high
+                        const pct = scored > 0 ? Math.round((count / scored) * 100) : 0
+                        return (
+                          <div key={label}>
+                            <div className="flex justify-between text-[10px] mb-0.5">
+                              <span className="mono" style={{ color: T.textSec }}>{label}</span>
+                              <span className="mono font-semibold" style={{ color }}>{count.toLocaleString()} ({pct}%)</span>
+                            </div>
+                            <div className="w-full rounded-full h-1.5" style={{ background: T.border }}>
+                              <div className="h-1.5 rounded-full" style={{ width: `${pct}%`, background: color }} />
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-xs" style={{ color: T.textDim }}>No events in last 24h.</p>
+                  )}
+                </>
+              )}
+            </SectionCard>
+
           </div>
         )
       })()}

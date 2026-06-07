@@ -1091,6 +1091,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // Slow-request warning — emitted for any request > 1000ms so Sentry/logs
   // surface it separately from the high-volume info stream.
+  // Also persisted to audit_logs so /api/admin/monitoring/slow-requests can query them.
   if (timings.total_ms > 1000) {
     captureMessage('risk.check.slow', 'warning', {
       request_id:   requestId,
@@ -1100,6 +1101,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       context_path: contextPath,
       timings_ms:   timings,
       cache,
+    })
+    // Fire-and-forget — never blocks response, never throws
+    void supabase.from('audit_logs').insert({
+      organization_id: orgId,
+      event_type:      'risk.check.slow',
+      metadata: {
+        request_id:   requestId,
+        total_ms:     timings.total_ms,
+        cold_start:   coldStart,
+        context_path: contextPath,
+        timings_ms:   timings,
+        persist_ms:   persistMs,
+        cache,
+      },
     })
   }
 
