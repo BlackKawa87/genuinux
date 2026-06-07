@@ -811,7 +811,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const supabase = adminClient()
+  const coldStart = _supabase === null   // true on first invocation of this Vercel instance
+  const supabase  = adminClient()
 
   // ── 1. Autenticação ─────────────────────────────────────────
   // Resilient header extraction — compatible with Node runtime, Edge runtime,
@@ -1017,6 +1018,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Pure function ~0.01ms — adds no meaningful latency.
   const gnxResult = computeGnxScore(result, context)
   const gnxScore  = gnxResult.score
+  step('gnx_ms')
 
   // ── 9. Respond first — client gets the decision immediately ──────────
   // DB writes (upsert, insert, review queue, webhooks) happen after the
@@ -1068,22 +1070,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.status(200).json(response)  // ← client receives response HERE
 
   // Structured request log — emitted after response, never blocks client
+  const contextPath = process.env.REDIS_COUNTERS_ENABLED === 'true' ? 'redis' : 'rpc'
   captureMessage('risk.check.completed', 'info', {
-    request_id:  requestId,
-    org_id:      orgId,
-    plan:        currentPlan,
-    shadow_mode: isShadowMode,
-    decision:    effectiveResult.decision,
-    risk_level:  effectiveResult.risk_level,
-    fraud_score: effectiveResult.fraud_score,
-    trust_score: effectiveResult.trust_score,
-    signals:     effectiveResult.signals.length,
-    rule_hit:    !!ruleMatch.applied_rule_id,
-    timings_ms:  timings,
+    request_id:   requestId,
+    org_id:       orgId,
+    plan:         currentPlan,
+    shadow_mode:  isShadowMode,
+    decision:     effectiveResult.decision,
+    risk_level:   effectiveResult.risk_level,
+    fraud_score:  effectiveResult.fraud_score,
+    trust_score:  effectiveResult.trust_score,
+    gnx_score:    gnxScore,
+    signals:      effectiveResult.signals.length,
+    rule_hit:     !!ruleMatch.applied_rule_id,
+    cold_start:   coldStart,
+    context_path: contextPath,
+    timings_ms:   timings,
     cache,
   })
 
+  // Slow-request warning — emitted for any request > 1000ms so Sentry/logs
+  // surface it separately from the high-volume info stream.
+  if (timings.total_ms > 1000) {
+    captureMessage('risk.check.slow', 'warning', {
+      request_id:   requestId,
+      org_id:       orgId,
+      total_ms:     timings.total_ms,
+      cold_start:   coldStart,
+      context_path: contextPath,
+      timings_ms:   timings,
+      cache,
+    })
+  }
+
   // ── 5 & 6. Persistência (after response — invisible to client latency) ─
+  const _persistStart = Date.now()
   const [, insertedId] = await Promise.all([
     upsertUserChecked(supabase, orgId, payload),
     insertRiskEvent(
@@ -1094,8 +1115,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     ),
   ])
 
+  const persistMs = Date.now() - _persistStart
+
   if (!insertedId) {
-    captureException(new Error('risk_event insert failed'), { orgId, eventId })
+    captureException(new Error('risk_event insert failed'), { orgId, eventId, persist_ms: persistMs })
   } else {
     void incrementMonthlyUsage(orgId)
     void incrementOrgStats(orgId, effectiveResult.decision, timings['total_ms'] ?? 0)
@@ -1135,6 +1158,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ai_reset_at:      orgAi?.ai_reset_at      ?? new Date().toISOString(),
       })
     }
+  }
+
+  // Post-response persist diagnostic — logs write latency separately from client latency.
+  // Slow persist (> 800ms) indicates Supabase write contention or partitioned table pressure.
+  if (persistMs > 800) {
+    captureMessage('risk.check.slow_persist', 'warning', {
+      request_id: requestId,
+      org_id:     orgId,
+      persist_ms: persistMs,
+      inserted:   !!insertedId,
+    })
   }
 
   // ── 7. Review queue (after response, skipped in shadow mode) ──────────
