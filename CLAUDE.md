@@ -412,7 +412,7 @@ Data fetched in parallel `Promise.all`: risk_events (5k limit, fields: `fraud_sc
 
 ### GitHub & Deployment
 - **GitHub**: `https://github.com/BlackKawa87/genuinux`
-- **Vercel**: `https://genuinux.vercel.app` (auto-deploys on push to `main`)
+- **Vercel**: `https://genuinux.com` (auto-deploys on push to `main`)
 - **Auto-sync hook**: `.claude/settings.json` Stop hook runs `.claude/sync.sh` after every Claude session — commits staged changes, pushes to GitHub, deploys to Vercel production. `VERCEL_TOKEN` is stored in the gitignored `.claude/settings.local.json`.
 
 ### Public Pages
