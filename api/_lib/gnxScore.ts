@@ -65,38 +65,43 @@ export interface GnxResult {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const GNX_WEIGHTS = {
-  // ── Velocity (28%) ────────────────────────────────────────────────────────
-  user_velocity:     { weight: 0.10, scale: 10  },   // events in last 10min; 10 = saturation
-  ip_velocity:       { weight: 0.10, scale: 30  },   // distinct users same IP/24h; 30 = saturation
-  device_velocity:   { weight: 0.08, scale: 10  },   // distinct users same device; 10 = saturation
+  // ── Base Risk Score (30%) — risk engine aggregate, anchors the score ──────
+  // Without this, events with zero historical context (new IPs, new devices)
+  // score 0 even when fraud_score = 80+. fraud_score is the most reliable
+  // single predictor — it encodes all detected signals.
+  fraud_score_base:  { weight: 0.30, scale: 100 },  // fraud_score/100 × 300 = 0–300 pts
 
-  // ── Reputation (28%) ──────────────────────────────────────────────────────
-  email_reputation:  { weight: 0.12, scale: 10, inverted: true }, // accounts per email − 1; 10 = saturation (higher count = worse)
-  ip_reputation:     { weight: 0.08, scale: 20, inverted: true }, // signups per IP/1h; 20 = saturation (more signups = worse IP rep)
-  device_reputation: { weight: 0.08, binary: true               }, // 1 = device has prior block decision
+  // ── Velocity (19%) ────────────────────────────────────────────────────────
+  user_velocity:     { weight: 0.07, scale: 10  },   // events in last 10min; 10 = saturation
+  ip_velocity:       { weight: 0.07, scale: 30  },   // distinct users same IP/24h; 30 = saturation
+  device_velocity:   { weight: 0.05, scale: 10  },   // distinct users same device; 10 = saturation
 
-  // ── Behavior (17%) ────────────────────────────────────────────────────────
-  signup_rate:       { weight: 0.08, scale: 20  },   // signups from same IP in 1h; 20 = saturation
-  repeated_device:   { weight: 0.05, scale: 10  },   // distinct users sharing this device; 10 = saturation
-  repeated_email:    { weight: 0.04, scale: 10  },   // accounts sharing this email; 10 = saturation
+  // ── Reputation (21%) ──────────────────────────────────────────────────────
+  email_reputation:  { weight: 0.09, scale: 10, inverted: true }, // accounts per email − 1; 10 = saturation
+  ip_reputation:     { weight: 0.06, scale: 20, inverted: true }, // signups per IP/1h; 20 = saturation
+  device_reputation: { weight: 0.06, binary: true               }, // 1 = device has prior block decision
 
-  // ── Risk Signals (27%) — mapped to risk engine severity clusters ──────────
+  // ── Behavior (13%) ────────────────────────────────────────────────────────
+  signup_rate:       { weight: 0.06, scale: 20  },   // signups from same IP in 1h; 20 = saturation
+  repeated_device:   { weight: 0.04, scale: 10  },   // distinct users sharing this device; 10 = saturation
+  repeated_email:    { weight: 0.03, scale: 10  },   // accounts sharing this email; 10 = saturation
+
+  // ── Risk Signals (17%) — risk engine severity clusters ───────────────────
   // critical → tor / datacenter / botnet indicators (highest severity)
   // high     → vpn / proxy / scraper indicators
   // medium   → soft risk signals (disposable email, IP reuse, etc.)
-  critical_signal:   { weight: 0.10, scale: 2   },   // 2+ critical signals = saturation
-  high_signal:       { weight: 0.09, scale: 3   },   // 3+ high signals = saturation
-  medium_signal:     { weight: 0.08, scale: 5   },   // 5+ medium signals = saturation
+  critical_signal:   { weight: 0.07, scale: 2   },   // 2+ critical signals = saturation
+  high_signal:       { weight: 0.06, scale: 3   },   // 3+ high signals = saturation
+  medium_signal:     { weight: 0.04, scale: 5   },   // 5+ medium signals = saturation
 
   // ── Trust Dampener (post-sum, no positive weight) ─────────────────────────
   // reduction = round(trust_score / 100 × trust_factor × 100)
-  // At trust_score=100: reduction = 150 points (15% of max)
-  trust_factor:      1.5,
+  // At trust_score=100: reduction = 120 points (12% of max)
+  trust_factor:      1.2,
 } as const
 
 // Compile-time assertion: positive weights must sum to 1.00
-// (TypeScript cannot enforce arithmetic, so we document the invariant here.)
-// 0.10+0.10+0.08+0.12+0.08+0.08+0.08+0.05+0.04+0.10+0.09+0.08 = 1.00 ✓
+// 0.30+0.07+0.07+0.05+0.09+0.06+0.06+0.06+0.04+0.03+0.07+0.06+0.04 = 1.00 ✓
 
 // ─── Internal Helpers ────────────────────────────────────────────────────────
 
@@ -141,6 +146,11 @@ export function computeGnxScore(
     const impact = Math.round(cfg.weight * norm * 1000)
     factors.push({ feature, group, weight: cfg.weight, raw: norm, impact })
   }
+
+  // ── Base Risk Score ───────────────────────────────────────────────────────
+  // Anchors the score to the risk engine's primary output.
+  // Ensures events with fraud_score > 0 never return GNX = 0 due to missing context.
+  addFactor('fraud_score_base', 'risk_signals', w.fraud_score_base, result.fraud_score)
 
   // ── Velocity ──────────────────────────────────────────────────────────────
   addFactor('user_velocity',   'velocity', w.user_velocity,   context.user_events_last_10min     ?? 0)
