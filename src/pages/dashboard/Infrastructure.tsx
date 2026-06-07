@@ -357,7 +357,7 @@ export default function Infrastructure() {
 
       {/* Tab Bar */}
       <div
-        className="flex gap-0.5 mb-6 overflow-x-auto"
+        className="flex flex-wrap gap-0.5 mb-6"
         style={{ borderBottom: `1px solid ${T.border}` }}
       >
         {TABS.map(tab => {
