@@ -37,16 +37,16 @@
 
 **Source material:** audit of Volumes 1–4 of the Genuinux Master Product Specification, including the direct source-code audit performed for Volume 4 (Risk Cloud) and the operational fix applied to `.claude/settings.json`/`sync.sh` during this session.
 
-**Total items registered:** 59 (TD-0001–TD-0059)
+**Total items registered:** 67 (TD-0001–TD-0067)
 
 | Severity | Count | % of total |
 |---|---|---|
-| Critical | 4 | 7% |
-| High | 16 | 27% |
-| Medium | 23 | 39% |
-| Low | 16 | 27% |
+| Critical | 4 | 6% |
+| High | 18 | 27% |
+| Medium | 28 | 42% |
+| Low | 17 | 25% |
 
-**Trend:** Stable/growing as expected — the register grew from 55 to 59 items with the Volume 5 (Compliance Cloud) pass, all 4 new items being genuinely new findings (not re-discoveries of prior debt). No items have moved to `Resolved` yet, since no remediation work has been executed between volumes. Trend tracking continues with each subsequent Changelog entry (Section 12).
+**Trend:** Stable/growing as expected — the register grew from 55 (post-Volume 4) to 59 (post-Volume 5) to 67 (post pre-Volume-6 consolidation review). The consolidation pass surfaced 8 new items, two of them High-priority and directly load-bearing for Volume 6: TD-0061 (undefined Trust Cloud module naming boundaries) and TD-0064 (an unresolved contradiction between Volume 2 and Volume 4 on whether Risk Cloud consumes Trust Cloud events). No items have moved to `Resolved` yet, since no remediation work has been executed between volumes. Trend tracking continues with each subsequent Changelog entry (Section 12).
 
 **Important distinction (Rule 7):** of the 55 items, roughly a third (`TD-0009` through `TD-0011`, `TD-0021`–`TD-0024`, `TD-0034`–`TD-0044`, and others marked "gated"/"by design" below) are **planned evolution**, not technical debt in the strict sense — they are capabilities the MPS volumes deliberately deferred with an explicit trigger condition (e.g. ADR-004/ADR-006 of Volume 2's anti-speculation principle). They are included here because they are real gaps a reader of the codebase would otherwise have to rediscover, but they should not be read with the same urgency as a genuine defect like `TD-0001`.
 
@@ -125,7 +125,16 @@
 | TD-0058 | No regulatory data vendor selected (sanctions/PEP/adverse media/business registry) | Compliance Cloud | 5 | Vol. 5 Sec. 8.22 | Blocks all of Compliance Cloud Phase 1 | Blocks first regulated customer | High | P1 | Medium | Weeks (vendor evaluation) | Business decision | Commercial evaluation of regulatory data providers, mirroring TD-0009's IP Intelligence vendor process | Open |
 | TD-0059 | Anti-tipping-off access control (SAR/investigation confidentiality) not designed | Compliance Cloud / Security | 5 | Vol. 5 Sec. 16 | No RLS/RBAC model yet prevents a case subject or unauthorized org member from learning of an investigation | Direct legal risk — tipping off is itself a criminal offense in many AML regimes | High | P1 | High | Design + Volume 9 RBAC | Volume 9 formal RBAC | Design case-assignment-scoped access control before any real case exists | Open |
 
-**Note:** "Compliance Cloud entirely unbuilt" is tracked once as **TD-0042** (registered during the Volume 4 pass); Volume 5 provides its full 25-module architectural detail without duplicating that ID.
+| TD-0060 | Retention policy centralization (Compliance) not reconciled with hardcoded 365-day default already in production | Compliance Cloud / Risk Cloud | 2, 5 | `purge_old_risk_events(retention_days INTEGER DEFAULT 365)` (v17) vs. Vol. 5 Sec. 8.25 | Compliance's target retention policy has no mechanism yet to parameterize Risk Cloud's existing hardcoded purge default | Not a contradiction (target vs. production reality), but an unreconciled future integration point | Medium | P2 | Medium | Days, once Compliance Phase 2 begins | Compliance Cloud Phase 2 | Parameterize `purge_old_risk_events()` from Compliance-defined policy instead of a hardcoded constant | Open |
+| TD-0061 | Trust Cloud module naming overlaps with existing Risk/Identity/Compliance modules, no boundary defined | Trust Cloud / Risk Cloud | 1, 4, 5 | Vol. 1 Sec. 12 ("Reputation Engine," "Trusted Devices/Businesses/Merchants/Users") vs. Vol. 4 7.16/7.20/7.6, Vol. 5 8.2 | No volume states how Trust Cloud's "Reputation Engine" differs from Risk Cloud's "Entity Reputation," or "Trusted Merchants" from "Merchant Risk," etc. | Volume 6 risks duplicating logic/data three other domains already own | High | **P0** | Medium | Design work, blocks Volume 6 scoping | None — must be resolved as Volume 6's opening decision | Volume 6 opens with an explicit boundary section for each of the four name-pairs, following the ADR-013 (Vol. 4) precedent | Open |
+| TD-0062 | Event naming drift: Volume 2's anticipated canonical event names don't match what Volumes 4/5 actually shipped | Platform Architecture | 2, 4, 5 | `risk.event.evaluated` (Vol.2) vs. `risk.decision.created`+`risk.score.calculated` (Vol.4); `compliance.case.opened/resolved` (Vol.2) vs. `compliance.case.created`/`case.closed` (Vol.5) | A reader trusting Vol. 2 alone would build against non-existent event names | Medium — no functional conflict, later volumes are correct and authoritative | Medium | P2 | Low | Hours (doc note) | None | Mark Vol. 2 Sec. 8.2's table as superseded/illustrative in a future maintenance pass | Open |
+| TD-0063 | 6 of Compliance Cloud's 13 events lack the `compliance.` namespace prefix used by the other 7 | Compliance Cloud | 5 | Vol. 5 Sec. 15 — `case.assigned`, `case.closed`, `policy.updated`, `report.generated`, `monitoring.triggered`, `evidence.attached` | Inconsistent with Identity's and Risk Cloud's fully-prefixed event convention; complicates domain-based event routing | Medium | P2 | Low | Hours (doc note, real rename when Event Bus is built) | Vol. 2 Fase 2 Event Bus | Harmonize to `compliance.case.assigned`, `compliance.policy.updated`, etc. when the Event Bus is formalized | Open |
+| TD-0064 | Direct contradiction: Vol. 2 anticipates Risk Domain consuming `trust.score.recalculated` from Trust Domain; Vol. 4 explicitly states Risk Cloud never consumes from Trust Cloud ("evita ciclo") | Risk Cloud / Trust Cloud / Platform Architecture | 2, 4 | Vol. 2 Sec. 8.2 event table vs. Vol. 4 Sec. 4 Bounded Context statement | Two documents describe incompatible architectures for the same data flow | Volume 6 cannot be scoped correctly until resolved — risk of building Trust Cloud on the wrong assumption | High | **P0** | Medium | Design decision, blocks Volume 6 | None — must be resolved as Volume 6's opening decision | Volume 6 must explicitly decide: reaffirm the no-cycle rule (mark Vol. 2's entry superseded) or introduce an async/batch (not hot-path) channel for Trust→Risk influence | Open |
+| TD-0065 | `/v1/entities/{id}/*` API namespace ownership ambiguous across domains | Risk Cloud / Developer Platform | 4 | Vol. 4 Sec. 16 — `/v1/entities/{id}/risk`, `/v1/entities/{id}/reputation` | Volume 6 will plausibly want `/v1/entities/{id}/trust`; no decision on Gateway-facade vs. single-domain ownership | Medium — ambiguity surfaces the moment Volume 6 needs its own entity-scoped endpoint | Medium | P2 | Medium | Design work | Volume 7 | Volume 7 decides `/v1/entities/{id}/*` is a Gateway facade routing to whichever domain owns each sub-resource | Open |
+| TD-0066 | "Billing" drawn as its own bounded-context box in one diagram, while data ownership sits under Developer Platform Domain elsewhere | Platform Architecture | 2, 4 | Vol. 2 Sec. 6 vs. Vol. 4 Sec. 4 diagram | Not a data-ownership conflict, just an unclear label | Low | P3 | Low | Hours (doc note) | Volume 11 | Volume 11 states explicitly that Billing is a Developer Platform Domain capability, not a separate bounded context | Open |
+| TD-0067 | Identity Cloud's target API contracts are not version-prefixed, unlike Risk Cloud and Compliance Cloud | Identity Cloud / Developer Platform | 3, 4, 5 | Vol. 3 Sec. 21 (`/identity/verify`, unprefixed) vs. Vol. 4/5 (`/v1/risk/...`, `/v1/compliance/...`) | Inconsistent contract convention across the three domain APIs | Medium | P2 | Low | Hours (doc note, real work when Vol. 7 builds Gateway) | Volume 7 | Harmonize Identity Cloud's target contracts to `/v1/identity/...` when Volume 7 formalizes the Gateway | Open |
+
+**Note:** "Compliance Cloud entirely unbuilt" is tracked once as **TD-0042** (registered during the Volume 4 pass); Volume 5 provides its full 25-module architectural detail without duplicating that ID. TD-0060 through TD-0067 above were surfaced by the pre-Volume-6 consolidation review (`docs/mps/pre-volume-06-review.md`), not by a specific MPS volume's own elaboration.
 
 ---
 
@@ -279,17 +288,19 @@ Real operational risks, not feature gaps.
 | TD-0006 | Structural root cause of an entire class of bugs (including TD-0001) |
 | TD-0041 | Blocks a quarter of the Volume 1 product positioning |
 | TD-0056 | Same marketing-overclaim pattern as TD-0017, now confirmed for Compliance Cloud (AML/KYC) |
+| TD-0061 | Undefined Trust Cloud module naming boundaries — must be Volume 6's opening decision |
+| TD-0064 | Unresolved Risk↔Trust event-flow contradiction between Vol. 2 and Vol. 4 — must be Volume 6's opening decision |
 
 ### P1 — Plan for the next 1–2 quarters
 TD-0004, TD-0007, TD-0008, TD-0010, TD-0012, TD-0014, TD-0019, TD-0020, TD-0028, TD-0031, TD-0032, TD-0036, TD-0042, TD-0043, TD-0045, TD-0048, TD-0052, TD-0054, TD-0057, TD-0058, TD-0059.
 *Justification:* either they block a Volume 1 business goal (Enterprise ICP, regulated verticals), or they are prerequisites for a P0 item to be safely resolved (e.g. TD-0007 must precede activating TD-0008; TD-0057/TD-0059 must be resolved before Compliance Cloud can safely handle real regulated data).
 
 ### P2 — Plan opportunistically
-TD-0003, TD-0021, TD-0022, TD-0023, TD-0024, TD-0027, TD-0029, TD-0030, TD-0033, TD-0035, TD-0037, TD-0038, TD-0046, TD-0050, TD-0051, TD-0053, TD-0055.
+TD-0003, TD-0021, TD-0022, TD-0023, TD-0024, TD-0027, TD-0029, TD-0030, TD-0033, TD-0035, TD-0037, TD-0038, TD-0046, TD-0050, TD-0051, TD-0053, TD-0055, TD-0060, TD-0062, TD-0063, TD-0065, TD-0067.
 *Justification:* real gaps with moderate impact, no hard business deadline forcing them yet.
 
 ### P3 — Revisit when triggered
-TD-0005, TD-0011, TD-0013, TD-0015, TD-0016, TD-0025, TD-0026, TD-0034, TD-0039, TD-0040, TD-0044, TD-0047, TD-0049.
+TD-0005, TD-0011, TD-0013, TD-0015, TD-0016, TD-0025, TD-0026, TD-0034, TD-0039, TD-0040, TD-0044, TD-0047, TD-0049, TD-0066.
 *Justification:* either low impact, or deliberately gated on a future trigger condition per the anti-speculation principle established in Volume 2 (ADR-004) — building them now would be premature complexity, not diligence.
 
 ---
@@ -308,3 +319,10 @@ TD-0005, TD-0011, TD-0013, TD-0015, TD-0016, TD-0025, TD-0026, TD-0034, TD-0039,
 - **Items resolved:** none.
 - **Items removed:** none.
 - **Existing items referenced, not duplicated:** TD-0042 (Compliance Cloud unbuilt) — now cross-referenced with Volume 5's full 25-module detail.
+
+### 2026-07-28 — Pre-Volume-6 consolidation review
+- **Origin:** `docs/mps/pre-volume-06-review.md` — a full cross-volume consistency audit of Volumes 1–5 performed before starting Volume 6 (Trust Cloud), per explicit instruction not to begin Volume 6 until the existing architecture was verified consistent.
+- **Items added:** TD-0060 (retention policy not reconciled with production default), TD-0061 (Trust Cloud module naming boundaries undefined), TD-0062 (event naming drift, Vol. 2 vs. Vol. 4/5), TD-0063 (inconsistent event namespace prefixing in Compliance Cloud), TD-0064 (direct contradiction: Vol. 2 vs. Vol. 4 on Risk↔Trust event flow), TD-0065 (`/v1/entities/{id}/*` namespace ownership ambiguous), TD-0066 (Billing bounded-context labeling unclear), TD-0067 (Identity Cloud API contracts not version-prefixed). 8 total, bringing the register to 67.
+- **Items resolved:** none.
+- **Items removed:** none.
+- **Flagged as blocking:** TD-0061 and TD-0064 are marked **P0** and must be resolved as Volume 6's own opening architectural decisions before any Trust Cloud module is specified.
