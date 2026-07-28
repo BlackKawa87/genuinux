@@ -37,16 +37,16 @@
 
 **Source material:** audit of Volumes 1–4 of the Genuinux Master Product Specification, including the direct source-code audit performed for Volume 4 (Risk Cloud) and the operational fix applied to `.claude/settings.json`/`sync.sh` during this session.
 
-**Total items registered:** 55 (TD-0001–TD-0055)
+**Total items registered:** 59 (TD-0001–TD-0059)
 
 | Severity | Count | % of total |
 |---|---|---|
 | Critical | 4 | 7% |
-| High | 12 | 22% |
-| Medium | 23 | 42% |
-| Low | 16 | 29% |
+| High | 16 | 27% |
+| Medium | 23 | 39% |
+| Low | 16 | 27% |
 
-**Trend:** Not yet measurable — this is the **first** consolidated register. No prior baseline exists to compare against. Trend tracking begins with the next Changelog entry (Section 12).
+**Trend:** Stable/growing as expected — the register grew from 55 to 59 items with the Volume 5 (Compliance Cloud) pass, all 4 new items being genuinely new findings (not re-discoveries of prior debt). No items have moved to `Resolved` yet, since no remediation work has been executed between volumes. Trend tracking continues with each subsequent Changelog entry (Section 12).
 
 **Important distinction (Rule 7):** of the 55 items, roughly a third (`TD-0009` through `TD-0011`, `TD-0021`–`TD-0024`, `TD-0034`–`TD-0044`, and others marked "gated"/"by design" below) are **planned evolution**, not technical debt in the strict sense — they are capabilities the MPS volumes deliberately deferred with an explicit trigger condition (e.g. ADR-004/ADR-006 of Volume 2's anti-speculation principle). They are included here because they are real gaps a reader of the codebase would otherwise have to rediscover, but they should not be read with the same urgency as a genuine defect like `TD-0001`.
 
@@ -120,6 +120,12 @@
 | TD-0053 | No dependency vulnerability scanning / SBOM process | Security | — (observation) | No documented `npm audit`/SBOM process in CI | Medium | P2 | Low | Hours | None | Add automated dependency scanning to CI | Open |
 | TD-0054 | No documented load testing against the hot-path SLO | Platform Architecture / Risk Cloud | 4 | Vol. 4 Sec. 13 — p95 targets stated, never validated under realistic concurrent multi-tenant load | High | P1 | Medium | Days | None | Run and document a load test validating p95 < 200ms under target concurrency | Open |
 | TD-0055 | Data residency strategy for regulated markets undefined | Platform Architecture | 1, 2 | Vol. 1 Sec. 19 Q4, Vol. 2 Fase 5 | No decision on per-region data storage for markets requiring local residency | Medium | P2 | High | — | Expansion timing (Vol. 1 roadmap) | Decide before any non-Brazil regulated-market contract | Open |
+| TD-0056 | Marketing claims "AML, KYC" capability with zero implementation | Documentation | 5 | `src/pages/Landing.tsx:355` — Fintech & Banking vertical descriptor | Same overclaim pattern as TD-0017, now confirmed for the Compliance Cloud domain | High — credibility/legal exposure | High | **P0** | Low (copy) | Hours | None | Adjust marketing copy or accelerate Compliance Cloud Phase 1 (Vol. 5 Sec. 25) | Open |
+| TD-0057 | GDPR/LGPD right-to-erasure conflicts with mandatory AML retention | Compliance Cloud | 5 | Vol. 5 Sec. 16, 8.25 | No architectural or legal resolution exists for this well-known tension | Non-compliance risk in either direction without a decision | High | P1 | High (legal, not just technical) | Weeks (legal review) | Formal legal opinion | Document AML retention as a lawful-basis exception to erasure requests, jurisdiction by jurisdiction | Open |
+| TD-0058 | No regulatory data vendor selected (sanctions/PEP/adverse media/business registry) | Compliance Cloud | 5 | Vol. 5 Sec. 8.22 | Blocks all of Compliance Cloud Phase 1 | Blocks first regulated customer | High | P1 | Medium | Weeks (vendor evaluation) | Business decision | Commercial evaluation of regulatory data providers, mirroring TD-0009's IP Intelligence vendor process | Open |
+| TD-0059 | Anti-tipping-off access control (SAR/investigation confidentiality) not designed | Compliance Cloud / Security | 5 | Vol. 5 Sec. 16 | No RLS/RBAC model yet prevents a case subject or unauthorized org member from learning of an investigation | Direct legal risk — tipping off is itself a criminal offense in many AML regimes | High | P1 | High | Design + Volume 9 RBAC | Volume 9 formal RBAC | Design case-assignment-scoped access control before any real case exists | Open |
+
+**Note:** "Compliance Cloud entirely unbuilt" is tracked once as **TD-0042** (registered during the Volume 4 pass); Volume 5 provides its full 25-module architectural detail without duplicating that ID.
 
 ---
 
@@ -208,6 +214,7 @@ Real operational risks, not feature gaps.
 | `riskEngine.ts` "re-export" claim | CLAUDE.md vs. code | TD-0015 |
 | Dead-code cleanup claim incomplete | CLAUDE.md vs. code | TD-0016 |
 | Marketing capability overclaims | Landing.tsx vs. code | TD-0017 |
+| Marketing claims AML/KYC capability (Compliance Cloud) | Landing.tsx vs. code | TD-0056 |
 
 **Recommendation (not executed in this document, per its own no-code-change rule):** all six items above should be corrected in CLAUDE.md in a single maintenance pass, cross-referencing MPS Volume 4 Sections 3.6/7/8 as the corrected source of truth.
 
@@ -271,10 +278,11 @@ Real operational risks, not feature gaps.
 | TD-0018 | Real data-loss risk on the platform's core audit record |
 | TD-0006 | Structural root cause of an entire class of bugs (including TD-0001) |
 | TD-0041 | Blocks a quarter of the Volume 1 product positioning |
+| TD-0056 | Same marketing-overclaim pattern as TD-0017, now confirmed for Compliance Cloud (AML/KYC) |
 
 ### P1 — Plan for the next 1–2 quarters
-TD-0004, TD-0007, TD-0008, TD-0010, TD-0012, TD-0014, TD-0019, TD-0020, TD-0028, TD-0031, TD-0032, TD-0036, TD-0042, TD-0043, TD-0045, TD-0048, TD-0052, TD-0054.
-*Justification:* either they block a Volume 1 business goal (Enterprise ICP, regulated verticals), or they are prerequisites for a P0 item to be safely resolved (e.g. TD-0007 must precede activating TD-0008).
+TD-0004, TD-0007, TD-0008, TD-0010, TD-0012, TD-0014, TD-0019, TD-0020, TD-0028, TD-0031, TD-0032, TD-0036, TD-0042, TD-0043, TD-0045, TD-0048, TD-0052, TD-0054, TD-0057, TD-0058, TD-0059.
+*Justification:* either they block a Volume 1 business goal (Enterprise ICP, regulated verticals), or they are prerequisites for a P0 item to be safely resolved (e.g. TD-0007 must precede activating TD-0008; TD-0057/TD-0059 must be resolved before Compliance Cloud can safely handle real regulated data).
 
 ### P2 — Plan opportunistically
 TD-0003, TD-0021, TD-0022, TD-0023, TD-0024, TD-0027, TD-0029, TD-0030, TD-0033, TD-0035, TD-0037, TD-0038, TD-0046, TD-0050, TD-0051, TD-0053, TD-0055.
@@ -293,3 +301,10 @@ TD-0005, TD-0011, TD-0013, TD-0015, TD-0016, TD-0025, TD-0026, TD-0034, TD-0039,
 - **Items added:** TD-0001 through TD-0055 (55 total).
 - **Items resolved:** none — this is the baseline.
 - **Items removed:** none.
+
+### 2026-07-28 — Volume 5 (Compliance Cloud) review
+- **Origin:** MPS Volume 5 elaboration, including a repository grep audit confirming zero Compliance Cloud implementation exists beyond a marketing reference.
+- **Items added:** TD-0056 (marketing overclaim, AML/KYC), TD-0057 (GDPR/LGPD erasure vs. AML retention conflict), TD-0058 (no regulatory data vendor selected), TD-0059 (anti-tipping-off access control not designed). 4 total, bringing the register to 59.
+- **Items resolved:** none.
+- **Items removed:** none.
+- **Existing items referenced, not duplicated:** TD-0042 (Compliance Cloud unbuilt) — now cross-referenced with Volume 5's full 25-module detail.
