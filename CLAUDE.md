@@ -192,10 +192,12 @@ Signal categories analyzed: **email** (disposable domain, format), **IP** (veloc
 
 Scoring: starts at `trust_score=100, fraud_score=0`. Each detected signal applies `fraud_impact` (+) and `trust_impact` (−). Multipliers apply for extreme cases (e.g. 20+ users on same IP).
 
-Decision thresholds:
-- `fraud_score ≥ 70` → `block`
-- `fraud_score ≥ 40 && risk_level=medium` → `review`
+Decision thresholds (risk band on `fraud_score`: low 0-25 / medium 26-55 / high 56-80 / critical 81-100):
+- `risk_level='critical'` (i.e. `fraud_score ≥ 81`) → `block`
+- `risk_level='high'`, or `risk_level='medium' && fraud_score ≥ 40` → `review`
 - Otherwise → `allow`
+
+**Correction (2026-07-28):** an earlier version of this doc stated the block threshold as `fraud_score ≥ 70` — the actual gate is `risk_level==='critical'`, which only triggers at `fraud_score ≥ 81`; `70` falls in the `high` band, which maps to `review`, not `block`. See `docs/mps/04-risk-cloud.md` Sec. 3.6 / `docs/mps/architecture-backlog.md` TD-0014.
 
 The public API maps `allow` → `approve` in responses.
 
@@ -206,9 +208,9 @@ Evaluated in `applyCustomRules()` inside `api/risk/check.ts` (step 4.5 in the ha
 
 `condition_value` stored as `"operator:value"` string (e.g. `"gt:80"`, `"eq:BR"`).
 
-Supported condition types: `fraud_score`, `trust_score`, `risk_level`, `event_type`, `country`, `ip_user_count_1h`, `ip_signup_count_1h`, `device_user_count`.
+Supported condition types: `fraud_score`, `trust_score`, `risk_level`, `event_type`, `country`, `email_domain`, `ip_user_count_1h`, `ip_signup_count_1h`, `device_account_count` (plus legacy aliases `ip_user_count`/`device_user_count`, and dynamic `metadata.*` fields).
 
-**Cache invalidation**: when rules are created/updated/deleted/toggled in the UI, `invalidateCachedRules(orgId)` from `api/_lib/keyCache.ts` must be called so the new rule takes effect immediately (not after the 60s TTL expires).
+**Cache invalidation**: `invalidateCachedRules(orgId)` (`api/_lib/keyCache.ts`) exists but is **not called anywhere** — `Rules.tsx` writes directly to Supabase with no API layer in between. Rule changes therefore take up to 60s (cache TTL) to take effect. This is a known, tracked gap — see `docs/mps/architecture-backlog.md` TD-0002 — not yet fixed.
 
 ### API Endpoints (`api/`)
 
@@ -340,7 +342,7 @@ Phase 2B Redis counters (implemented, env-gated): `writeFraudCounters()` writes 
 - `rateLimit.ts` — Upstash sliding window rate limiter. Limits per API key by plan tier.
 - `adminAuth.ts` — Owner-only auth guard for admin endpoints.
 - `aiEnricher.ts` / `aiSummary.ts` — GPT-4o-mini AI signal enrichment and event summaries.
-- `riskEngine.ts` — Server-side re-export of the risk engine for use in API functions.
+- `riskEngine.ts` — **Manually duplicated copy** of `src/lib/riskEngine.ts` (not a re-export — differs only by import extension). Nothing keeps the two files in sync; see `docs/mps/architecture-backlog.md` TD-0004.
 - `securityEvents.ts` — `createSecurityEvent()` helper for writing internal security audit entries.
 - `shadowPredictor.ts` — `predictShadow(features[])` pure function. shadow-v1 deterministic model: 9-feature weighted linear combination, maps fraud probability to `block/review/allow` (thresholds 0.70/0.35). Weights match `feature_importance` DB seed. No randomness. (Phase 3.7)
 - `mlPredictionStore.ts` — `savePrediction()` writes to `ml_predictions` with pre-computed `agreement BOOLEAN`; `runShadowPrediction()` orchestrates extractFeatures→predictShadow→save fire-and-forget; `getPredictions()`, `getAgreementStats()`, `getModelStats()` for API endpoints. Gated by `ML_SHADOW_ENABLED=true`. (Phase 3.7)
@@ -479,7 +481,7 @@ Nav links use smooth scroll via `document.getElementById(id)?.scrollIntoView({ b
 
 Hero headline: `clamp(2.25rem, 5vw, 4rem)`, `font-bold`. Hero section has `pt-48` top padding (navbar is ~144px tall due to 112px logo).
 
-No fake metrics — "Built for scale" strip uses only real product claims: `< 50ms` latency, `300+` signals, `7` event types, `1 API call`.
+"Built for scale" strip claims: `< 50ms` latency, `300+` signals, `7` event types, `1 API call`. **Correction (2026-07-28):** the `300+` signals figure (and the DeviceID module's "persistent fingerprinting, detects emulators/rooted devices" copy) is **not accurate** — the real risk engine implements 17 signal codes (20 including feature-store-only ones), and `device_id` is an opaque client-supplied string with no fingerprinting logic anywhere in the codebase. Tracked as `docs/mps/architecture-backlog.md` TD-0017 (Risk Cloud) — copy should be corrected or the underlying capability (IP Intelligence/Device Fingerprinting, TD-0009/TD-0010) built out before repeating these claims.
 
 Footer uses **light background** (`#F8FAFC`), `logo-color.png` at 112px. CTA text sitewide is **"Start 7-Day Trial"** (not "Start for free").
 
@@ -532,8 +534,8 @@ Register adds **company name**, **website**, **use case** (industry), and **esti
 
 **Phase 3 — Implemented:**
 - `POST /api/risk/label` — ground-truth fraud label submission (Phase 3.1/3.2). **Dual auth**: detects JWT vs API key by counting dots in the token (`(token.match(/\./g) ?? []).length === 2` → JWT). JWT path resolves `organization_id` via `profiles.user_id`; API key path unchanged. Uses `.upsert({ ... }, { onConflict: 'organization_id,risk_event_id' })` so relabeling the same event updates in place rather than inserting a duplicate. Returns HTTP 200 (not 201).
-- `api/_lib/gnxScore.ts` — `computeGnxScore()` — deterministic 0–1000 score, written to `risk_events.gnx_score` + `gnx_score_factors` JSONB + `gnx_version TEXT` fire-and-forget (Phase 3.0, v2 upgraded). GNX v2 uses a 13-feature weighted linear model (`GNX_VERSION = 'v2'`): `fraud_score_base` (weight 0.30), `trust_score_base` (−0.15), `critical_signals` (0.18), `high_signals` (0.12), `device_prior_block` (0.10), `ip_distinct_users` (0.06), `device_distinct_users` (0.04), `ip_signup_surge` (0.03), `velocity_events` (0.05), `email_risk` (0.04), `country_risk` (0.02), `event_type_risk` (0.02), `behavioral_risk` (0.04) — weights sum to 1.00 (minus trust factor). Returns `GnxResult { score, top_factors[], version }`. Stores per-factor breakdown in `gnx_score_factors` JSONB for explainability. Clamped to [0, 1000].
-- `api/_lib/featureExtractor.ts` — `extractFeatures()` — derives 17 features across 5 groups (velocity/reputation/behavior/risk/context) with `feature_group`, `feature_version`, `source` (Phase 3.3)
+- `api/_lib/gnxScore.ts` — `computeGnxScore()` — deterministic 0–1000 score, written to `risk_events.gnx_score` + `gnx_score_factors` JSONB + `gnx_version TEXT` fire-and-forget (Phase 3.0, v2 upgraded, columns added by `v24_gnx_score_v2.sql` — not v19). GNX v2 uses a **13-feature weighted linear model** (`GNX_VERSION = 'v2'`): `fraud_score_base` (0.30), `user_velocity` (0.07), `ip_velocity` (0.07), `device_velocity` (0.05), `email_reputation` (0.09, inverted), `ip_reputation` (0.06, inverted), `device_reputation` (0.06, binary), `signup_rate` (0.06), `repeated_device` (0.04), `repeated_email` (0.03), `critical_signal` (0.07), `high_signal` (0.06), `medium_signal` (0.04) — weights sum to 1.00, followed by a **post-sum, non-weighted** `trust_factor` (1.2×, up to −120pts at `trust_score=100`). Returns `GnxResult { score, top_factors[], version }`. Stores per-factor breakdown in `gnx_score_factors` JSONB for explainability. Clamped to [0, 1000]. **Correction (2026-07-28):** an earlier version of this doc described a different, non-matching feature set (`trust_score_base`, `critical_signals`, `device_prior_block`, etc.) — none of those names/weights exist in the shipped code; see `docs/mps/04-risk-cloud.md` Sec. 7–8 / TD-0012.
+- `api/_lib/featureExtractor.ts` — `extractFeatures()` — derives **20 features** across 5 groups (velocity: 3, reputation: 3, behavior: 7, risk: 3, context: 4) with `feature_group`, `feature_version`, `source` (Phase 3.3). **Correction (2026-07-28):** previously stated as "17 features" — recounted at 20; see TD-0013.
 - `api/_lib/featureStore.ts` — `persistFeatures()` — writes extracted feature vectors to `fraud_features` fire-and-forget (Phase 3.3), gated by `FEATURE_STORE_ENABLED`. All errors caught and forwarded to `captureException` (never silent-swallowed).
 - `api/_lib/datasetBuilder.ts` — `buildTrainingDataset()` — joins risk_events + fraud_features into `training_dataset` fire-and-forget (Phase 3.6), gated by `DATASET_BUILDER_ENABLED`. Uses `.upsert({ ... }, { onConflict: 'organization_id,risk_event_id' })` so relabeling an event updates the training row rather than inserting a duplicate. All errors caught and forwarded to `captureException`.
 - `api/_lib/reputationNetwork.ts` — `updateEntityReputation()` / `getEntityReputation()` — atomic cross-org reputation via PostgreSQL RPC (Phase 3.5). Both catch blocks use `captureException` (previously silent).
@@ -546,7 +548,7 @@ Register adds **company name**, **website**, **use case** (industry), and **esti
 - `GET /api/admin/ml/summary?days=N` — ML Shadow summary: total_predictions, agreement_rate, coverage_rate, accuracy/precision/recall/f1_score (null until labels exist), model_name, model_version (Phase 3.7)
 - `GET /api/admin/ml/disagreements?page=N&limit=N&days=N` — Paginated disagreements: official_decision, shadow_prediction, confidence (Phase 3.7)
 - `GET /api/admin/ml/features?model=shadow-v1` — Feature weights from feature_importance table: `[{ feature, weight }]` (Phase 3.7)
-- `api/admin/intelligence/ml/stats.ts` — **DELETED** (stale Phase 3.7 file from first iteration, imported from deleted `mlShadowRunner.ts`; not referenced by any route)
+- `api/admin/intelligence/ml/stats.ts` — **DELETED** (stale Phase 3.7 endpoint from first iteration; not referenced by any route). **Note (2026-07-28):** the endpoint was deleted, but `api/_lib/mlShadowRunner.ts` — the library it depended on — was **not** removed and remains orphaned dead code, writing to the incompatible `v22_ml_shadow.sql` schema (superseded by `v22_ml_predictions.sql`/`mlPredictionStore.ts`, which is what's actually live). See TD-0003.
 - `GET /api/admin/monitoring/go-live` — Owner-only. Post-Go Live operational health snapshot. Aggregates: `api_health` (24h event totals, decision breakdown, today Redis stats), `latency` (avg today + 7-day trend from `org_daily_stats`), `gnx_health` (v2 coverage, null rate, score band distribution), `redis_health` (connected, fraud_counters_enabled, context_path), `sentry_enabled` (SENTRY_DSN flag), `slow_count_24h` (audit_logs count), `go_live_status` (healthy/warning/critical with reasons[]). Status escalation: critical gates = Redis down, gnx_null_rate > 5%, avg_latency ≥ 1500ms; warning gates = gnx_null_rate > 0%, REDIS_COUNTERS_ENABLED off, avg_latency ≥ 800ms, slow_count > 10.
 - `GET /api/admin/monitoring/slow-requests?limit=20` — Owner-only. Last N requests where total_ms > 1000ms. Reads `audit_logs` WHERE `event_type = 'risk.check.slow'` (written fire-and-forget by check.ts). Returns per-request step breakdown: key_ms, org_ms, rate_ms, monthly_ms, context_ms, engine_ms, gnx_ms, persist_ms, plus cold_start, context_path.
 - `GET /api/admin/monitoring/pipeline-health` — Owner-only. Row counts for all 5 derived pipeline tables in last 24h: risk_events, fraud_labels, fraud_features, training_dataset, ml_predictions. Returns `status: 'migration_pending'` (error code `42P01`) for tables not yet created — never crashes on missing tables.
@@ -643,3 +645,21 @@ Fonts loaded from Google Fonts: **Inter** (UI/headings, all weights 300–800) +
 ## Language
 
 All UI text is in **English**. Data fields use English enum values matching the DB schema.
+
+## Master Product Specification (MPS)
+
+`docs/mps/` contains the Genuinux Master Product Specification — a living **architecture documentation suite**, separate from this file. It is documentation only: no code, no migrations. Read the relevant volume before making cross-domain architectural decisions; **prefer it over this file** wherever the two disagree on architecture-level facts (this file documents implementation details; the MPS volumes document audited architecture and are updated to correct drift when found).
+
+| File | Content |
+|---|---|
+| `01-vision-product-strategy.md` | Mission, positioning, ICP, personas, competitive analysis, strategic roadmap |
+| `02-platform-architecture.md` | Domain map, Unified Entity Graph, Event Bus, modular-monolith-vs-microservices decision, multi-tenancy |
+| `03-identity-cloud.md` | Identity Cloud target design (KYC-adjacent identity verification, OCR, biometrics, wallet) — **not yet built** |
+| `04-risk-cloud.md` | Risk Cloud — includes a full source-code audit of what's actually in production, correcting several inaccuracies this file used to state (see the "Correction (2026-07-28)" notes above) |
+| `05-compliance-cloud.md` | Compliance Cloud target design (KYC/KYB/AML/sanctions/PEP/case management as a jurisdiction-agnostic "Compliance Operating System") — **not yet built** |
+| `architecture-backlog.md` | Canonical technical debt register (67 items as of 2026-07-28) — every known gap, bug, and inconsistency across the platform, prioritized P0–P3 |
+| `pre-volume-06-review.md` | Cross-volume consistency audit performed before starting Volume 6 |
+
+**Volume 6 (Trust Cloud) is pending** — not yet written. Volumes 7–12 (Developer Platform, Data & ML, Security, Administration, Commercial, Master Roadmap) are not yet started.
+
+**If you fix any of the corrections noted above** (GNX v2 formula, feature count, block threshold, `riskEngine.ts` duplication, `mlShadowRunner.ts` dead code, rules cache invalidation, marketing copy), update the corresponding item's `Status` in `architecture-backlog.md` to `Resolved` — don't just delete the row.
