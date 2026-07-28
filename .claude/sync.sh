@@ -4,7 +4,7 @@
 
 set -euo pipefail
 
-REPO="/Users/cesarnogueira/Desktop/Genuinux"
+REPO="/Users/cesarnogueira/Desktop/Projetos/Genuinux"
 cd "$REPO"
 
 # If nothing changed, exit silently
