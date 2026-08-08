@@ -1075,7 +1075,7 @@ export default function Webhooks() {
           {tab === 'endpoints' && (
             <p className="text-sm" style={{ color: T.textDim }}>
               {activeCount > 0
-                ? <><span style={{ color: '#16C784', fontWeight: 600 }}>{activeCount} active</span></>
+                ? <><span style={{ color: T.trustText, fontWeight: 600 }}>{activeCount} active</span></>
                 : <span>No active webhooks</span>
               }
               <span style={{ color: T.textDim }}> · {webhooks.length} total</span>

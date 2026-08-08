@@ -690,7 +690,7 @@ export default function Rules() {
       <div className="flex items-center justify-between mb-5">
         <p className="text-sm" style={{ color: T.textDim }}>
           {activeCount > 0
-            ? <><span style={{ color: '#16C784', fontWeight: 600 }}>{activeCount} active</span>{' '}rule{activeCount !== 1 ? 's' : ''}</>
+            ? <><span style={{ color: T.trustText, fontWeight: 600 }}>{activeCount} active</span>{' '}rule{activeCount !== 1 ? 's' : ''}</>
             : 'No active rules'}
           <span style={{ color: T.textDim }}> · {rules.length} total</span>
         </p>

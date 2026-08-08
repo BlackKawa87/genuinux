@@ -1014,7 +1014,7 @@ export default function Queue() {
             </span>
           )}
           {pendingCount === 0 && inReviewCount === 0 && (
-            <span className="text-sm" style={{ color: '#16C784' }}>All cases reviewed</span>
+            <span className="text-sm" style={{ color: T.trustText }}>All cases reviewed</span>
           )}
           <span className="text-sm" style={{ color: T.textDim }}>· {items.length} total</span>
         </div>

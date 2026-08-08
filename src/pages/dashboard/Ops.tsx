@@ -601,7 +601,7 @@ function RiskEventTester() {
               <div className="flex items-center gap-4">
                 <div className="flex flex-col items-center gap-0.5">
                   <span className="text-[10px]" style={{ color: T.textSec }}>Trust</span>
-                  <span className="text-2xl font-bold mono" style={{ color: '#16C784' }}>{result.trust_score}</span>
+                  <span className="text-2xl font-bold mono" style={{ color: T.trustText }}>{result.trust_score}</span>
                 </div>
                 <div className="flex flex-col items-center gap-0.5">
                   <span className="text-[10px]" style={{ color: T.textSec }}>Fraud</span>

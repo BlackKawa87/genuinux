@@ -1327,8 +1327,10 @@ export default function Analytics() {
             {featureStore.feature_stats.length > 0 && (
               <div className="mb-5">
                 <p className="text-xs font-semibold mb-3" style={{ color: T.textDim }}>Top Features by Volume</p>
-                <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${T.border}` }}>
-                  <table className="w-full text-xs">
+                {/* overflow-x-auto, not overflow-hidden: seven columns on a
+                    narrow viewport must scroll, not be clipped out of reach. */}
+                <div className="rounded-xl g-scroll" style={{ border: `1px solid ${T.border}`, overflowX: 'auto' }}>
+                  <table className="g-table" style={{ minWidth: 640 }}>
                     <thead>
                       <tr style={{ background: T.deep }}>
                         {['Feature', 'Group', 'Version', 'Rows', 'Avg', 'Min', 'Max'].map(h => (

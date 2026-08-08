@@ -768,7 +768,7 @@ function TeamTab({ members, currentProfile, onMembersChange }: {
               <div className="flex items-center gap-3 px-4 py-4 rounded-lg"
                 style={{ background: 'rgba(22,199,132,0.06)', border: '1px solid rgba(22,199,132,0.2)' }}>
                 <CheckCircle2 size={14} style={{ color: '#16C784' }} />
-                <p className="text-sm" style={{ color: '#16C784' }}>Invite sent successfully!</p>
+                <p className="text-sm" style={{ color: T.trustText }}>Invite sent successfully!</p>
               </div>
             ) : (
               <form onSubmit={e => void handleInvite(e)} className="space-y-4">
@@ -1286,7 +1286,7 @@ function BillingTab({ plan, billingSuccess }: { plan: string; orgId: string; bil
         >
           <div className="flex items-center gap-2.5">
             <CheckCircle2 size={14} style={{ color: '#16C784' }} />
-            <span className="text-sm font-semibold" style={{ color: '#16C784' }}>Subscription activated!</span>
+            <span className="text-sm font-semibold" style={{ color: T.trustText }}>Subscription activated!</span>
             <span className="text-xs" style={{ color: T.textSec }}>Your plan has been updated. Welcome aboard.</span>
           </div>
           <button onClick={() => setShowSuccess(false)} style={{ color: T.textDim }}>
@@ -1470,7 +1470,7 @@ function BillingTab({ plan, billingSuccess }: { plan: string; orgId: string; bil
           <p className="text-sm font-semibold" style={{ color: T.textSec }}>Enterprise & custom pricing</p>
           <p className="text-xs mt-0.5" style={{ color: T.textDim }}>
             Need a custom volume deal, SLA guarantee, or dedicated support? Contact{' '}
-            <a href="mailto:billing@genuinux.io" style={{ color: '#16C784' }}>billing@genuinux.io</a>.
+            <a href="mailto:billing@genuinux.io" style={{ color: T.trustText }}>billing@genuinux.io</a>.
           </p>
         </div>
       </div>

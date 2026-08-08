@@ -313,7 +313,7 @@ export default function ApiKeys() {
               {atLimit && (
                 <p className="text-xs" style={{ color: '#475569' }}>
                   Free plan: 1 API key limit.{' '}
-                  <a href="mailto:sales@genuinux.io" style={{ color: '#16C784' }}>Upgrade</a>
+                  <a href="mailto:sales@genuinux.io" style={{ color: T.trustText }}>Upgrade</a>
                 </p>
               )}
               <button
@@ -697,7 +697,7 @@ export default function ApiKeys() {
           <Key size={12} style={{ color: '#16C784', flexShrink: 0 }} />
           <code className="text-xs mono" style={{ color: T.textSec }}>
             <span style={{ color: T.textDim }}>Authorization:</span>{' '}
-            Bearer <span style={{ color: '#16C784' }}>YOUR_API_KEY</span>
+            Bearer <span style={{ color: T.trustText }}>YOUR_API_KEY</span>
           </code>
         </div>
 
