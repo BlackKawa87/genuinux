@@ -442,7 +442,7 @@ export default function BlogPost() {
         <article>{post.content}</article>
 
         {/* Footer CTA */}
-        <div className="mt-16 p-8 rounded-2xl text-center"
+        <div className="mt-16 p-8 rounded-[14px] text-center"
           style={{ background: C.surface, border: `1px solid ${C.border}` }}>
           <h3 className="font-bold text-xl mb-2" style={{ color: C.text }}>
             Start protecting your platform

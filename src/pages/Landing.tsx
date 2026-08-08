@@ -337,8 +337,8 @@ const NAV_LINKS = [
 ]
 
 const MODULES = [
-  { icon: Activity,    name: 'RiskScore',    tag: 'Core',      desc: 'Combines 300+ signals into a single trust score. Returns a clear allow, review, or block verdict in under 50ms.' },
-  { icon: Fingerprint, name: 'DeviceID',     tag: 'Device',    desc: 'Persistent fingerprinting across browsers and sessions. Detects emulators, rooted devices, and automation.' },
+  { icon: Activity,    name: 'RiskScore',    tag: 'Core',      desc: 'Combines 20 behavioural, network and velocity signals into a single trust score. Returns a clear allow, review, or block verdict in under 50ms.' },
+  { icon: Fingerprint, name: 'DeviceID',     tag: 'Device',    desc: 'Links accounts sharing a device identifier and flags devices with prior blocks, multi-account reuse, and headless automation.' },
   { icon: Cpu,         name: 'BehaviorAI',   tag: 'Behavioral',desc: "Baselines each user's normal patterns. Flags velocity spikes, unusual hours, and session hijacking in real time." },
   { icon: FileSearch,  name: 'DocVerify',    tag: 'Identity',  desc: 'Automated document validation. Detects forgeries, expired IDs, and mismatches between document and selfie.' },
   { icon: Lock,        name: 'SessionGuard', tag: 'Auth',      desc: 'Continuous session monitoring for account takeover patterns. Silent step-up when risk spikes mid-session.' },
@@ -444,6 +444,136 @@ const TRUST_CARDS = [
 ]
 
 // ── Main component ────────────────────────────────────────────────────────────
+
+/* ── Decision flow ────────────────────────────────────────────────────────────
+   The product is a pipeline, so the hero shows the pipeline. Each stage names a
+   real step in `/api/risk/check`: authenticate and parse, evaluate signals,
+   score, apply rules, return a verdict. Dark panel so it reads as the machine
+   rather than as marketing chrome.                                            */
+
+const FLOW_STAGES = [
+  { step: '01', title: 'API request',     detail: 'POST /api/risk/check',                        meta: 'signup · login · checkout · withdrawal' },
+  { step: '02', title: 'Signal analysis', detail: 'email · IP · device · velocity · behaviour',   meta: '20 signals evaluated in parallel' },
+  { step: '03', title: 'Risk score',      detail: 'trust 0–100 · fraud 0–100',                    meta: 'GNX score 0–1000 with per-factor breakdown' },
+  { step: '04', title: 'Your rules',      detail: 'first matching rule wins',                     meta: 'thresholds, geographies, custom conditions' },
+] as const
+
+const FLOW_VERDICTS = [
+  { label: 'Approve', color: C.trust,   desc: 'low risk'      },
+  { label: 'Review',  color: '#F59E0B', desc: 'needs a human' },
+  { label: 'Block',   color: C.red,     desc: 'critical risk' },
+] as const
+
+function DecisionFlow() {
+  return (
+    <div
+      style={{
+        background: C.dark,
+        border: `1px solid ${C.darkBd}`,
+        borderRadius: 14,
+        overflow: 'hidden',
+        boxShadow: C.shadowLg,
+      }}
+    >
+      {/* Header strip */}
+      <div
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          gap: 12, padding: '11px 16px',
+          borderBottom: `1px solid ${C.darkBd}`,
+          background: C.dark2,
+        }}
+      >
+        <span
+          style={{
+            fontFamily: "'Inter Tight', sans-serif", fontSize: 10, fontWeight: 600,
+            letterSpacing: '0.1em', textTransform: 'uppercase', color: '#8892AA',
+          }}
+        >
+          Decision pipeline
+        </span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 10, color: C.trust, fontFamily: "'IBM Plex Mono', monospace" }}>
+          <span className="pulse-dot" style={{ width: 5, height: 5, borderRadius: 999, background: C.trust }} />
+          &lt; 50ms end to end
+        </span>
+      </div>
+
+      {/* Stages */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
+          gap: 1,
+          background: C.darkBd,
+        }}
+      >
+        {FLOW_STAGES.map(stage => (
+          <div key={stage.step} style={{ background: C.dark, padding: '16px 16px 18px' }}>
+            <span
+              style={{
+                fontFamily: "'IBM Plex Mono', monospace", fontSize: 10,
+                color: C.trust, letterSpacing: '0.06em',
+              }}
+            >
+              {stage.step}
+            </span>
+            <p
+              style={{
+                fontFamily: "'Inter Tight', sans-serif", fontSize: 14, fontWeight: 600,
+                color: '#ECF0FA', margin: '7px 0 6px', letterSpacing: '-0.015em',
+              }}
+            >
+              {stage.title}
+            </p>
+            <p style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, color: '#8892AA', lineHeight: 1.55, margin: 0 }}>
+              {stage.detail}
+            </p>
+            <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 10.5, color: '#5A6478', lineHeight: 1.5, margin: '7px 0 0' }}>
+              {stage.meta}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      {/* Verdict */}
+      <div
+        style={{
+          display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap',
+          padding: '14px 16px',
+          borderTop: `1px solid ${C.darkBd}`,
+          background: C.dark2,
+        }}
+      >
+        <span
+          style={{
+            fontFamily: "'Inter Tight', sans-serif", fontSize: 10, fontWeight: 600,
+            letterSpacing: '0.1em', textTransform: 'uppercase', color: '#8892AA',
+          }}
+        >
+          Verdict
+        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          {FLOW_VERDICTS.map(v => (
+            <span
+              key={v.label}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '4px 10px', borderRadius: 6,
+                border: `1px solid ${v.color}38`, background: `${v.color}12`,
+              }}
+            >
+              <span style={{ width: 5, height: 5, borderRadius: 999, background: v.color }} />
+              <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 11.5, fontWeight: 600, color: v.color }}>
+                {v.label}
+              </span>
+              <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 10.5, color: '#5A6478' }}>{v.desc}</span>
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export default function Landing() {
   const [scrolled,        setScrolled]        = useState(false)
@@ -619,8 +749,9 @@ export default function Landing() {
                 margin: '0 auto 28px',
                 fontFamily: "'DM Sans', sans-serif",
               }}>
-              One API call delivers trust scores, fraud signals, and block/approve decisions in under 50ms.
-              Full coverage from signup to withdrawal — no vendor sprawl.
+              Built for marketplaces, fintechs and platforms that cannot afford to block real customers.
+              One API call returns a trust score, the signals behind it, and an approve, review or block
+              decision in under 50ms — from signup to withdrawal, without vendor sprawl.
             </p>
 
             {/* CTAs */}
@@ -641,7 +772,7 @@ export default function Landing() {
             <div className="flex flex-wrap items-center justify-center gap-5 anim-4">
               {[
                 { val: '< 50ms', label: 'Decision latency' },
-                { val: '300+',   label: 'Risk signals' },
+                { val: '20',      label: 'Risk signals' },
                 { val: '7',      label: 'Event types' },
                 { val: '1 call', label: 'Full coverage' },
               ].map((s, i) => (
@@ -660,8 +791,13 @@ export default function Landing() {
             </p>
           </div>
 
-          {/* Dashboard mockup — full width below, like Stripe product screenshots */}
-          <div className="mt-14 anim-5">
+          {/* Product, not decoration: the pipeline first, then the dashboard it
+              feeds. Together they answer "what does this actually do?" before
+              the visitor has to read a single feature section. */}
+          <div className="mt-12 anim-5 max-w-5xl mx-auto">
+            <DecisionFlow />
+          </div>
+          <div className="mt-5 anim-5">
             <DashboardMockup />
           </div>
         </div>
@@ -854,7 +990,7 @@ export default function Landing() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             {[
               { value: '< 50ms', label: 'Median decision latency'  },
-              { value: '300+',   label: 'Risk signals per event'   },
+              { value: '20',      label: 'Risk signals per event'   },
               { value: '7',      label: 'Event types supported'    },
               { value: '1 call', label: 'Full-stack protection'    },
             ].map((s, i) => (

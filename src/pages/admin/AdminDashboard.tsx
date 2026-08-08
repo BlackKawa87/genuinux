@@ -95,7 +95,7 @@ export default function AdminDashboard() {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: T.text, margin: 0 }}>Admin Dashboard</h1>
+          <h1 className="t-title" style={{ color: T.text, margin: 0 }}>Admin Dashboard</h1>
           <p style={{ fontSize: 12, color: T.textDim, margin: '4px 0 0' }}>
             Platform-wide metrics · updated {new Date(d.generated_at).toLocaleTimeString()}
           </p>

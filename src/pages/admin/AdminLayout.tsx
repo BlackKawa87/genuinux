@@ -36,24 +36,24 @@ export default function AdminLayout() {
   useEffect(() => { setSidebarOpen(false) }, [location.pathname])
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: T.bg, fontFamily: 'Inter, sans-serif' }}>
+    <div style={{ display: 'flex', minHeight: '100vh', background: T.bg, fontFamily: "var(--f-display)" }}>
 
       {/* ── Mobile Backdrop ──────────────────────────────────────── */}
       {isMobile && sidebarOpen && (
         <div
           onClick={() => setSidebarOpen(false)}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 199 }}
+          style={{ position: 'fixed', inset: 0, background: T.overlay, zIndex: 199 }}
         />
       )}
 
       {/* ── Sidebar ───────────────────────────────────────────────────────────── */}
       <aside style={{
         width: 220, flexShrink: 0, position: 'fixed', top: 0, left: 0, bottom: 0,
-        background: T.deep, borderRight: `1px solid ${T.border}`,
+        background: T.card, borderRight: `1px solid ${T.border}`,
         display: 'flex', flexDirection: 'column',
         zIndex: isMobile ? 200 : 40,
         transform: isMobile ? (sidebarOpen ? 'translateX(0)' : 'translateX(-220px)') : 'translateX(0)',
-        transition: 'transform 0.25s ease',
+        transition: `transform ${T.dSlow} ${T.ease}`,
       }}>
         {/* Logo / header */}
         <div style={{ padding: '16px 16px 12px', borderBottom: `1px solid ${T.border}` }}>
@@ -82,18 +82,35 @@ export default function AdminLayout() {
               key={item.path}
               to={item.path}
               end={item.exact}
+              /* Same geometry as the product sidebar, amber instead of green so
+                 the admin console is never mistaken for a tenant dashboard. */
               style={({ isActive }) => ({
-                display: 'flex', alignItems: 'center', gap: 8,
-                padding: '7px 10px', borderRadius: 6, marginBottom: 1,
-                fontSize: 12, fontWeight: isActive ? 600 : 400,
-                color: isActive ? ACCENT : T.textSec,
-                background: isActive ? `${ACCENT}15` : 'transparent',
+                position: 'relative',
+                display: 'flex', alignItems: 'center', gap: 9,
+                height: 30, padding: '0 9px', borderRadius: 8, marginBottom: 1,
+                fontSize: 13, fontWeight: isActive ? 600 : 500,
+                letterSpacing: '-0.008em',
+                color: isActive ? T.text : T.textSec,
+                background: isActive ? T.elevated : 'transparent',
                 textDecoration: 'none',
-                transition: 'all 0.12s',
+                transition: `background-color ${T.dFast} ${T.ease}, color ${T.dFast} ${T.ease}`,
               })}
             >
-              <item.icon size={13} />
-              {item.label}
+              {({ isActive }) => (
+                <>
+                  {isActive && (
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        position: 'absolute', left: -9, top: '50%', transform: 'translateY(-50%)',
+                        width: 2, height: 16, borderRadius: 999, background: ACCENT,
+                      }}
+                    />
+                  )}
+                  <item.icon size={14} style={{ color: isActive ? ACCENT : T.textDim, flexShrink: 0 }} />
+                  {item.label}
+                </>
+              )}
             </NavLink>
           ))}
         </nav>
@@ -138,9 +155,9 @@ export default function AdminLayout() {
       <main style={{ marginLeft: isMobile ? 0 : 220, flex: 1, minHeight: '100vh' }}>
         {/* Top bar */}
         <div style={{
-          height: 48, borderBottom: `1px solid ${T.border}`,
+          height: 52, borderBottom: `1px solid ${T.border}`,
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '0 16px', background: T.card, position: 'sticky', top: 0, zIndex: 30,
+          padding: '0 var(--page-x)', background: T.headerBg, backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', position: 'sticky', top: 0, zIndex: 30,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {isMobile && (
@@ -160,7 +177,7 @@ export default function AdminLayout() {
         </div>
 
         {/* Page content */}
-        <div style={{ padding: isMobile ? '16px' : '24px 28px', maxWidth: 1400 }}>
+        <div style={{ padding: 'var(--page-x)', maxWidth: 1400 }}>
           <Outlet />
         </div>
       </main>

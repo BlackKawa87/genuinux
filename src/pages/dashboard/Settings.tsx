@@ -542,7 +542,7 @@ function TeamTab({ members, currentProfile, onMembersChange }: {
               <tr style={{ borderBottom: `1px solid ${T.border}` }}>
                 {['Member', 'Role', 'Joined', ...(showActions ? ['Actions'] : [])].map(h => (
                   <th key={h} className="px-6 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider"
-                    style={{ color: T.dark ? '#2D4057' : T.textDim, width: h === 'Actions' ? '120px' : undefined }}>
+                    style={{ color: T.textDim, width: h === 'Actions' ? '120px' : undefined }}>
                     {h}
                   </th>
                 ))}
@@ -615,7 +615,7 @@ function TeamTab({ members, currentProfile, onMembersChange }: {
                     {/* Joined */}
                     <td className="px-6 py-3.5">
                       <p className="text-xs mono" style={{ color: T.textSec }}>{formatTs(m.created_at)}</p>
-                      <p className="text-[10px] mono mt-0.5" style={{ color: T.dark ? '#2D4057' : T.textDim }}>{relativeTime(m.created_at)}</p>
+                      <p className="text-[10px] mono mt-0.5" style={{ color: T.textDim }}>{relativeTime(m.created_at)}</p>
                     </td>
 
                     {/* Actions */}
@@ -646,10 +646,10 @@ function TeamTab({ members, currentProfile, onMembersChange }: {
                               <button
                                 onClick={() => setEditingRole(m.id)}
                                 className="p-1.5 rounded transition-colors"
-                                style={{ color: T.dark ? '#2D4057' : T.textDim }}
+                                style={{ color: T.textDim }}
                                 title="Change role"
                                 onMouseEnter={e => (e.currentTarget.style.color = '#818CF8')}
-                                onMouseLeave={e => (e.currentTarget.style.color = T.dark ? '#2D4057' : T.textDim)}
+                                onMouseLeave={e => (e.currentTarget.style.color = T.textDim)}
                               >
                                 <Pencil size={11} />
                               </button>
@@ -658,10 +658,10 @@ function TeamTab({ members, currentProfile, onMembersChange }: {
                               <button
                                 onClick={() => setConfirmRemove(m.id)}
                                 className="p-1.5 rounded transition-colors"
-                                style={{ color: T.dark ? '#2D4057' : T.textDim }}
+                                style={{ color: T.textDim }}
                                 title="Remove member"
                                 onMouseEnter={e => (e.currentTarget.style.color = '#EF4444')}
-                                onMouseLeave={e => (e.currentTarget.style.color = T.dark ? '#2D4057' : T.textDim)}
+                                onMouseLeave={e => (e.currentTarget.style.color = T.textDim)}
                               >
                                 <Trash2 size={11} />
                               </button>
@@ -1586,7 +1586,7 @@ function AuditTab({ orgId, members }: { orgId: string; members: Profile[] }) {
           <div className="py-8 text-center">
             <Clock size={20} className="mx-auto mb-2" style={{ color: T.border }} />
             <p className="text-sm" style={{ color: T.textDim }}>No audit events found.</p>
-            <p className="text-xs mt-1" style={{ color: T.dark ? '#2D4057' : T.textDim }}>
+            <p className="text-xs mt-1" style={{ color: T.textDim }}>
               Try changing the date range or category filter.
             </p>
           </div>
@@ -1597,7 +1597,7 @@ function AuditTab({ orgId, members }: { orgId: string; members: Profile[] }) {
                 <tr style={{ borderBottom: `1px solid ${T.border}` }}>
                   {['Action', 'Actor', 'Target', 'When'].map(h => (
                     <th key={h} className="px-6 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider"
-                      style={{ color: T.dark ? '#2D4057' : T.textDim }}>
+                      style={{ color: T.textDim }}>
                       {h}
                     </th>
                   ))}
@@ -1624,7 +1624,7 @@ function AuditTab({ orgId, members }: { orgId: string; members: Profile[] }) {
                           borderBottom: isLast && !isOpen ? 'none' : `1px solid ${T.dark ? '#0D1B2A' : T.border}`,
                           background: isOpen ? 'rgba(22,199,132,0.025)' : undefined,
                         }}
-                        onMouseEnter={e => { if (!isOpen) (e.currentTarget as HTMLElement).style.background = T.dark ? '#050B14' : 'rgba(0,0,0,0.02)' }}
+                        onMouseEnter={e => { if (!isOpen) (e.currentTarget as HTMLElement).style.background = T.hoverBg }}
                         onMouseLeave={e => { if (!isOpen) (e.currentTarget as HTMLElement).style.background = '' }}
                       >
                         <td className="px-6 py-3">
@@ -1640,12 +1640,12 @@ function AuditTab({ orgId, members }: { orgId: string; members: Profile[] }) {
                         </td>
                         <td className="px-6 py-3">
                           {target && (
-                            <p className="text-[10px] mono" style={{ color: T.dark ? '#2D4057' : T.textDim }}>{target}</p>
+                            <p className="text-[10px] mono" style={{ color: T.textDim }}>{target}</p>
                           )}
                         </td>
                         <td className="px-6 py-3 whitespace-nowrap">
                           <p className="text-[10px] mono" style={{ color: T.textSec }}>{formatTs(log.created_at)}</p>
-                          <p className="text-[10px] mono mt-0.5" style={{ color: T.dark ? '#2D4057' : T.textDim }}>{relativeTime(log.created_at)}</p>
+                          <p className="text-[10px] mono mt-0.5" style={{ color: T.textDim }}>{relativeTime(log.created_at)}</p>
                         </td>
                       </tr>
                     </tbody>
@@ -1657,19 +1657,19 @@ function AuditTab({ orgId, members }: { orgId: string; members: Profile[] }) {
                               style={{ background: T.bg, border: `1px solid ${T.border}` }}>
                               <div className="grid grid-cols-2 gap-x-6 gap-y-2">
                                 <div>
-                                  <p className="text-[10px] mb-0.5" style={{ color: T.dark ? '#2D4057' : T.textDim }}>Log ID</p>
+                                  <p className="text-[10px] mb-0.5" style={{ color: T.textDim }}>Log ID</p>
                                   <p className="text-[11px] mono" style={{ color: T.textDim }}>{log.id}</p>
                                 </div>
                                 {log.user_id && (
                                   <div>
-                                    <p className="text-[10px] mb-0.5" style={{ color: T.dark ? '#2D4057' : T.textDim }}>User ID</p>
+                                    <p className="text-[10px] mb-0.5" style={{ color: T.textDim }}>User ID</p>
                                     <p className="text-[11px] mono" style={{ color: T.textDim }}>{log.user_id}</p>
                                   </div>
                                 )}
                               </div>
                               {log.user_agent && (
                                 <div>
-                                  <p className="text-[10px] mb-0.5" style={{ color: T.dark ? '#2D4057' : T.textDim }}>User Agent</p>
+                                  <p className="text-[10px] mb-0.5" style={{ color: T.textDim }}>User Agent</p>
                                   <p className="text-[11px] mono break-all leading-relaxed" style={{ color: T.textDim }}>
                                     {log.user_agent}
                                   </p>
@@ -1677,7 +1677,7 @@ function AuditTab({ orgId, members }: { orgId: string; members: Profile[] }) {
                               )}
                               {log.metadata_json && Object.keys(log.metadata_json).length > 0 && (
                                 <div>
-                                  <p className="text-[10px] mb-1" style={{ color: T.dark ? '#2D4057' : T.textDim }}>Details</p>
+                                  <p className="text-[10px] mb-1" style={{ color: T.textDim }}>Details</p>
                                   <pre className="text-[10px] mono leading-relaxed overflow-x-auto"
                                     style={{ color: T.textSec }}>
                                     {JSON.stringify(log.metadata_json, null, 2)}
@@ -1698,7 +1698,7 @@ function AuditTab({ orgId, members }: { orgId: string; members: Profile[] }) {
       </SectionCard>
 
       {!loading && filtered.length >= 500 && (
-        <p className="text-[11px] text-center" style={{ color: T.dark ? '#2D4057' : T.textDim }}>
+        <p className="text-[11px] text-center" style={{ color: T.textDim }}>
           Showing up to 500 most recent events. Narrow the date range to see older logs.
         </p>
       )}
@@ -1870,7 +1870,7 @@ export default function SettingsPage() {
 
       {/* Page header */}
       <div className="mb-6">
-        <h1 className="text-lg font-bold" style={{ color: T.text }}>Settings</h1>
+        <h1 className="t-title" style={{ color: T.text }}>Settings</h1>
         <p className="text-sm mt-1" style={{ color: T.textDim }}>
           Manage your organization, team, and risk configuration.
         </p>

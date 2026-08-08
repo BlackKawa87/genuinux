@@ -51,7 +51,7 @@ function PageSpinner() {
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
       <div style={{
         width: 20, height: 20, borderRadius: '50%',
-        border: '2px solid #1E2D3D',
+        border: '2px solid var(--c-border)',
         borderTopColor: '#16C784',
         animation: 'spin 0.7s linear infinite',
       }} />

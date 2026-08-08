@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 
 type Theme = 'light' | 'dark'
 
@@ -24,10 +24,14 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     try { localStorage.setItem('gnx-theme', theme) } catch { /* storage unavailable */ }
   }, [theme])
 
-  const toggle = () => setTheme(t => t === 'light' ? 'dark' : 'light')
+  /* Stable identity: `useT()` memoises on `toggle`, so a fresh function every
+     render would rebuild the whole token object on every render of every
+     screen that reads it. */
+  const toggle = useCallback(() => setTheme(t => t === 'light' ? 'dark' : 'light'), [])
+  const value = useMemo(() => ({ theme, toggle }), [theme, toggle])
 
   return (
-    <ThemeContext.Provider value={{ theme, toggle }}>
+    <ThemeContext.Provider value={value}>
       {children}
     </ThemeContext.Provider>
   )

@@ -13,7 +13,7 @@ const LAST_UPDATED = 'May 20, 2026'
 
 export default function TermsOfService() {
   return (
-    <div style={{ minHeight: '100vh', background: C.bg, fontFamily: 'Inter, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: C.bg, fontFamily: "var(--f-display)" }}>
       {/* Nav */}
       <nav style={{ borderBottom: `1px solid ${C.border}`, background: C.card, padding: '0 1.5rem' }}>
         <div style={{ maxWidth: 800, margin: '0 auto', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

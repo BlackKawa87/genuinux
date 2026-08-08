@@ -58,7 +58,7 @@ export default function AdminGoLive() {
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: T.text, margin: 0 }}>Go Live Monitor</h1>
+          <h1 className="t-title" style={{ color: T.text, margin: 0 }}>Go Live Monitor</h1>
           <p style={{ fontSize: 12, color: T.textDim, margin: '4px 0 0' }}>Operational health · live API status</p>
         </div>
         <button onClick={() => void load()} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: T.elevated, border: `1px solid ${T.border}`, borderRadius: 7, color: T.textSec, fontSize: 12, cursor: 'pointer' }}>

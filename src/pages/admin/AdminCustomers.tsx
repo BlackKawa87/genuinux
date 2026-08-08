@@ -12,7 +12,7 @@ export default function AdminCustomers() {
   return (
     <div>
       <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: T.text, margin: 0 }}>Customer Success</h1>
+        <h1 className="t-title" style={{ color: T.text, margin: 0 }}>Customer Success</h1>
         <p style={{ fontSize: 12, color: T.textDim, margin: '4px 0 0' }}>Early churn signals and engagement health</p>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>

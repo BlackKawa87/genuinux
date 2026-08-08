@@ -139,7 +139,7 @@ function Toggle({ checked, loading, onChange }: { checked: boolean; loading?: bo
         flexShrink: 0, position: 'relative',
         width: 36, height: 20, borderRadius: 10,
         background: checked ? '#16C784' : T.border,
-        border: `1px solid ${checked ? '#16C784' : '#2D4057'}`,
+        border: `1px solid ${checked ? '#16C784' : T.textDim}`,
         opacity: loading ? 0.5 : 1,
         cursor: loading ? 'not-allowed' : 'pointer',
         transition: 'background 0.2s, border-color 0.2s',
@@ -286,10 +286,10 @@ function RuleModal({ rule, orgId, onSave, onClose }: {
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-5 flex-shrink-0" style={{ borderBottom: `1px solid ${T.border}` }}>
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-widest mb-0.5" style={{ color: '#2D4057' }}>
+              <p className="text-[10px] font-semibold uppercase tracking-widest mb-0.5" style={{ color: T.textDim }}>
                 {rule ? 'Edit Rule' : 'New Rule'}
               </p>
-              <p className="text-sm font-bold" style={{ color: T.text, fontFamily: 'Inter, sans-serif' }}>
+              <p className="text-sm font-bold" style={{ color: T.text, fontFamily: "var(--f-display)" }}>
                 {rule ? 'Update this rule' : 'Create a custom rule'}
               </p>
             </div>
@@ -322,7 +322,7 @@ function RuleModal({ rule, orgId, onSave, onClose }: {
               </div>
               <div className="col-span-2">
                 <label className="block text-xs font-semibold mb-2" style={{ color: T.textSec }}>
-                  Description <span style={{ color: '#2D4057', fontWeight: 400 }}>(optional)</span>
+                  Description <span style={{ color: T.textDim, fontWeight: 400 }}>(optional)</span>
                 </label>
                 <input
                   value={form.description}
@@ -497,7 +497,7 @@ function RuleModal({ rule, orgId, onSave, onClose }: {
                   onChange={e => set('priority', Math.min(100, Math.max(0, Number(e.target.value))))}
                   className="g-input text-sm mono w-full"
                 />
-                <p className="text-[10px] mt-1.5" style={{ color: '#2D4057' }}>
+                <p className="text-[10px] mt-1.5" style={{ color: T.textDim }}>
                   Higher = evaluated first (0–100)
                 </p>
               </div>
@@ -506,7 +506,7 @@ function RuleModal({ rule, orgId, onSave, onClose }: {
             {/* Live preview */}
             {hasPreview && (
               <div className="px-4 py-3 rounded-xl" style={{ background: T.bg, border: `1px solid ${T.border}` }}>
-                <p className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: '#2D4057' }}>
+                <p className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: T.textDim }}>
                   Rule Preview
                 </p>
                 <p className="text-xs mono leading-relaxed" style={{ color: T.textSec }}>
@@ -692,7 +692,7 @@ export default function Rules() {
           {activeCount > 0
             ? <><span style={{ color: '#16C784', fontWeight: 600 }}>{activeCount} active</span>{' '}rule{activeCount !== 1 ? 's' : ''}</>
             : 'No active rules'}
-          <span style={{ color: '#2D4057' }}> · {rules.length} total</span>
+          <span style={{ color: T.textDim }}> · {rules.length} total</span>
         </p>
         <button
           onClick={openCreate}
@@ -722,7 +722,7 @@ export default function Rules() {
         <div className="g-card py-16 text-center">
           <Shield size={24} className="mx-auto mb-3" style={{ color: T.border }} />
           <p className="text-sm font-semibold mb-1.5" style={{ color: T.textDim }}>No rules yet</p>
-          <p className="text-xs mb-5" style={{ color: '#2D4057' }}>
+          <p className="text-xs mb-5" style={{ color: T.textDim }}>
             Create your first rule to customize fraud decisions for your business.
           </p>
           <button
@@ -740,7 +740,7 @@ export default function Rules() {
           <div className="grid px-5 py-3"
             style={{ gridTemplateColumns: '44px 1fr auto auto 80px', borderBottom: `1px solid ${T.border}`, background: T.deep, gap: '12px' }}>
             {['', 'Rule / Conditions', 'Action', 'Priority', 'Date'].map((h, i) => (
-              <p key={i} className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#2D4057' }}>{h}</p>
+              <p key={i} className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.textDim }}>{h}</p>
             ))}
           </div>
 
@@ -760,7 +760,7 @@ export default function Rules() {
                   gridTemplateColumns: '44px 1fr auto auto 80px',
                   gap: '12px',
                   borderBottom: i < rules.length - 1 ? '1px solid #0D1B2A' : 'none',
-                  borderLeft: `3px solid ${isActive ? meta.color : '#1E2D3D'}`,
+                  borderLeft: `3px solid ${isActive ? meta.color : T.border}`,
                   opacity: isActive ? 1 : 0.55,
                 }}
                 onMouseEnter={e => (e.currentTarget.style.background = T.dark ? '#0A1828' : 'rgba(0,0,0,0.02)')}
@@ -784,7 +784,7 @@ export default function Rules() {
                   </div>
                   <p className="text-xs mono" style={{ color: T.textDim }}>{ruleToSentence(rule)}</p>
                   {rule.description && (
-                    <p className="text-[11px] mt-0.5" style={{ color: '#2D4057' }}>{rule.description}</p>
+                    <p className="text-[11px] mt-0.5" style={{ color: T.textDim }}>{rule.description}</p>
                   )}
                 </div>
 
@@ -800,15 +800,15 @@ export default function Rules() {
                 <div className="flex items-center gap-1 pt-0.5">
                   {(rule.priority ?? 0) > 0
                     ? <ArrowUp size={10} style={{ color: '#16C784' }} />
-                    : <ArrowDown size={10} style={{ color: '#2D4057' }} />}
-                  <span className="text-xs mono" style={{ color: (rule.priority ?? 0) > 0 ? '#16C784' : '#2D4057' }}>
+                    : <ArrowDown size={10} style={{ color: T.textDim }} />}
+                  <span className="text-xs mono" style={{ color: (rule.priority ?? 0) > 0 ? '#16C784' : T.textDim }}>
                     {rule.priority ?? 0}
                   </span>
                 </div>
 
                 {/* Date + actions */}
                 <div className="flex items-center gap-2 pt-0.5">
-                  <span className="text-[10px] mono whitespace-nowrap" style={{ color: '#2D4057' }}>
+                  <span className="text-[10px] mono whitespace-nowrap" style={{ color: T.textDim }}>
                     {new Date(rule.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                   </span>
                   {!isDeleting ? (
@@ -856,7 +856,7 @@ export default function Rules() {
       {/* DB migration hint */}
       {rules.length >= 0 && (
         <details className="mt-5">
-          <summary className="flex items-center gap-2 cursor-pointer text-xs" style={{ color: '#2D4057' }}>
+          <summary className="flex items-center gap-2 cursor-pointer text-xs" style={{ color: T.textDim }}>
             <ChevronDown size={11} />
             Required: DB migration for advanced rules
           </summary>

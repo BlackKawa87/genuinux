@@ -75,7 +75,7 @@ export default function Join() {
           <img src="/logo-full.png" alt="Genuinux" style={{ height: '140px', display: 'block' }} />
         </Link>
 
-        <div className="p-8 rounded-2xl text-center"
+        <div className="p-8 rounded-[14px] text-center"
           style={{
             background: C.surface,
             border: `1px solid ${C.border}`,

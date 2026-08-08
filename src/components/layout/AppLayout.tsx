@@ -7,7 +7,7 @@ import {
   ShieldCheck, Server, FlaskConical, BrainCircuit, Menu, X, Shield,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
-import { useTheme } from '../../contexts/ThemeContext'
+import { useT } from '../../lib/themeTokens'
 import { supabase } from '../../lib/supabase'
 import { can, ROLE_META } from '../../lib/permissions'
 import { useWindowSize } from '../../hooks/useWindowSize'
@@ -58,11 +58,13 @@ const BETA_LIMITS: Record<string, number> = {
   pro: 50_000, enterprise: 500_000,
 }
 
+const SIDEBAR_W = 216
+
 export default function AppLayout() {
   const location  = useLocation()
   const navigate  = useNavigate()
   const { user, profile, signOut } = useAuth()
-  const { theme, toggle } = useTheme()
+  const T = useT()
 
   const [orgName,      setOrgName]      = useState('')
   const [plan,         setPlan]         = useState('')
@@ -75,7 +77,6 @@ export default function AppLayout() {
 
   const role     = profile?.role ?? null
   const roleMeta = ROLE_META[role ?? ''] ?? null
-  const dark     = theme === 'dark'
 
   const filteredGroups = NAV_GROUPS.map(group => ({
     ...group,
@@ -112,7 +113,6 @@ export default function AppLayout() {
             .then(({ count }) => setMonthlyUsed(count ?? 0))
         }
       })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.organization_id])
 
   // Close sidebar on navigation (mobile)
@@ -130,151 +130,170 @@ export default function AppLayout() {
     navigate('/')
   }
 
-  // Design tokens
-  const S = {
-    outer:         dark ? '#07080C'             : '#F1F4FA',
-    sidebar:       dark ? '#09101A'             : '#FFFFFF',
-    sidebarBorder: dark ? '#182030'             : '#D8DCEC',
-    header:        dark ? 'rgba(9,16,26,0.97)'  : 'rgba(255,255,255,0.96)',
-    headerBorder:  dark ? '#182030'             : '#D8DCEC',
-    orgCard:       dark ? '#0E1520'             : '#F1F4FA',
-    orgCardBorder: dark ? '#182030'             : '#D8DCEC',
-    orgName:       dark ? '#ECF0FA'             : '#07090F',
-    logoFilter:    dark ? 'brightness(0) invert(1)' : 'none',
-    pageTitle:     dark ? '#ECF0FA'             : '#07090F',
-    pageSub:       dark ? '#475569'             : '#9BA4BC',
-    divider:       dark ? '#182030'             : '#D8DCEC',
-    toggleColor:   dark ? '#8B9BB8'             : '#5B6480',
-    groupLabel:    dark ? '#2E3F54'             : '#9BA4BC',
-    liveColor:     '#16C784',
-    shadowColor:   '#38BDF8',
-  }
-
   const usagePct  = isFinite(monthlyLimit) && monthlyLimit > 0 ? monthlyUsed / monthlyLimit : 0
   const nearLimit = usagePct >= 0.8 && usagePct < 1
   const atLimit   = usagePct >= 1
 
-  return (
-    <div className="flex min-h-screen" style={{ background: S.outer }}>
+  /* Environment is the most consequential piece of state in the header: it
+     tells the operator whether decisions are being enforced on real users. */
+  const envTone = shadowMode
+    ? { ink: T.infoText,    fill: T.info,    label: 'Shadow' }
+    : { ink: T.successText, fill: T.success, label: 'Live'  }
 
-      {/* ── Mobile Backdrop ──────────────────────────────────────── */}
+  return (
+    <div style={{ display: 'flex', minHeight: '100vh', background: T.bg }}>
+
+      {/* ── Mobile backdrop ──────────────────────────────────────────────── */}
       {isMobile && sidebarOpen && (
         <div
           onClick={() => setSidebarOpen(false)}
-          style={{
-            position: 'fixed', inset: 0,
-            background: 'rgba(0,0,0,0.5)',
-            zIndex: 199,
-          }}
+          aria-hidden="true"
+          style={{ position: 'fixed', inset: 0, background: T.overlay, zIndex: 199 }}
         />
       )}
 
-      {/* ── Sidebar ──────────────────────────────────────────────── */}
+      {/* ── Sidebar ──────────────────────────────────────────────────────── */}
       <aside
-        className="fixed left-0 top-0 h-screen flex flex-col"
+        aria-label="Main navigation"
         style={{
-          width: 216,
-          transform: isMobile ? (sidebarOpen ? 'translateX(0)' : 'translateX(-216px)') : 'translateX(0)',
-          transition: 'transform 0.25s ease',
+          position: 'fixed', left: 0, top: 0,
+          height: '100vh', width: SIDEBAR_W,
+          display: 'flex', flexDirection: 'column',
+          transform: isMobile && !sidebarOpen ? `translateX(-${SIDEBAR_W}px)` : 'translateX(0)',
+          transition: `transform ${T.dSlow} ${T.ease}`,
           zIndex: isMobile ? 200 : 30,
-          background: S.sidebar,
-          borderRight: `1px solid ${S.sidebarBorder}`,
+          background: T.card,
+          borderRight: `1px solid ${T.border}`,
         }}
       >
-        {/* Logo + mode */}
-        <div className="flex items-center justify-between px-4 py-3.5 flex-shrink-0"
-          style={{ borderBottom: `1px solid ${S.sidebarBorder}` }}>
-          <img
-            src="/logo-horizontal.png"
-            alt="Genuinux"
-            style={{ height: 64, display: 'block', filter: S.logoFilter }}
-          />
-          <span className="flex items-center gap-1 text-[9px] mono flex-shrink-0"
-            style={{ color: shadowMode ? S.shadowColor : S.liveColor }}>
-            <span className="pulse-dot inline-block w-1.5 h-1.5 rounded-full bg-current" />
-            {shadowMode ? 'Shadow' : 'Live'}
-          </span>
+        {/* Brand. Sized to sit level with the header rule opposite it. */}
+        <div
+          style={{
+            height: 52, padding: '0 14px', flexShrink: 0,
+            display: 'flex', alignItems: 'center',
+            borderBottom: `1px solid ${T.border}`,
+          }}
+        >
+          <Link to="/dashboard" style={{ display: 'flex', alignItems: 'center' }} aria-label="Genuinux dashboard">
+            <img
+              src="/logo-horizontal.png"
+              alt="Genuinux"
+              style={{ height: 26, display: 'block', filter: T.dark ? 'brightness(0) invert(1)' : 'none' }}
+            />
+          </Link>
         </div>
 
-        {/* Org badge */}
+        {/* Organisation. A quiet line of context, not a boxed widget. */}
         {orgName && (
-          <div className="mx-3 mt-3 px-3 py-2.5 rounded-lg flex-shrink-0 flex items-center justify-between"
-            style={{ background: S.orgCard, border: `1px solid ${S.orgCardBorder}` }}>
-            <p className="text-xs font-semibold truncate" style={{ color: S.orgName }}>
-              {orgName}
-            </p>
-            {plan && (
-              <span className="text-[9px] mono px-1.5 py-0.5 rounded flex-shrink-0 ml-2"
+          <div style={{ padding: '14px 14px 10px', flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+              <span
+                aria-hidden="true"
                 style={{
-                  background: 'rgba(22,199,132,0.09)',
-                  color: '#16C784',
-                  border: '1px solid rgba(22,199,132,0.2)',
-                }}>
-                {plan.toUpperCase()}
+                  width: 20, height: 20, flexShrink: 0,
+                  borderRadius: 6,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: T.trustDim, border: `1px solid ${T.trustBd}`,
+                  color: T.trustText, fontSize: 10, fontWeight: 700,
+                }}
+              >
+                {orgName.charAt(0).toUpperCase()}
               </span>
+              <span
+                className="t-subhead"
+                style={{ color: T.text, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                title={orgName}
+              >
+                {orgName}
+              </span>
+            </div>
+            {plan && (
+              <p className="t-label" style={{ color: T.textDim, marginTop: 6, paddingLeft: 28 }}>
+                {plan} plan
+              </p>
             )}
           </div>
         )}
 
-        {/* Nav groups */}
-        <nav className="flex-1 px-3 py-4 overflow-y-auto">
+        {/* Navigation */}
+        <nav className="g-scroll" style={{ flex: 1, overflowY: 'auto', padding: '4px 12px 12px' }}>
           {filteredGroups.map((group, gi) => (
-            <div key={group.label} className={gi > 0 ? 'mt-5' : ''}>
-              <p className="px-2 mb-1.5 text-[9px] font-semibold uppercase tracking-widest"
-                style={{ color: S.groupLabel, letterSpacing: '0.1em' }}>
+            <div key={group.label} style={{ marginTop: gi > 0 ? 20 : 0 }}>
+              <p className="t-label" style={{ padding: '0 9px', marginBottom: 6, color: T.textDim }}>
                 {group.label}
               </p>
-              <div className="space-y-0.5">
-                {group.items.map(item => (
-                  <Link
-                    key={item.to}
-                    to={item.to}
-                    className={`nav-item${isActive(item.to) ? ' active' : ''}`}
-                  >
-                    <item.icon size={14} />
-                    <span>{item.label}</span>
-                  </Link>
-                ))}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                {group.items.map(item => {
+                  const active = isActive(item.to)
+                  return (
+                    <Link
+                      key={item.to}
+                      to={item.to}
+                      className={`nav-item${active ? ' active' : ''}`}
+                      aria-current={active ? 'page' : undefined}
+                    >
+                      <item.icon size={14} />
+                      <span>{item.label}</span>
+                    </Link>
+                  )
+                })}
               </div>
             </div>
           ))}
         </nav>
 
-        {/* Bottom */}
-        <div className="px-3 pb-3 pt-2 flex-shrink-0 space-y-0.5"
-          style={{ borderTop: `1px solid ${S.sidebarBorder}` }}>
-          <Link to="/docs" className="nav-item">
-            <BookOpen size={14} />
-            <span>Documentation</span>
-          </Link>
-          <Link
-            to="/dashboard/settings"
-            className={`nav-item${isActive('/dashboard/settings') ? ' active' : ''}`}
-          >
-            <Settings size={14} />
-            <span>Settings</span>
-          </Link>
+        {/* Secondary links + account */}
+        <div style={{ padding: '8px 12px 12px', flexShrink: 0, borderTop: `1px solid ${T.border}` }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 1, marginBottom: 8 }}>
+            <Link to="/docs" className="nav-item">
+              <BookOpen size={14} />
+              <span>Documentation</span>
+            </Link>
+            <Link
+              to="/dashboard/settings"
+              className={`nav-item${isActive('/dashboard/settings') ? ' active' : ''}`}
+              aria-current={isActive('/dashboard/settings') ? 'page' : undefined}
+            >
+              <Settings size={14} />
+              <span>Settings</span>
+            </Link>
+          </div>
 
-          {/* User card */}
-          <div className="mt-2 px-3 py-2.5 rounded-lg"
-            style={{ background: S.orgCard, border: `1px solid ${S.orgCardBorder}` }}>
-            <div className="flex items-center justify-between mb-1.5">
-              <p className="text-[11px] mono truncate" style={{ color: S.pageSub, maxWidth: '120px' }}>
+          {/* Account. Bare row — the sidebar edge already frames it. */}
+          <div style={{ padding: '0 9px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
+              <span
+                className="mono"
+                style={{
+                  fontSize: 11, color: T.textDim, minWidth: 0,
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}
+                title={user?.email}
+              >
                 {user?.email}
-              </p>
+              </span>
               {roleMeta && (
-                <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 ml-1"
-                  style={{ background: roleMeta.bg, color: roleMeta.color }}>
+                <span
+                  style={{
+                    fontSize: 9, fontWeight: 700, letterSpacing: '0.04em',
+                    padding: '1px 5px', borderRadius: 4, flexShrink: 0,
+                    background: roleMeta.bg, color: roleMeta.color,
+                  }}
+                >
                   {roleMeta.label}
                 </span>
               )}
             </div>
             <button
               onClick={() => void handleSignOut()}
-              className="flex items-center gap-1.5 text-[11px] transition-colors duration-150"
-              style={{ color: S.pageSub }}
-              onMouseEnter={e => (e.currentTarget.style.color = '#EF4444')}
-              onMouseLeave={e => (e.currentTarget.style.color = S.pageSub)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                fontSize: 11, color: T.textDim,
+                background: 'none', border: 0, padding: 0, cursor: 'pointer',
+                transition: `color ${T.dFast} ${T.ease}`,
+              }}
+              onMouseEnter={e => (e.currentTarget.style.color = T.dangerText)}
+              onMouseLeave={e => (e.currentTarget.style.color = T.textDim)}
             >
               <LogOut size={11} />
               Sign out
@@ -283,132 +302,161 @@ export default function AppLayout() {
         </div>
       </aside>
 
-      {/* ── Main ─────────────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col min-h-screen" style={{ marginLeft: isMobile ? 0 : '216px' }}>
-
-        {/* Header */}
+      {/* ── Main ─────────────────────────────────────────────────────────── */}
+      <div
+        style={{
+          flex: 1, display: 'flex', flexDirection: 'column', minHeight: '100vh',
+          marginLeft: isMobile ? 0 : SIDEBAR_W,
+          minWidth: 0,
+        }}
+      >
+        {/* Header. Left: where you are. Right: what state the system is in.
+            Three groups, one divider — not five chips competing for attention. */}
         <header
-          className="sticky top-0 z-20 flex items-center justify-between px-7 flex-shrink-0"
           style={{
-            height: 52,
-            background: S.header,
-            borderBottom: `1px solid ${S.headerBorder}`,
-            backdropFilter: 'blur(10px)',
-            WebkitBackdropFilter: 'blur(10px)',
+            position: 'sticky', top: 0, zIndex: 20, flexShrink: 0,
+            height: 52, padding: '0 var(--page-x)',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
+            background: T.headerBg,
+            borderBottom: `1px solid ${T.border}`,
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
           }}
         >
-          {/* Hamburger (mobile only) + Page title */}
-          <div className="flex items-center gap-3">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
             {isMobile && (
               <button
                 onClick={() => setSidebarOpen(o => !o)}
-                style={{ color: S.pageTitle, background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}
+                aria-label={sidebarOpen ? 'Close navigation' : 'Open navigation'}
+                aria-expanded={sidebarOpen}
+                className="btn btn-ghost btn-sm btn-icon"
               >
-                {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
+                {sidebarOpen ? <X size={17} /> : <Menu size={17} />}
               </button>
             )}
-            <div className="flex items-center gap-2 text-xs" style={{ color: S.pageSub }}>
-              <span className="hidden sm:inline">Dashboard</span>
-              <ChevronRight size={11} className="hidden sm:inline" style={{ color: S.pageSub }} />
-              <span className="font-semibold" style={{ color: S.pageTitle }}>{currentPage}</span>
-            </div>
+            <nav aria-label="Breadcrumb" style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+              <span className="t-meta" style={{ color: T.textDim, display: isMobile ? 'none' : 'inline' }}>
+                Dashboard
+              </span>
+              <ChevronRight
+                size={12}
+                style={{ color: T.textDim, flexShrink: 0, display: isMobile ? 'none' : 'block' }}
+                aria-hidden="true"
+              />
+              <span
+                className="t-subhead"
+                style={{ color: T.text, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+              >
+                {currentPage}
+              </span>
+            </nav>
           </div>
 
-          {/* Right */}
-          <div className="flex items-center gap-4">
-            {orgName && (
-              <div className="hidden sm:flex items-center gap-2">
-                <div className="w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-bold"
-                  style={{ background: 'rgba(22,199,132,0.1)', color: '#16C784', border: '1px solid rgba(22,199,132,0.2)' }}>
-                  {orgName.charAt(0).toUpperCase()}
-                </div>
-                <span className="text-xs font-medium" style={{ color: S.pageTitle }}>{orgName}</span>
-                {plan && (
-                  <span className="text-[9px] mono px-1.5 py-0.5 rounded"
-                    style={{ background: 'rgba(22,199,132,0.07)', color: '#16C784', border: '1px solid rgba(22,199,132,0.15)' }}>
-                    {plan.toUpperCase()}
-                  </span>
-                )}
-              </div>
-            )}
-
-            <div className="w-px h-3.5 flex-shrink-0" style={{ background: S.divider }} />
-
-            {profile?.is_platform_admin && (
-              <>
-                <Link
-                  to="/admin"
-                  className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-opacity hover:opacity-80"
-                  style={{ background: 'rgba(245,158,11,0.12)', color: '#F59E0B', border: '1px solid rgba(245,158,11,0.28)', textDecoration: 'none' }}
-                >
-                  <Shield size={11} />
-                  Admin Console
-                </Link>
-                <div className="w-px h-3.5 flex-shrink-0" style={{ background: S.divider }} />
-              </>
-            )}
-
-            <span className="flex items-center gap-1.5 text-xs mono"
-              style={{ color: shadowMode ? S.shadowColor : S.liveColor }}>
-              <span className="pulse-dot inline-block w-1.5 h-1.5 rounded-full bg-current" />
-              {shadowMode ? 'Shadow' : 'Live'}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+            {/* Environment — the one status that always earns header space. */}
+            <span
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 600, color: envTone.ink }}
+              title={shadowMode
+                ? 'Shadow mode: decisions are recorded but not enforced'
+                : 'Live mode: block and review decisions are enforced'}
+            >
+              <span
+                className="pulse-dot"
+                style={{ width: 6, height: 6, borderRadius: 999, background: envTone.fill, flexShrink: 0 }}
+              />
+              {envTone.label}
             </span>
 
-            <div className="w-px h-3.5 flex-shrink-0" style={{ background: S.divider }} />
+            <span aria-hidden="true" style={{ width: 1, height: 14, background: T.border }} />
+
+            {profile?.is_platform_admin && (
+              <Link
+                to="/admin"
+                className="btn btn-ghost btn-sm"
+                style={{ color: T.warningText, display: isMobile ? 'none' : 'inline-flex' }}
+                title="Platform administration"
+              >
+                <Shield size={12} />
+                Admin
+              </Link>
+            )}
 
             <button
-              onClick={toggle}
-              className="flex items-center justify-center w-7 h-7 rounded-lg transition-opacity duration-150 hover:opacity-60"
-              style={{ color: S.toggleColor }}
-              title={dark ? 'Switch to light mode' : 'Switch to dark mode'}
+              onClick={T.toggle}
+              className="btn btn-ghost btn-sm btn-icon"
+              aria-label={T.dark ? 'Switch to light mode' : 'Switch to dark mode'}
             >
-              {dark ? <Sun size={14} /> : <Moon size={14} />}
+              {T.dark ? <Sun size={14} /> : <Moon size={14} />}
             </button>
           </div>
         </header>
 
-        {/* Safety banners */}
+        {/* ── Safety banners ─────────────────────────────────────────────── */}
         {!shadowMode && (
-          <div className="flex items-center gap-2 px-7 py-2 text-xs"
-            style={{ background: 'rgba(22,199,132,0.05)', borderBottom: '1px solid rgba(22,199,132,0.14)', color: '#16C784' }}>
-            <ShieldCheck size={11} />
+          <div
+            role="status"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '8px var(--page-x)', fontSize: 12,
+              background: T.successDim,
+              borderBottom: `1px solid ${T.successBd}`,
+              color: T.successText,
+            }}
+          >
+            <ShieldCheck size={13} style={{ flexShrink: 0 }} />
             <span>
-              <strong>Live Mode active</strong> — block and review decisions are enforced in real time.{' '}
-              <Link to="/dashboard/settings?tab=risk" style={{ color: '#16C784', textDecoration: 'underline' }}>
-                Settings → Risk
-              </Link>{' '}
-              to pause.
+              <strong style={{ fontWeight: 600 }}>Live mode active</strong>
+              {' — '}block and review decisions are enforced in real time.{' '}
+              <Link to="/dashboard/settings?tab=risk" style={{ color: 'inherit', textDecoration: 'underline' }}>
+                Pause in Settings
+              </Link>
             </span>
           </div>
         )}
         {nearLimit && (
-          <div className="flex items-center gap-2 px-7 py-2 text-xs"
-            style={{ background: 'rgba(245,158,11,0.06)', borderBottom: '1px solid rgba(245,158,11,0.18)', color: '#B45309' }}>
-            <AlertTriangle size={11} />
+          <div
+            role="status"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '8px var(--page-x)', fontSize: 12,
+              background: T.warningDim,
+              borderBottom: `1px solid ${T.warningBd}`,
+              color: T.warningText,
+            }}
+          >
+            <AlertTriangle size={13} style={{ flexShrink: 0 }} />
             <span>
-              <strong>{Math.round(usagePct * 100)}% of monthly limit used</strong>{' '}
-              ({monthlyUsed.toLocaleString()} / {monthlyLimit.toLocaleString()}).{' '}
-              <Link to="/dashboard/settings?tab=billing" style={{ color: '#D97706', textDecoration: 'underline' }}>
-                Upgrade →
+              <strong style={{ fontWeight: 600 }}>{Math.round(usagePct * 100)}% of monthly limit used</strong>
+              {' '}({monthlyUsed.toLocaleString()} / {monthlyLimit.toLocaleString()}).{' '}
+              <Link to="/dashboard/settings?tab=billing" style={{ color: 'inherit', textDecoration: 'underline' }}>
+                Upgrade
               </Link>
             </span>
           </div>
         )}
         {atLimit && (
-          <div className="flex items-center gap-2 px-7 py-2 text-xs"
-            style={{ background: 'rgba(239,68,68,0.06)', borderBottom: '1px solid rgba(239,68,68,0.18)', color: '#DC2626' }}>
-            <AlertTriangle size={11} />
+          <div
+            role="alert"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '8px var(--page-x)', fontSize: 12,
+              background: T.dangerDim,
+              borderBottom: `1px solid ${T.dangerBd}`,
+              color: T.dangerText,
+            }}
+          >
+            <AlertTriangle size={13} style={{ flexShrink: 0 }} />
             <span>
-              <strong>Monthly event limit reached.</strong>{' '}
-              API returning 429 for new events.{' '}
-              <Link to="/dashboard/settings?tab=billing" style={{ color: '#DC2626', textDecoration: 'underline' }}>
-                Upgrade now →
+              <strong style={{ fontWeight: 600 }}>Monthly event limit reached.</strong>
+              {' '}The API is returning 429 for new events.{' '}
+              <Link to="/dashboard/settings?tab=billing" style={{ color: 'inherit', textDecoration: 'underline' }}>
+                Upgrade now
               </Link>
             </span>
           </div>
         )}
 
-        <main className="flex-1 overflow-x-hidden">
+        <main style={{ flex: 1, overflowX: 'hidden', minWidth: 0 }}>
           <Outlet />
         </main>
       </div>

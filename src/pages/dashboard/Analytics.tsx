@@ -645,7 +645,7 @@ export default function Analytics() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-lg font-bold flex items-center gap-2.5" style={{ color: T.text }}>
+          <h1 className="t-title flex items-center gap-2.5" style={{ color: T.text }}>
             <BarChart2 size={18} style={{ color: '#16C784' }} />
             Analytics
           </h1>
@@ -1234,7 +1234,7 @@ export default function Analytics() {
       </div>
 
       {/* ── Feature Store ─────────────────────────────────────────────────────── */}
-      <div className="rounded-2xl p-6" style={{ background: T.card, border: `1px solid ${T.border}` }}>
+      <div className="rounded-[10px] p-6" style={{ background: T.card, border: `1px solid ${T.border}` }}>
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-2.5">
             <Database size={15} style={{ color: '#818CF8' }} />
@@ -1388,7 +1388,7 @@ export default function Analytics() {
       </div>
 
       {/* ── Training Dataset ──────────────────────────────────────────────────── */}
-      <div className="rounded-2xl p-6" style={{ background: T.card, border: `1px solid ${T.border}` }}>
+      <div className="rounded-[10px] p-6" style={{ background: T.card, border: `1px solid ${T.border}` }}>
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-2.5">
             <Layers size={15} style={{ color: '#16C784' }} />

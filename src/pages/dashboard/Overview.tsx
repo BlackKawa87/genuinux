@@ -1,16 +1,33 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import {
-  Activity, CheckCircle, XCircle, Clock, TrendingUp,
+  Activity, XCircle, Clock, TrendingUp,
   RefreshCw, Eye, AlertTriangle, Globe, Monitor,
-  Wifi, ArrowUpRight, Shield, Users,
+  Wifi, Shield, CheckCircle, Radio,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
-import { useT } from '../../lib/themeTokens'
+import { useT, trustInk, fraudInk } from '../../lib/themeTokens'
+import type { Tokens } from '../../lib/themeTokens'
 import { useWindowSize } from '../../hooks/useWindowSize'
+import {
+  PageHeader, Section, Card, Button, Badge, Notice, Spinner,
+  Metric, MetricRow, Meter, EmptyState,
+} from '../../components/ui'
 import type { RiskEvent } from '../../types'
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+/* ═══════════════════════════════════════════════════════════════════════════
+   Overview — the operator's first three seconds.
+
+   Reading order is deliberate and top-to-bottom:
+     1. Environment      is the engine enforcing decisions, or only watching?
+     2. Anomalies        is anything happening right now that needs a human?
+     3. Headline volume  four numbers that describe the last 24 hours
+     4. Shape            how that volume distributes across time and risk
+     5. Stream           the raw feed, for when a number prompts a question
+
+   Everything below the headline row is secondary by construction: quieter
+   labels, smaller numerals, and no competing colour.
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 interface Signal { code: string; label: string; severity: string }
 
@@ -24,15 +41,7 @@ interface SpikeAlert {
   sub: string
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const SPIKE_COLORS: Record<SpikeSeverity, { text: string; bg: string; border: string }> = {
-  medium:   { text: '#F59E0B', bg: 'rgba(245,158,11,0.08)',  border: 'rgba(245,158,11,0.2)'  },
-  high:     { text: '#F97316', bg: 'rgba(249,115,22,0.08)',  border: 'rgba(249,115,22,0.2)'  },
-  critical: { text: '#EF4444', bg: 'rgba(239,68,68,0.08)',   border: 'rgba(239,68,68,0.2)'   },
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+/* ── Helpers ──────────────────────────────────────────────────────────────── */
 
 function relativeTime(iso: string): string {
   const d = Date.now() - new Date(iso).getTime()
@@ -45,27 +54,21 @@ function relativeTime(iso: string): string {
   return `${Math.floor(h / 24)}d ago`
 }
 
-function trustColor(score: number): string {
-  if (score >= 70) return '#16C784'
-  if (score >= 45) return '#F59E0B'
-  return '#EF4444'
-}
-
-function fraudColor(score: number): string {
-  if (score >= 70) return '#EF4444'
-  if (score >= 40) return '#F59E0B'
-  return '#16C784'
-}
-
 function parseSignals(raw: unknown): Signal[] {
   if (!Array.isArray(raw)) return []
   return raw as Signal[]
 }
 
-// ─── Chart: Area ──────────────────────────────────────────────────────────────
+function severityTone(sev: SpikeSeverity, T: Tokens) {
+  if (sev === 'critical') return { fill: T.riskCrit, ink: T.riskCritT }
+  if (sev === 'high')     return { fill: T.riskHigh, ink: T.riskHighT }
+  return { fill: T.riskMed, ink: T.riskMedT }
+}
 
-function AreaChart({ buckets }: { buckets: number[] }) {
-  const W = 480, H = 72, PY = 5
+/* ── Charts ───────────────────────────────────────────────────────────────── */
+
+function AreaChart({ buckets, T }: { buckets: number[]; T: Tokens }) {
+  const W = 480, H = 88, PY = 6
   const max = Math.max(...buckets, 1)
   const pts = buckets.map((v, i) => [
     (i / (buckets.length - 1)) * W,
@@ -73,33 +76,38 @@ function AreaChart({ buckets }: { buckets: number[] }) {
   ] as [number, number])
   const line = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ')
   const area = `M0,${H} ` + pts.map(p => `L${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ') + ` L${W},${H} Z`
+
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="72" preserveAspectRatio="none">
+    <svg
+      viewBox={`0 0 ${W} ${H}`} width="100%" height="88" preserveAspectRatio="none"
+      role="img" aria-label="Events per hour over the last 24 hours"
+    >
       <defs>
-        <linearGradient id="ag2" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%"   stopColor="#16C784" stopOpacity="0.18" />
-          <stop offset="100%" stopColor="#16C784" stopOpacity="0.01" />
+        <linearGradient id="ovArea" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"   stopColor={T.trust} stopOpacity="0.16" />
+          <stop offset="100%" stopColor={T.trust} stopOpacity="0" />
         </linearGradient>
       </defs>
-      <path d={area} fill="url(#ag2)" />
-      <path d={line}  fill="none" stroke="#16C784" strokeWidth="1.5" />
+      {/* Quarter gridlines give the curve something to be read against. */}
+      {[0.25, 0.5, 0.75].map(f => (
+        <line key={f} x1="0" x2={W} y1={H * f} y2={H * f} stroke={T.border} strokeWidth="1" vectorEffect="non-scaling-stroke" />
+      ))}
+      <path d={area} fill="url(#ovArea)" />
+      <path d={line} fill="none" stroke={T.trust} strokeWidth="1.5" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
     </svg>
   )
 }
 
-// ─── Chart: Donut ─────────────────────────────────────────────────────────────
-
-function DonutChart({ allow, review, block, border, text, textDim }: {
-  allow: number; review: number; block: number
-  border: string; text: string; textDim: string
+function DonutChart({ allow, review, block, T }: {
+  allow: number; review: number; block: number; T: Tokens
 }) {
   const total = allow + review + block
-  const r = 32, circ = 2 * Math.PI * r
+  const r = 34, circ = 2 * Math.PI * r
   const gap = total > 0 ? 3 : 0
   const segs = total === 0 ? [] : [
-    { val: allow,  color: '#16C784' },
-    { val: review, color: '#F59E0B' },
-    { val: block,  color: '#EF4444' },
+    { val: allow,  color: T.success },
+    { val: review, color: T.warning },
+    { val: block,  color: T.danger  },
   ]
   let off = 0
   const arcs = segs.map(s => {
@@ -108,81 +116,69 @@ function DonutChart({ allow, review, block, border, text, textDim }: {
     if (s.val > 0) off += len + gap
     return a
   })
+
   return (
-    <svg viewBox="0 0 88 88" width="88" height="88">
+    <svg viewBox="0 0 92 92" width="92" height="92" role="img" aria-label={`${total} events by decision`}>
       {total === 0
-        ? <circle cx="44" cy="44" r={r} fill="none" stroke={border} strokeWidth="7" />
+        ? <circle cx="46" cy="46" r={r} fill="none" stroke={T.border} strokeWidth="7" />
         : arcs.map((arc, i) => arc.val > 0 && (
-          <circle key={i} cx="44" cy="44" r={r} fill="none" stroke={arc.color} strokeWidth="7"
+          <circle key={i} cx="46" cy="46" r={r} fill="none" stroke={arc.color} strokeWidth="7"
             strokeDasharray={`${arc.len} ${circ}`} strokeDashoffset={-arc.off}
-            transform="rotate(-90 44 44)" strokeLinecap="butt" />
+            transform="rotate(-90 46 46)" strokeLinecap="butt" />
         ))}
-      <text x="44" y="41" textAnchor="middle" fill={text} fontSize="12" fontWeight="bold" fontFamily="IBM Plex Mono, monospace">
+      <text x="46" y="44" textAnchor="middle" fill={T.text} fontSize="14" fontWeight="600"
+        fontFamily="IBM Plex Mono, monospace" letterSpacing="-0.5">
         {total > 0 ? total.toLocaleString() : '—'}
       </text>
-      <text x="44" y="52" textAnchor="middle" fill={textDim} fontSize="7" fontFamily="Inter, sans-serif">
-        events
+      <text x="46" y="56" textAnchor="middle" fill={T.textDim} fontSize="7.5"
+        fontFamily="DM Sans, sans-serif" letterSpacing="0.6">
+        EVENTS
       </text>
     </svg>
   )
 }
 
-// ─── Chart: Fraud histogram ───────────────────────────────────────────────────
-
-const HIST_COLORS = [
-  '#16C784','#16C784','#16C784','#16C784',
-  '#F59E0B','#F59E0B',
-  '#F97316','#F97316',
-  '#EF4444','#EF4444',
-]
-
-function FraudHistogram({ buckets, border, textDim }: { buckets: number[]; border: string; textDim: string }) {
-  const MAX_H = 64
+function FraudHistogram({ buckets, T }: { buckets: number[]; T: Tokens }) {
+  const MAX_H = 72
   const max = Math.max(...buckets, 1)
+  // Bucket index maps to the risk band that score range falls into.
+  const colors = [
+    T.riskLow, T.riskLow, T.riskLow, T.riskLow,
+    T.riskMed, T.riskMed,
+    T.riskHigh, T.riskHigh,
+    T.riskCrit, T.riskCrit,
+  ]
+  const labels = ['0', '10', '20', '30', '40', '50', '60', '70', '80', '90+']
+
   return (
     <div>
-      <div className="flex items-end gap-[3px]" style={{ height: MAX_H }}>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: MAX_H }}>
         {buckets.map((v, i) => (
-          <div key={i} className="flex-1 flex items-end" style={{ height: MAX_H }}>
-            <div className="w-full rounded-[2px]" style={{
-              height: v > 0 ? Math.max((v / max) * MAX_H, 3) : 1,
-              background: v > 0 ? HIST_COLORS[i] : border,
-              opacity: v > 0 ? 0.85 : 0.3,
-              transition: 'height 0.5s ease',
-            }} />
+          <div key={i} style={{ flex: 1, display: 'flex', alignItems: 'flex-end', height: MAX_H }}>
+            <div
+              title={`${labels[i]}–${i === 9 ? '100' : String((i + 1) * 10)}: ${v} events`}
+              style={{
+                width: '100%',
+                height: v > 0 ? Math.max((v / max) * MAX_H, 3) : 1,
+                background: v > 0 ? colors[i] : T.border,
+                opacity: v > 0 ? 0.9 : 0.4,
+                borderRadius: 2,
+                transition: `height ${T.dSlow} ${T.ease}`,
+              }}
+            />
           </div>
         ))}
       </div>
-      <div className="flex mt-1.5">
-        {['0','10','20','30','40','50','60','70','80','90+'].map((l, i) => (
-          <span key={i} className="flex-1 text-[9px] mono text-center" style={{ color: textDim }}>{l}</span>
+      <div style={{ display: 'flex', marginTop: 6 }}>
+        {labels.map(l => (
+          <span key={l} className="mono" style={{ flex: 1, fontSize: 9, textAlign: 'center', color: T.textDim }}>{l}</span>
         ))}
       </div>
     </div>
   )
 }
 
-// ─── Chart: HorizBar ─────────────────────────────────────────────────────────
-
-function HorizBar({ label, count, max, color, pct: pctOverride, textSec, border }: {
-  label: string; count: number; max: number; color: string; pct?: number
-  textSec: string; border: string
-}) {
-  const pct = pctOverride ?? (max > 0 ? (count / max) * 100 : 0)
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-xs truncate pr-2" style={{ color: textSec }}>{label}</span>
-        <span className="text-xs mono font-semibold flex-shrink-0" style={{ color }}>{count.toLocaleString()}</span>
-      </div>
-      <div className="rounded-full overflow-hidden" style={{ height: 3, background: border }}>
-        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: color }} />
-      </div>
-    </div>
-  )
-}
-
-// ─── Main component ───────────────────────────────────────────────────────────
+/* ── Main ─────────────────────────────────────────────────────────────────── */
 
 export default function Overview() {
   const { user } = useAuth()
@@ -197,7 +193,7 @@ export default function Overview() {
   const [, setTick] = useState(0)
   const feedRef = useRef<HTMLDivElement>(null)
 
-  // ── Data loading ──────────────────────────────────────────────
+  /* ── Data loading ─────────────────────────────────────────────────────── */
 
   useEffect(() => {
     if (!user) return
@@ -253,7 +249,7 @@ export default function Overview() {
     return () => clearInterval(id)
   }, [])
 
-  // ── Derived metrics ───────────────────────────────────────────
+  /* ── Derived metrics ──────────────────────────────────────────────────── */
 
   const total   = events.length
   const allowed = useMemo(() => events.filter(e => e.decision === 'allow').length,  [events])
@@ -262,7 +258,8 @@ export default function Overview() {
   const avgTrust = useMemo(() =>
     total > 0 ? Math.round(events.reduce((s, e) => s + e.trust_score, 0) / total) : 0
   , [events, total])
-  const blockRate = total > 0 ? ((blocked / total) * 100).toFixed(1) : '0.0'
+  const blockRate    = total > 0 ? ((blocked / total) * 100).toFixed(1) : '0.0'
+  const approvalRate = total > 0 ? ((allowed / total) * 100).toFixed(1) : '0.0'
 
   const shadowWouldBlock  = useMemo(() => events.filter(e => e.shadow_mode && e.suggested_decision === 'block').length,  [events])
   const shadowWouldReview = useMemo(() => events.filter(e => e.shadow_mode && e.suggested_decision === 'review').length, [events])
@@ -310,7 +307,7 @@ export default function Overview() {
   }, [events])
   const maxCountry = Math.max(...topCountries.map(c => c.count), 1)
 
-  // ── Spike alert detection ─────────────────────────────────────
+  /* ── Spike alert detection ────────────────────────────────────────────── */
 
   const spikeAlerts = useMemo<SpikeAlert[]>(() => {
     const now  = Date.now()
@@ -402,372 +399,367 @@ export default function Overview() {
     return alerts
   }, [events])
 
-  // ── Loading / error states ────────────────────────────────────
+  const SPIKE_ICONS = {
+    ip_surge:             Wifi,
+    high_risk_spike:      TrendingUp,
+    multi_account_device: Monitor,
+    country_risk:         Globe,
+  }
+
+  /* ── Loading / error ──────────────────────────────────────────────────── */
 
   if (loading) return (
-    <div className="flex items-center justify-center min-h-[60vh] gap-3" style={{ color: T.textDim }}>
-      <RefreshCw size={15} className="animate-spin" />
-      <span className="text-sm">Loading dashboard…</span>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: 10, color: T.textDim }}>
+      <Spinner size={16} />
+      <span className="t-body">Loading risk intelligence…</span>
     </div>
   )
 
   if (error) return (
-    <div className="p-8">
-      <div className="g-card p-5 text-sm" style={{ color: '#EF4444' }}>{error}</div>
+    <div style={{ padding: 'var(--page-x)' }}>
+      <Notice tone="danger" title="Could not load the dashboard" icon={AlertTriangle}>{error}</Notice>
     </div>
   )
 
-  const STAT_CARDS = [
-    { label: 'Total Checks',    value: total > 0 ? total.toLocaleString() : '—',         sub: 'Last 24 hours',                              icon: Activity,     color: T.textSec, hi: false },
-    { label: 'Approved',        value: allowed > 0 ? allowed.toLocaleString() : '—',      sub: total > 0 ? `${((allowed/total)*100).toFixed(1)}% of total` : '—', icon: CheckCircle,  color: '#16C784', hi: true  },
-    { label: 'Blocked',         value: blocked > 0 ? blocked.toLocaleString() : '—',      sub: `${blockRate}% block rate`,                    icon: XCircle,      color: '#EF4444', hi: false },
-    { label: 'Review Queue',    value: reviews > 0 ? reviews.toLocaleString() : '—',      sub: total > 0 ? `${((reviews/total)*100).toFixed(1)}% of total` : '—', icon: Clock,        color: '#F59E0B', hi: false },
-    { label: 'Avg Trust Score', value: total > 0 ? String(avgTrust) : '—',                sub: avgTrust >= 70 ? 'Healthy baseline' : total > 0 ? 'Elevated risk' : '—', icon: TrendingUp, color: total > 0 ? trustColor(avgTrust) : T.textDim, hi: false },
-    { label: 'High-Risk Events',value: highRisk > 0 ? highRisk.toLocaleString() : '—',   sub: 'High + critical level',                        icon: AlertTriangle, color: highRisk > 0 ? '#F97316' : T.textDim, hi: false },
-  ]
-
-  const SPIKE_ICONS = {
-    ip_surge:              Wifi,
-    high_risk_spike:       TrendingUp,
-    multi_account_device:  Monitor,
-    country_risk:          Globe,
-  }
-
-  // ── Render ────────────────────────────────────────────────────
+  const hasEvents = total > 0
+  const gridCols = isMobile ? '1fr' : 'minmax(0, 1fr) 340px'
 
   return (
-    <div style={{ padding: isMobile ? '16px' : '28px', maxWidth: 1400 }}>
+    <div style={{ padding: 'var(--page-x)', maxWidth: 1440 }}>
 
-      {/* ── Shadow Mode Banner ────────────────────────────────── */}
+      <PageHeader
+        title="Risk Intelligence"
+        description="Live decisioning across the last 24 hours"
+        meta={
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginLeft: 4, fontSize: 11, fontWeight: 600, color: T.successText }}>
+            <span className="pulse-dot" style={{ width: 6, height: 6, borderRadius: 999, background: T.success }} />
+            Live
+          </span>
+        }
+        actions={
+          <Button size="sm" onClick={() => void fetchEvents()}>
+            <RefreshCw size={12} />
+            Refresh
+          </Button>
+        }
+      />
+
+      {/* ── 1. Environment ─────────────────────────────────────────────── */}
       {shadowMode && (
-        <div className="mb-5 flex items-start gap-3 px-4 py-3.5 rounded-lg"
-          style={{ background: 'rgba(56,189,248,0.06)', border: '1px solid rgba(56,189,248,0.2)' }}>
-          <Eye size={15} className="flex-shrink-0 mt-0.5" style={{ color: '#38BDF8' }} />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold" style={{ color: '#38BDF8' }}>Shadow Mode is active</p>
-            <p className="text-xs mt-0.5" style={{ color: T.textSec }}>
-              No users are being blocked. Decisions reflect what <em>would have happened</em> in Live Mode.
-            </p>
-          </div>
-          {(shadowWouldBlock > 0 || shadowWouldReview > 0) && (
-            <div className="flex items-center gap-4 flex-shrink-0 text-xs mono">
-              {shadowWouldBlock  > 0 && <span><span style={{ color: '#EF4444' }}>{shadowWouldBlock}</span><span style={{ color: T.textDim }}> would block</span></span>}
-              {shadowWouldReview > 0 && <span><span style={{ color: '#F59E0B' }}>{shadowWouldReview}</span><span style={{ color: T.textDim }}> would review</span></span>}
-            </div>
-          )}
+        <div style={{ marginBottom: 20 }}>
+          <Notice
+            tone="info"
+            icon={Eye}
+            title="Shadow mode is active"
+            actions={(shadowWouldBlock > 0 || shadowWouldReview > 0) ? (
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                {shadowWouldBlock > 0 && (
+                  <span className="mono" style={{ fontSize: 11, color: T.dangerText }}>
+                    {shadowWouldBlock}<span style={{ color: T.textDim }}> would block</span>
+                  </span>
+                )}
+                {shadowWouldReview > 0 && (
+                  <span className="mono" style={{ fontSize: 11, color: T.warningText }}>
+                    {shadowWouldReview}<span style={{ color: T.textDim }}> would review</span>
+                  </span>
+                )}
+              </div>
+            ) : undefined}
+          >
+            No users are being blocked. Decisions below reflect what <em>would have happened</em> in live mode.
+          </Notice>
         </div>
       )}
 
-      {/* ── Header ───────────────────────────────────────────── */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-base font-bold" style={{ color: T.text }}>Risk Intelligence</h1>
-          <p className="text-xs mt-0.5" style={{ color: T.textDim }}>Live monitoring — last 24 hours</p>
-        </div>
-        <div className="flex items-center gap-4">
-          <span className="flex items-center gap-1.5 text-xs mono" style={{ color: '#16C784' }}>
-            <span className="pulse-dot inline-block w-1.5 h-1.5 rounded-full bg-current" />
-            Live
-          </span>
-          <button onClick={() => void fetchEvents()}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors duration-150"
-            style={{ border: `1px solid ${T.border}`, color: T.textDim }}
-            onMouseEnter={e => (e.currentTarget.style.color = T.textSec)}
-            onMouseLeave={e => (e.currentTarget.style.color = T.textDim)}>
-            <RefreshCw size={11} />
-            Refresh
-          </button>
-        </div>
-      </div>
-
-      {/* ── Stat Cards ───────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 mb-5">
-        {STAT_CARDS.map((c, i) => (
-          <div key={i} className="g-card p-4"
-            style={c.hi ? { background: 'rgba(22,199,132,0.04)', borderColor: 'rgba(22,199,132,0.15)' } : undefined}>
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: T.textDim }}>
-                {c.label}
-              </p>
-              <c.icon size={13} style={{ color: c.color, flexShrink: 0 }} />
-            </div>
-            <p className="text-2xl font-bold mono leading-none mb-1.5"
-              style={{ color: c.hi ? c.color : T.text }}>
-              {c.value}
-            </p>
-            <p className="text-[11px]" style={{ color: T.textDim }}>{c.sub}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* ── Main 3-col layout ─────────────────────────────────── */}
-      <div className="grid gap-4" style={{ gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 340px' }}>
-
-        {/* ── Col 1-2: Charts + Alerts ──────────────────────── */}
-        <div className="space-y-4" style={{ gridColumn: isMobile ? undefined : 'span 2' }}>
-
-          {/* Risk Spike Alerts */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: T.textDim }}>
-                Risk Spike Alerts
-              </p>
-              {spikeAlerts.length === 0 && (
-                <span className="text-[10px] mono px-2 py-0.5 rounded"
-                  style={{ background: 'rgba(22,199,132,0.08)', color: '#16C784', border: '1px solid rgba(22,199,132,0.2)' }}>
-                  System normal
-                </span>
-              )}
-            </div>
-            {spikeAlerts.length === 0 ? (
-              <div className="g-card px-5 py-4 flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                  style={{ background: 'rgba(22,199,132,0.08)', border: '1px solid rgba(22,199,132,0.15)' }}>
-                  <Shield size={14} style={{ color: '#16C784' }} />
-                </div>
-                <div>
-                  <p className="text-xs font-semibold" style={{ color: '#16C784' }}>No anomalies detected</p>
-                  <p className="text-[11px] mt-0.5" style={{ color: T.textDim }}>
-                    All patterns within normal parameters for the last 24 hours.
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-3">
-                {spikeAlerts.map((alert, i) => {
-                  const col = SPIKE_COLORS[alert.severity]
-                  const Icon = SPIKE_ICONS[alert.type]
-                  return (
-                    <div key={i} className="g-card px-4 py-3.5 flex items-start gap-3"
-                      style={{ borderLeft: `3px solid ${col.text}`, background: col.bg }}>
-                      <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
-                        style={{ background: col.bg, border: `1px solid ${col.border}` }}>
-                        <Icon size={13} style={{ color: col.text }} />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-start justify-between gap-2 mb-0.5">
-                          <p className="text-xs font-semibold" style={{ color: T.text }}>{alert.title}</p>
-                          <span className="text-[9px] mono px-1.5 py-0.5 rounded flex-shrink-0"
-                            style={{ color: col.text, border: `1px solid ${col.border}` }}>
-                            {alert.severity.toUpperCase()}
-                          </span>
-                        </div>
-                        <p className="text-sm font-bold mono" style={{ color: col.text }}>{alert.value}</p>
-                        <p className="text-[10px] mono mt-0.5 truncate" style={{ color: T.textDim }}>{alert.sub}</p>
-                      </div>
+      {/* ── 2. Anomalies — first, because they may need a human now ─────── */}
+      <Section
+        title="Risk spike alerts"
+        description="Pattern anomalies detected in the last 24 hours"
+        actions={spikeAlerts.length === 0
+          ? <Badge tone="success" dot>System normal</Badge>
+          : <Badge tone="warning">{spikeAlerts.length} active</Badge>}
+        style={{ marginBottom: 28 }}
+      >
+        {spikeAlerts.length === 0 ? (
+          <EmptyState icon={Shield} title="No anomalies detected">
+            Signup surges per IP, high-risk spikes, shared devices and country risk concentration are
+            checked continuously. Anything unusual appears here.
+          </EmptyState>
+        ) : (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(260px, 1fr))',
+              gap: 12,
+            }}
+          >
+            {spikeAlerts.map((alert, i) => {
+              const c = severityTone(alert.severity, T)
+              const Icon = SPIKE_ICONS[alert.type]
+              return (
+                <div
+                  key={i}
+                  className="g-card"
+                  style={{ padding: '13px 15px', borderLeft: `2px solid ${c.fill}`, display: 'flex', gap: 11 }}
+                >
+                  <Icon size={15} style={{ color: c.fill, flexShrink: 0, marginTop: 2 }} />
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                      <p className="t-subhead" style={{ color: T.text, margin: 0 }}>{alert.title}</p>
+                      <span className="t-label" style={{ color: c.ink, flexShrink: 0 }}>{alert.severity}</span>
                     </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Activity chart */}
-          <div className="g-card p-5">
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <p className="text-sm font-semibold" style={{ color: T.text }}>Events Over Time</p>
-                <p className="text-xs mt-0.5" style={{ color: T.textDim }}>Hourly — last 24 hours</p>
-              </div>
-              <span className="text-xs mono" style={{ color: T.textDim }}>
-                {total.toLocaleString()} events
-              </span>
-            </div>
-            {total === 0 ? (
-              <div className="flex items-center justify-center rounded-xl"
-                style={{ height: 72, background: T.deep, border: `1px solid ${T.border}` }}>
-                <p className="text-xs" style={{ color: T.textDim }}>No events yet</p>
-              </div>
-            ) : (
-              <>
-                <AreaChart buckets={hourlyBuckets} />
-                <div className="flex justify-between mt-1.5">
-                  {['24h ago', '18h', '12h', '6h', 'now'].map(l => (
-                    <span key={l} className="text-[10px] mono" style={{ color: T.textDim }}>{l}</span>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Decision Breakdown + Risk Distribution */}
-          <div className="grid gap-4" style={{ gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr' }}>
-
-            {/* Decision Breakdown */}
-            <div className="g-card p-5">
-              <p className="text-sm font-semibold mb-0.5" style={{ color: T.text }}>Decision Breakdown</p>
-              <p className="text-xs mb-4" style={{ color: T.textDim }}>Distribution by outcome</p>
-              <div className="flex items-center gap-4">
-                <DonutChart allow={allowed} review={reviews} block={blocked} border={T.border} text={T.text} textDim={T.textDim} />
-                <div className="space-y-3 flex-1">
-                  {[
-                    { label: 'Approve', count: allowed, color: '#16C784' },
-                    { label: 'Review',  count: reviews, color: '#F59E0B' },
-                    { label: 'Block',   count: blocked, color: '#EF4444' },
-                  ].map(row => (
-                    <div key={row.label}>
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center gap-2">
-                          <span className="w-1.5 h-1.5 rounded-full" style={{ background: row.color }} />
-                          <span className="text-xs" style={{ color: T.textSec }}>{row.label}</span>
-                        </div>
-                        <span className="text-xs font-semibold mono" style={{ color: row.color }}>
-                          {row.count.toLocaleString()}
-                        </span>
-                      </div>
-                      <div className="rounded-full overflow-hidden" style={{ height: 2, background: T.border }}>
-                        <div className="h-full rounded-full transition-all duration-500"
-                          style={{ width: total > 0 ? `${(row.count / total) * 100}%` : '0%', background: row.color }} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Risk Level Distribution */}
-            <div className="g-card p-5">
-              <p className="text-sm font-semibold mb-0.5" style={{ color: T.text }}>Risk Distribution</p>
-              <p className="text-xs mb-5" style={{ color: T.textDim }}>Events by risk level</p>
-              <div className="space-y-3.5">
-                {[
-                  { key: 'low',      label: 'Low',      color: '#16C784' },
-                  { key: 'medium',   label: 'Medium',   color: '#F59E0B' },
-                  { key: 'high',     label: 'High',     color: '#F97316' },
-                  { key: 'critical', label: 'Critical', color: '#EF4444' },
-                ].map(r => (
-                  <HorizBar key={r.key} label={r.label}
-                    count={riskLevels[r.key as keyof typeof riskLevels]}
-                    max={maxRisk} color={r.color} textSec={T.textSec} border={T.border} />
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Fraud Score Histogram + Top Countries */}
-          <div className="grid gap-4" style={{ gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr' }}>
-            <div className="g-card p-5">
-              <p className="text-sm font-semibold mb-0.5" style={{ color: T.text }}>Fraud Score Distribution</p>
-              <p className="text-xs mb-4" style={{ color: T.textDim }}>Events by score bucket</p>
-              {total === 0 ? (
-                <div className="flex items-center justify-center rounded-xl"
-                  style={{ height: 64, background: T.deep, border: `1px solid ${T.border}` }}>
-                  <p className="text-xs" style={{ color: T.textDim }}>No data yet</p>
-                </div>
-              ) : <FraudHistogram buckets={fraudBuckets} border={T.border} textDim={T.textDim} />}
-              <div className="flex items-center flex-wrap gap-3 mt-3">
-                {[
-                  { label: 'Low',      color: '#16C784' },
-                  { label: 'Medium',   color: '#F59E0B' },
-                  { label: 'High',     color: '#F97316' },
-                  { label: 'Critical', color: '#EF4444' },
-                ].map(l => (
-                  <div key={l.label} className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-[2px]" style={{ background: l.color }} />
-                    <span className="text-[10px]" style={{ color: T.textDim }}>{l.label}</span>
+                    <p className="t-metric-sm" style={{ color: c.ink, margin: '4px 0 0' }}>{alert.value}</p>
+                    <p
+                      className="mono"
+                      style={{ fontSize: 10, color: T.textDim, margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                    >
+                      {alert.sub}
+                    </p>
                   </div>
-                ))}
-              </div>
-            </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </Section>
 
-            <div className="g-card p-5">
-              <p className="text-sm font-semibold mb-0.5" style={{ color: T.text }}>Top Countries</p>
-              <p className="text-xs mb-5" style={{ color: T.textDim }}>By event volume</p>
-              {topCountries.length === 0 ? (
-                <p className="text-xs" style={{ color: T.textDim }}>No country data yet</p>
-              ) : (
-                <div className="space-y-3.5">
-                  {topCountries.map(c => (
-                    <HorizBar key={c.cc} label={c.cc} count={c.count} max={maxCountry} color={T.textSec} textSec={T.textSec} border={T.border} />
+      {/* ── 3. Headline volume — the only primary-tier numbers on the page ── */}
+      <div style={{ marginBottom: 28 }}>
+        <MetricRow columns={isMobile ? 2 : 4}>
+          <Metric
+            tier="primary"
+            icon={Activity}
+            label="Total checks"
+            value={hasEvents ? total.toLocaleString() : '—'}
+            sub="Last 24 hours"
+          />
+          <Metric
+            tier="primary"
+            icon={CheckCircle}
+            label="Approval rate"
+            value={hasEvents ? `${approvalRate}%` : '—'}
+            tone={hasEvents ? 'success' : undefined}
+            sub={hasEvents ? `${allowed.toLocaleString()} approved` : 'No events yet'}
+          />
+          <Metric
+            tier="primary"
+            icon={XCircle}
+            label="Blocked"
+            value={hasEvents ? blocked.toLocaleString() : '—'}
+            tone={blocked > 0 ? 'danger' : undefined}
+            sub={`${blockRate}% block rate`}
+          />
+          <Metric
+            tier="primary"
+            icon={TrendingUp}
+            label="Avg trust score"
+            value={
+              <span style={{ color: hasEvents ? trustInk(avgTrust, T) : undefined }}>
+                {hasEvents ? String(avgTrust) : '—'}
+              </span>
+            }
+            sub={!hasEvents ? '—' : avgTrust >= 70 ? 'Healthy baseline' : 'Elevated risk'}
+          />
+        </MetricRow>
+
+        {/* Supporting counts. Same information as above, deliberately quieter. */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: isMobile ? 16 : 28, padding: '12px 16px 0' }}>
+          {[
+            { label: 'In review queue',  value: reviews,  ink: T.warningText, icon: Clock },
+            { label: 'High-risk events', value: highRisk, ink: T.riskHighT,   icon: AlertTriangle },
+            { label: 'Users approved',   value: allowed,  ink: T.successText, icon: CheckCircle },
+            { label: 'Blocked attempts', value: blocked,  ink: T.dangerText,  icon: XCircle },
+          ].map(item => (
+            <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+              <item.icon size={12} style={{ color: T.textDim, flexShrink: 0 }} />
+              <span className="mono" style={{ fontSize: 13, fontWeight: 600, color: item.value > 0 ? item.ink : T.textDim }}>
+                {item.value.toLocaleString()}
+              </span>
+              <span className="t-caption" style={{ color: T.textDim }}>{item.label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── 4 + 5. Shape and stream ────────────────────────────────────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: gridCols, gap: 20, alignItems: 'start' }}>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 28, minWidth: 0 }}>
+
+          <Section
+            title="Events over time"
+            description="Hourly volume across the last 24 hours"
+            actions={<span className="mono" style={{ fontSize: 11, color: T.textDim }}>{total.toLocaleString()} events</span>}
+          >
+            {!hasEvents ? (
+              <EmptyState icon={Activity} title="No events in the last 24 hours">
+                This chart plots hourly check volume once your integration starts sending traffic.
+              </EmptyState>
+            ) : (
+              <Card pad="md">
+                <AreaChart buckets={hourlyBuckets} T={T} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
+                  {['24h ago', '18h', '12h', '6h', 'now'].map(l => (
+                    <span key={l} className="mono" style={{ fontSize: 10, color: T.textDim }}>{l}</span>
                   ))}
                 </div>
+              </Card>
+            )}
+          </Section>
+
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 20 }}>
+            <Section title="Decision breakdown" description="Distribution by outcome">
+              <Card pad="md">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+                  <DonutChart allow={allowed} review={reviews} block={blocked} T={T} />
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0 }}>
+                    {[
+                      { label: 'Approve', count: allowed, color: T.success },
+                      { label: 'Review',  count: reviews, color: T.warning },
+                      { label: 'Block',   count: blocked, color: T.danger  },
+                    ].map(row => (
+                      <Meter
+                        key={row.label}
+                        label={row.label}
+                        value={row.count}
+                        max={total}
+                        pct={total > 0 ? (row.count / total) * 100 : 0}
+                        display={row.count.toLocaleString()}
+                        color={row.color}
+                        height={3}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </Card>
+            </Section>
+
+            <Section title="Risk distribution" description="Events by risk level">
+              <Card pad="md">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  {([
+                    { key: 'low',      label: 'Low',      color: T.riskLow  },
+                    { key: 'medium',   label: 'Medium',   color: T.riskMed  },
+                    { key: 'high',     label: 'High',     color: T.riskHigh },
+                    { key: 'critical', label: 'Critical', color: T.riskCrit },
+                  ] as const).map(r => (
+                    <Meter key={r.key} label={r.label} value={riskLevels[r.key]} max={maxRisk} color={r.color} />
+                  ))}
+                </div>
+              </Card>
+            </Section>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 20 }}>
+            <Section title="Fraud score distribution" description="Events by score bucket">
+              {!hasEvents ? (
+                <EmptyState icon={AlertTriangle} title="No scores yet">
+                  Each analysed event lands in one of ten score buckets, from 0 to 100.
+                </EmptyState>
+              ) : (
+                <Card pad="md">
+                  <FraudHistogram buckets={fraudBuckets} T={T} />
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 12 }}>
+                    {[
+                      { label: 'Low',      color: T.riskLow  },
+                      { label: 'Medium',   color: T.riskMed  },
+                      { label: 'High',     color: T.riskHigh },
+                      { label: 'Critical', color: T.riskCrit },
+                    ].map(l => (
+                      <span key={l.label} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                        <span style={{ width: 7, height: 7, borderRadius: 2, background: l.color }} />
+                        <span className="t-caption" style={{ color: T.textDim }}>{l.label}</span>
+                      </span>
+                    ))}
+                  </div>
+                </Card>
               )}
-            </div>
+            </Section>
+
+            <Section title="Top countries" description="By event volume">
+              {topCountries.length === 0 ? (
+                <EmptyState icon={Globe} title="No country data yet">
+                  Pass a <code className="g-code">country</code> field on each check to see geographic
+                  distribution here.
+                </EmptyState>
+              ) : (
+                <Card pad="md">
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    {topCountries.map(c => (
+                      <Meter key={c.cc} label={c.cc} value={c.count} max={maxCountry} color={T.textSec} />
+                    ))}
+                  </div>
+                </Card>
+              )}
+            </Section>
           </div>
         </div>
 
-        {/* ── Col 3: Live Feed + Top Signals + Impact ────────── */}
-        <div className="space-y-4">
+        {/* ── Right rail: the raw stream ───────────────────────────────── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 28, minWidth: 0 }}>
 
-          {/* Live Risk Feed */}
-          <div className="g-card overflow-hidden flex flex-col" style={{ maxHeight: 520 }}>
-            <div className="flex items-center justify-between px-5 py-3.5 flex-shrink-0"
-              style={{ borderBottom: `1px solid ${T.border}` }}>
-              <div>
-                <p className="text-sm font-semibold" style={{ color: T.text }}>Live Risk Feed</p>
-                <p className="text-[11px] mt-0.5" style={{ color: T.textDim }}>
-                  {total > 0 ? `${total.toLocaleString()} events` : 'Waiting for events'}
-                </p>
-              </div>
-              <span className="flex items-center gap-1.5 text-[10px] mono" style={{ color: '#16C784' }}>
-                <span className="pulse-dot inline-block w-1.5 h-1.5 rounded-full bg-current" />
-                Live
+          <Section
+            title="Live risk feed"
+            description={hasEvents ? `${total.toLocaleString()} events` : 'Waiting for events'}
+            actions={
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 10, fontWeight: 600, color: T.successText }}>
+                <span className="pulse-dot" style={{ width: 5, height: 5, borderRadius: 999, background: T.success }} />
+                LIVE
               </span>
-            </div>
-
-            {events.length === 0 ? (
-              <div className="flex-1 flex flex-col items-center justify-center py-10 px-5 text-center">
-                <Shield size={20} className="mb-3" style={{ color: T.border }} />
-                <p className="text-xs font-semibold mb-1" style={{ color: T.textDim }}>No events yet</p>
-                <p className="text-[11px]" style={{ color: T.textDim }}>
-                  Send your first check via{' '}
-                  <code className="mono" style={{ color: T.textSec }}>POST /api/risk/check</code>
-                </p>
-              </div>
+            }
+          >
+            {!hasEvents ? (
+              <EmptyState icon={Radio} title="No events yet">
+                Send your first check to <code className="g-code">POST /api/risk/check</code> and it will
+                stream in here the moment it is scored.
+              </EmptyState>
             ) : (
-              <div ref={feedRef} className="flex-1 overflow-y-auto">
+              <div className="g-card g-scroll" ref={feedRef} style={{ maxHeight: 560, overflowY: 'auto' }}>
                 {events.slice(0, 50).map((ev, i) => {
                   const isNew = newIds.has(ev.id)
+                  const dot = ev.decision === 'block' ? T.danger : ev.decision === 'review' ? T.warning : T.success
                   return (
                     <div
                       key={ev.id}
-                      className="px-5 py-3 flex items-start gap-3 transition-all duration-700"
                       style={{
-                        borderBottom: i < Math.min(events.length, 50) - 1 ? `1px solid ${T.deep}` : 'none',
-                        background: isNew ? 'rgba(22,199,132,0.06)' : 'transparent',
+                        display: 'flex', alignItems: 'flex-start', gap: 10,
+                        padding: '11px 14px',
+                        borderBottom: i < Math.min(events.length, 50) - 1 ? `1px solid ${T.borderLight}` : 'none',
+                        background: isNew ? T.trustDim : 'transparent',
+                        transition: `background-color ${T.dSlow} ${T.ease}`,
                       }}
                     >
-                      {/* Decision dot */}
-                      <div className="flex-shrink-0 mt-1.5">
-                        <span
-                          className="inline-block w-1.5 h-1.5 rounded-full"
-                          style={{
-                            background: ev.decision === 'block' ? '#EF4444' : ev.decision === 'review' ? '#F59E0B' : '#16C784',
-                            boxShadow: isNew ? `0 0 6px ${ev.decision === 'block' ? '#EF4444' : ev.decision === 'review' ? '#F59E0B' : '#16C784'}` : 'none',
-                          }}
-                        />
-                      </div>
-
-                      {/* Content */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium badge-${ev.risk_level}`}>
-                            {ev.risk_level}
-                          </span>
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full mono badge-${ev.decision}`}>
-                            {ev.decision}
-                          </span>
-                          <span className="text-[10px] px-1.5 py-0.5 rounded mono"
-                            style={{ background: T.deep, color: T.textDim, border: `1px solid ${T.border}` }}>
-                            {ev.event_type}
-                          </span>
+                      <span
+                        aria-hidden="true"
+                        style={{
+                          width: 6, height: 6, borderRadius: 999, background: dot,
+                          flexShrink: 0, marginTop: 5,
+                          boxShadow: isNew ? `0 0 0 3px ${dot}33` : 'none',
+                        }}
+                      />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap', marginBottom: 3 }}>
+                          <span className={`badge-${ev.risk_level}`}>{ev.risk_level}</span>
+                          <span className={`badge-${ev.decision}`}>{ev.decision}</span>
+                          <span className="badge-neutral">{ev.event_type}</span>
                         </div>
-                        <p className="text-[10px] mono truncate" style={{ color: T.textDim }}>
+                        <p
+                          className="mono"
+                          style={{ fontSize: 10, color: T.textDim, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                        >
                           {ev.external_user_id}
                         </p>
                       </div>
-
-                      {/* Right: scores + time */}
-                      <div className="flex-shrink-0 text-right">
-                        <div className="flex items-center gap-2 justify-end mb-0.5">
-                          <span className="text-[10px] mono" style={{ color: trustColor(ev.trust_score) }}>
+                      <div style={{ flexShrink: 0, textAlign: 'right' }}>
+                        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                          <span className="mono" style={{ fontSize: 10, fontWeight: 600, color: trustInk(ev.trust_score, T) }}>
                             T{ev.trust_score}
                           </span>
-                          <span className="text-[10px] mono" style={{ color: fraudColor(ev.fraud_score) }}>
+                          <span className="mono" style={{ fontSize: 10, fontWeight: 600, color: fraudInk(ev.fraud_score, T) }}>
                             F{ev.fraud_score}
                           </span>
                         </div>
-                        <p className="text-[9px] mono" style={{ color: T.textDim }}>
+                        <p className="mono" style={{ fontSize: 9, color: T.textDim, margin: '2px 0 0' }}>
                           {relativeTime(ev.created_at)}
                         </p>
                       </div>
@@ -776,101 +768,30 @@ export default function Overview() {
                 })}
               </div>
             )}
-          </div>
+          </Section>
 
-          {/* Top Signals */}
-          <div className="g-card p-5">
-            <p className="text-sm font-semibold mb-0.5" style={{ color: T.text }}>Top Signals</p>
-            <p className="text-xs mb-4" style={{ color: T.textDim }}>Most detected patterns</p>
+          <Section title="Top signals" description="Most frequently detected patterns">
             {topSignals.length === 0 ? (
-              <p className="text-xs" style={{ color: T.textDim }}>No signals detected yet</p>
+              <EmptyState icon={Wifi} title="No signals detected yet">
+                The engine evaluates email, IP, device, velocity and behavioural signals on every check.
+              </EmptyState>
             ) : (
-              <div className="space-y-3">
-                {topSignals.map((s, i) => {
-                  const sevColor = s.severity === 'critical' ? '#EF4444' : s.severity === 'high' ? '#F97316' : s.severity === 'medium' ? '#F59E0B' : '#16C784'
-                  return (
-                    <div key={i}>
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <span className="w-1 h-3 rounded-[1px] flex-shrink-0" style={{ background: sevColor }} />
-                          <span className="text-[11px] truncate" style={{ color: T.textSec }}>{s.label}</span>
-                        </div>
-                        <span className="text-[10px] mono font-semibold flex-shrink-0 ml-2" style={{ color: sevColor }}>
-                          ×{s.count}
-                        </span>
-                      </div>
-                      <div className="rounded-full overflow-hidden" style={{ height: 2, background: T.border }}>
-                        <div className="h-full rounded-full transition-all duration-500"
-                          style={{ width: `${(s.count / maxSignal) * 100}%`, background: sevColor }} />
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Estimated Impact */}
-          <div className="g-card p-5">
-            <div className="flex items-center gap-2 mb-1">
-              <p className="text-sm font-semibold" style={{ color: T.text }}>Estimated Impact</p>
-            </div>
-            <p className="text-[11px] mb-4" style={{ color: T.textDim }}>
-              Based on your data — last 24 hours
-            </p>
-            <div className="grid gap-3" style={{ gridTemplateColumns: '1fr 1fr' }}>
-              {[
-                {
-                  label: 'Blocked Attempts',
-                  value: blocked,
-                  color: '#EF4444',
-                  bg: 'rgba(239,68,68,0.06)',
-                  border: 'rgba(239,68,68,0.15)',
-                  icon: XCircle,
-                  sub: 'Fraudulent events stopped',
-                },
-                {
-                  label: 'Reviews Created',
-                  value: reviews,
-                  color: '#F59E0B',
-                  bg: 'rgba(245,158,11,0.06)',
-                  border: 'rgba(245,158,11,0.15)',
-                  icon: Clock,
-                  sub: 'Events flagged for review',
-                },
-                {
-                  label: 'Users Approved',
-                  value: allowed,
-                  color: '#16C784',
-                  bg: 'rgba(22,199,132,0.06)',
-                  border: 'rgba(22,199,132,0.15)',
-                  icon: Users,
-                  sub: 'Legitimate users passed',
-                },
-                {
-                  label: 'High-Risk Caught',
-                  value: highRisk,
-                  color: '#F97316',
-                  bg: 'rgba(249,115,22,0.06)',
-                  border: 'rgba(249,115,22,0.15)',
-                  icon: ArrowUpRight,
-                  sub: 'High + critical events',
-                },
-              ].map(tile => (
-                <div key={tile.label} className="rounded-lg p-3"
-                  style={{ background: tile.bg, border: `1px solid ${tile.border}` }}>
-                  <div className="flex items-center justify-between mb-2">
-                    <tile.icon size={11} style={{ color: tile.color }} />
-                  </div>
-                  <p className="text-xl font-bold mono leading-none mb-1" style={{ color: tile.color }}>
-                    {tile.value.toLocaleString()}
-                  </p>
-                  <p className="text-[10px] font-semibold" style={{ color: tile.color }}>{tile.label}</p>
-                  <p className="text-[9px] mt-0.5" style={{ color: T.textDim }}>{tile.sub}</p>
+              <Card pad="md">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {topSignals.map((s, i) => {
+                    const color =
+                      s.severity === 'critical' ? T.riskCrit
+                      : s.severity === 'high'   ? T.riskHigh
+                      : s.severity === 'medium' ? T.riskMed
+                      : T.riskLow
+                    return (
+                      <Meter key={i} label={s.label} value={s.count} max={maxSignal} display={`×${s.count}`} color={color} height={3} />
+                    )
+                  })}
                 </div>
-              ))}
-            </div>
-          </div>
+              </Card>
+            )}
+          </Section>
         </div>
       </div>
     </div>

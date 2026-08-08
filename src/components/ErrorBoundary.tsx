@@ -26,7 +26,7 @@ export default class ErrorBoundary extends Component<Props, State> {
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        fontFamily: 'Inter, sans-serif',
+        fontFamily: "var(--f-display)",
         padding: '2rem',
         textAlign: 'center',
       }}>
@@ -49,7 +49,7 @@ export default class ErrorBoundary extends Component<Props, State> {
             border: 'none', borderRadius: 8,
             padding: '0.625rem 1.5rem',
             fontWeight: 600, fontSize: '0.9375rem',
-            cursor: 'pointer', fontFamily: 'Inter, sans-serif',
+            cursor: 'pointer', fontFamily: "var(--f-display)",
           }}
         >
           Reload page

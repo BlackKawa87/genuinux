@@ -215,8 +215,8 @@ export default function FeedbackSection({ event }: FeedbackSectionProps) {
     return (
       <div className="px-6 py-4" style={{ borderBottom: '1px solid #0D1B2A' }}>
         <div className="flex items-center gap-2">
-          <RefreshCw size={11} className="animate-spin" style={{ color: '#2D4057' }} />
-          <span className="text-[10px]" style={{ color: '#2D4057' }}>Loading feedback…</span>
+          <RefreshCw size={11} className="animate-spin" style={{ color: 'var(--c-dimmed)' }} />
+          <span className="text-[10px]" style={{ color: 'var(--c-dimmed)' }}>Loading feedback…</span>
         </div>
       </div>
     )
@@ -250,15 +250,15 @@ export default function FeedbackSection({ event }: FeedbackSectionProps) {
             </div>
           </div>
           <div className="flex items-center gap-2.5">
-            <p className="text-[10px] mono" style={{ color: '#2D4057' }}>
+            <p className="text-[10px] mono" style={{ color: 'var(--c-dimmed)' }}>
               {relativeTime(existing.created_at)}
             </p>
             <button
               onClick={() => { setChanging(true); setSelected(null) }}
               className="flex items-center gap-1 text-[10px] transition-colors"
-              style={{ color: '#2D4057' }}
+              style={{ color: 'var(--c-dimmed)' }}
               onMouseEnter={e => (e.currentTarget.style.color = '#94A3B8')}
-              onMouseLeave={e => (e.currentTarget.style.color = '#2D4057')}
+              onMouseLeave={e => (e.currentTarget.style.color = 'var(--c-dimmed)')}
             >
               <RotateCcw size={9} />
               Change
@@ -277,7 +277,7 @@ export default function FeedbackSection({ event }: FeedbackSectionProps) {
         <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#475569' }}>
           Outcome Feedback
         </p>
-        <span className="text-[10px]" style={{ color: '#2D4057' }}>
+        <span className="text-[10px]" style={{ color: 'var(--c-dimmed)' }}>
           — help improve future decisions
         </span>
       </div>
@@ -292,7 +292,7 @@ export default function FeedbackSection({ event }: FeedbackSectionProps) {
             style={{
               background: selected === opt.type ? opt.bg       : 'transparent',
               color:      selected === opt.type ? opt.color    : '#475569',
-              border:     `1px solid ${selected === opt.type ? opt.border : '#1E2D3D'}`,
+              border:     `1px solid ${selected === opt.type ? opt.border : 'var(--c-border)'}`,
             }}
             onMouseEnter={e => {
               if (selected !== opt.type) {
@@ -302,7 +302,7 @@ export default function FeedbackSection({ event }: FeedbackSectionProps) {
             }}
             onMouseLeave={e => {
               if (selected !== opt.type) {
-                (e.currentTarget as HTMLElement).style.borderColor = '#1E2D3D'
+                (e.currentTarget as HTMLElement).style.borderColor = 'var(--c-border)'
                 ;(e.currentTarget as HTMLElement).style.color = '#475569'
               }
             }}
@@ -317,9 +317,9 @@ export default function FeedbackSection({ event }: FeedbackSectionProps) {
       <button
         onClick={() => setShowMore(v => !v)}
         className="flex items-center gap-1 text-[10px] mb-2 transition-colors"
-        style={{ color: '#2D4057' }}
+        style={{ color: 'var(--c-dimmed)' }}
         onMouseEnter={e => (e.currentTarget.style.color = '#475569')}
-        onMouseLeave={e => (e.currentTarget.style.color = '#2D4057')}
+        onMouseLeave={e => (e.currentTarget.style.color = 'var(--c-dimmed)')}
       >
         {showMore ? <ChevronUp size={9} /> : <ChevronDown size={9} />}
         More options
@@ -335,12 +335,12 @@ export default function FeedbackSection({ event }: FeedbackSectionProps) {
               style={{
                 background: selected === opt.type ? opt.bg       : 'transparent',
                 color:      selected === opt.type ? opt.color    : '#475569',
-                border:     `1px solid ${selected === opt.type ? opt.border : '#1E2D3D'}`,
+                border:     `1px solid ${selected === opt.type ? opt.border : 'var(--c-border)'}`,
               }}
             >
               <span style={{ flexShrink: 0 }}>{opt.icon}</span>
               <span className="font-semibold">{opt.label}</span>
-              <span className="ml-auto" style={{ color: '#2D4057', fontWeight: 400 }}>{opt.desc}</span>
+              <span className="ml-auto" style={{ color: 'var(--c-dimmed)', fontWeight: 400 }}>{opt.desc}</span>
             </button>
           ))}
         </div>
@@ -361,7 +361,7 @@ export default function FeedbackSection({ event }: FeedbackSectionProps) {
             <button
               onClick={handleCancel}
               className="px-3 py-1.5 rounded-lg text-xs transition-colors"
-              style={{ border: '1px solid #1E2D3D', color: '#475569' }}
+              style={{ border: '1px solid var(--c-border)', color: 'var(--c-dimmed)' }}
             >
               Cancel
             </button>

@@ -15,7 +15,7 @@ export default function AdminFeatureFlags() {
   return (
     <div>
       <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: T.text, margin: 0 }}>Feature Flags</h1>
+        <h1 className="t-title" style={{ color: T.text, margin: 0 }}>Feature Flags</h1>
         <p style={{ fontSize: 12, color: T.textDim, margin: '4px 0 0' }}>Global platform feature gates — managed via Vercel environment variables</p>
       </div>
       <div style={{ background: '#F59E0B10', border: '1px solid #F59E0B30', borderRadius: 10, padding: '12px 16px', marginBottom: 16, fontSize: 12, color: '#F59E0B' }}>

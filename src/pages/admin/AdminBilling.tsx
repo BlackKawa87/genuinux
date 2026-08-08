@@ -11,7 +11,7 @@ export default function AdminBilling() {
   return (
     <div>
       <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: T.text, margin: 0 }}>Billing</h1>
+        <h1 className="t-title" style={{ color: T.text, margin: 0 }}>Billing</h1>
         <p style={{ fontSize: 12, color: T.textDim, margin: '4px 0 0' }}>Revenue, subscriptions, and plan management</p>
       </div>
       <div style={{ background: `${ACCENT}10`, border: `1px solid ${ACCENT}30`, borderRadius: 10, padding: '16px 20px', marginBottom: 20 }}>

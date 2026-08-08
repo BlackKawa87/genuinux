@@ -341,7 +341,7 @@ export default function Infrastructure() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-semibold" style={{ color: T.text }}>Infrastructure Control Center</h1>
+          <h1 className="t-title" style={{ color: T.text }}>Infrastructure Control Center</h1>
           <p className="text-xs mt-1" style={{ color: T.textSec }}>
             Real-time health of every infrastructure layer. Owner access only.
           </p>

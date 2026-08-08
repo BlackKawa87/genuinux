@@ -298,10 +298,7 @@ export default function ApiKeys() {
       {/* ── Header ──────────────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between mb-8">
         <div>
-          <h1
-            className="text-2xl font-bold"
-            style={{ fontFamily: 'Inter, sans-serif', color: T.text }}
-          >
+          <h1 className="t-title" style={{ color: T.text }}>
             API Keys
           </h1>
           <p className="text-sm mt-1" style={{ color: T.textSec }}>
@@ -513,7 +510,7 @@ export default function ApiKeys() {
                     <p className="text-sm font-semibold truncate" style={{ color: T.text }}>
                       {key.name}
                     </p>
-                    <p className="text-xs mono truncate mt-0.5" style={{ color: '#2D4057' }}>
+                    <p className="text-xs mono truncate mt-0.5" style={{ color: T.textDim }}>
                       {key.key_prefix}
                     </p>
                   </div>
@@ -541,7 +538,7 @@ export default function ApiKeys() {
 
                   {/* Last used */}
                   <div className="hidden md:block" style={{ width: 100 }}>
-                    <p className="text-xs" style={{ color: key.last_used_at ? T.textSec : '#2D4057' }}>
+                    <p className="text-xs" style={{ color: key.last_used_at ? T.textSec : T.textDim }}>
                       {key.last_used_at ? relativeTime(key.last_used_at) : '—'}
                     </p>
                   </div>
@@ -662,7 +659,7 @@ export default function ApiKeys() {
           <div>
             <h2
               className="text-base font-semibold"
-              style={{ fontFamily: 'Inter, sans-serif', color: T.text }}
+              style={{ fontFamily: "var(--f-display)", color: T.text }}
             >
               Integration
             </h2>
@@ -857,7 +854,7 @@ export default function ApiKeys() {
               className="grid gap-4 px-5 py-2.5 text-[10px] font-semibold uppercase tracking-wide"
               style={{
                 background: T.deep,
-                color: '#2D4057',
+                color: T.textDim,
                 gridTemplateColumns: '1fr 70px 48px 1fr',
                 borderBottom: `1px solid ${T.border}`,
               }}
@@ -879,7 +876,7 @@ export default function ApiKeys() {
               >
                 <code className="mono font-medium" style={{ color: T.text }}>{f.field}</code>
                 <span className="mono" style={{ color: T.textDim }}>{f.type}</span>
-                <span style={{ color: f.req ? '#16C784' : '#2D4057' }}>
+                <span style={{ color: f.req ? '#16C784' : T.textDim }}>
                   {f.req ? 'Yes' : 'No'}
                 </span>
                 <span style={{ color: T.textDim, lineHeight: '1.5' }}>{f.desc}</span>

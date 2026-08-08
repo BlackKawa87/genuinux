@@ -5,7 +5,7 @@ export default function AdminUsage() {
   return (
     <div>
       <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: T.text, margin: 0 }}>Usage & Limits</h1>
+        <h1 className="t-title" style={{ color: T.text, margin: 0 }}>Usage & Limits</h1>
         <p style={{ fontSize: 12, color: T.textDim, margin: '4px 0 0' }}>Per-org request quotas, event usage, and limit alerts</p>
       </div>
       <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: '40px', textAlign: 'center' }}>

@@ -5,7 +5,7 @@ export default function AdminSecurity() {
   return (
     <div>
       <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: T.text, margin: 0 }}>Security Center</h1>
+        <h1 className="t-title" style={{ color: T.text, margin: 0 }}>Security Center</h1>
         <p style={{ fontSize: 12, color: T.textDim, margin: '4px 0 0' }}>API abuse, rate limit triggers, and access anomalies</p>
       </div>
       <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: '40px', textAlign: 'center' }}>

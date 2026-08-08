@@ -63,7 +63,7 @@ export default function AdminSystemHealth() {
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: T.text, margin: 0 }}>System Health</h1>
+          <h1 className="t-title" style={{ color: T.text, margin: 0 }}>System Health</h1>
           <p style={{ fontSize: 12, color: T.textDim, margin: '4px 0 0' }}>
             {lastCheck ? `Last checked: ${lastCheck.toLocaleTimeString()}` : 'Checking…'} · version {data?.version ?? '—'}
           </p>

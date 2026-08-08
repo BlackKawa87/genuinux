@@ -1400,38 +1400,40 @@ export default function Events() {
             )}
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <div className="g-scroll" style={{ overflowX: 'auto' }}>
+            {/* Numeric columns are right-aligned and share one numeral width so
+                scores can be compared down the column at a glance. */}
+            <table className="g-table">
               <thead>
-                <tr style={{ borderBottom: `1px solid ${T.border}` }}>
-                  {['Event ID','User','Type','IP','Device','Trust','Fraud','Risk Level','Decision','Label','Created at'].map(h => (
-                    <th
-                      key={h}
-                      className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap"
-                      style={{ color: h === 'Label' ? '#16C784' : T.textDim, background: T.deep }}
-                    >
-                      {h}
+                <tr>
+                  {([
+                    { label: 'Event ID',   num: false },
+                    { label: 'User',       num: false },
+                    { label: 'Type',       num: false },
+                    { label: 'IP',         num: false },
+                    { label: 'Device',     num: false },
+                    /* Trust pairs its number with a mini-bar, so it stays
+                       left-aligned; Fraud is a bare number and aligns right. */
+                    { label: 'Trust',      num: false },
+                    { label: 'Fraud',      num: true  },
+                    { label: 'Risk Level', num: false },
+                    { label: 'Decision',   num: false },
+                    { label: 'Label',      num: false },
+                    { label: 'Created at', num: false },
+                  ] as const).map(h => (
+                    <th key={h.label} scope="col" className={h.num ? 'num-col' : undefined}>
+                      {h.label}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((ev, i) => (
+                {filtered.map(ev => (
                   <tr
                     key={ev.id}
                     onClick={() => setSelected(ev)}
-                    className="cursor-pointer"
-                    style={{
-                      borderBottom: i < filtered.length - 1 ? `1px solid ${T.deep}` : 'none',
-                      background: selected?.id === ev.id ? T.card : 'transparent',
-                      transition: 'background 0.1s',
-                    }}
-                    onMouseEnter={e => {
-                      if (selected?.id !== ev.id) e.currentTarget.style.background = T.dark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)'
-                    }}
-                    onMouseLeave={e => {
-                      if (selected?.id !== ev.id) e.currentTarget.style.background = 'transparent'
-                    }}
+                    aria-selected={selected?.id === ev.id}
+                    style={{ cursor: 'pointer' }}
                   >
                     {/* Event ID */}
                     <td className="px-4 py-3">
@@ -1495,7 +1497,7 @@ export default function Events() {
                     </td>
 
                     {/* Fraud */}
-                    <td className="px-4 py-3">
+                    <td className="num-col">
                       <span className="text-xs mono font-semibold" style={{ color: fraudColor(ev.fraud_score) }}>
                         {ev.fraud_score}
                       </span>

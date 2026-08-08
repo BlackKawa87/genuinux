@@ -10,7 +10,7 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
         <div
           className="w-5 h-5 rounded-full border-2"
           style={{
-            borderColor: '#1E2D3D',
+            borderColor: 'var(--c-border)',
             borderTopColor: '#16C784',
             animation: 'spin 0.7s linear infinite',
           }}

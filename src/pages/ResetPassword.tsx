@@ -62,7 +62,7 @@ export default function ResetPassword() {
           <img src="/logo-full.png" alt="Genuinux" style={{ height: '140px', display: 'block' }} />
         </Link>
 
-        <div className="p-8 rounded-2xl"
+        <div className="p-8 rounded-[14px]"
           style={{
             background: C.surface,
             border: `1px solid ${C.border}`,

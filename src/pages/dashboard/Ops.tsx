@@ -765,7 +765,7 @@ export default function Ops() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-lg font-semibold" style={{ color: T.text }}>Operations</h1>
+          <h1 className="t-title" style={{ color: T.text }}>Operations</h1>
           <p className="text-xs mt-0.5" style={{ color: T.textSec }}>
             Runtime metrics and infrastructure status
             {lastFetched && (
