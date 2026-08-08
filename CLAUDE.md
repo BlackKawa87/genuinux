@@ -432,8 +432,27 @@ Completely separate section from `/dashboard`. Guarded by `AdminRoute` — only 
 
 **v24 migration** (`supabase/migrations/v24_admin_console.sql`): adds `is_platform_admin boolean DEFAULT false` to `profiles`; adds `plan_source`, `suspended_at`, `suspended_by` to `organizations`. After running: `UPDATE profiles SET is_platform_admin = true WHERE user_id = (SELECT id FROM auth.users WHERE email = 'your@email.com')`.
 
+### UI Primitives (`src/components/ui/`)
+
+**Import from the barrel (`../../components/ui`), never from the individual files.** Before hand-rolling a card, badge, button, table or empty state in a screen, check here first — the whole point is that a fix propagates.
+
+| Module | Exports |
+|---|---|
+| `primitives.tsx` | `Button` `Spinner` `Card` `Well` `Section` `PageHeader` `Badge` `StatusDot` `Notice` `Divider` |
+| `data.tsx` | `Metric` `MetricRow` `Meter` `EmptyState` `Skeleton` `SkeletonMetrics` `TableWrap` `Table` `Segmented` |
+| `forms.tsx` | `Field` `Input` `Textarea` `Select` `Switch` `Toolbar` |
+| `tone.ts` | `Tone` type + `useTone()` — kept separate so the component files stay component-only for Fast Refresh |
+
+Four rules these encode:
+1. **Surfaces** — `Card` or `Well` or nothing. **Never a card inside a card**; use `Section` to group with type and space instead of drawing another box.
+2. **Hierarchy** — `Metric` takes `tier="primary|secondary|tertiary"`. Only a handful of numbers per screen may be `primary`. This is what stops every dashboard number competing at the same size.
+3. **Colour** — `tone` names an operational meaning (`brand|success|warning|danger|info|accent|neutral`), never a hue, so the palette can be retuned in `themeTokens.ts` without touching call sites.
+4. **Empty states** — `EmptyState` is compact and explains *what will appear here and what makes it appear*. Never a large blank box saying "No data".
+
+`Overview.tsx` and `ML.tsx` are the reference implementations. **Still pending:** 18 old-style empty states across `Webhooks`, `Users`, `Analytics`, `Rules`, `ApiKeys`, `Infrastructure`, `Queue`, `Events` have not been converted to `EmptyState`.
+
 ### Components
-- `src/components/layout/AppLayout.tsx` — fixed 220px sidebar + sticky 52px top header with breadcrumb and org/plan badge. NAV_ALL has 10 items: Overview, Risk Events, Users, Review Queue, Analytics, Rules, API Keys, Webhooks, Infrastructure, Beta Ops. Bottom section has Documentation + Settings links. Items are filtered by role permission — `owner_only` items (Infrastructure, Beta Ops) only show to owners. **Mobile**: sidebar collapses behind hamburger (Menu icon), slides in as overlay with dark backdrop, auto-closes on route change. **Admin Console button**: shown in header only for users with `is_platform_admin = true` — orange shield badge linking to `/admin`.
+- `src/components/layout/AppLayout.tsx` — fixed 216px sidebar + sticky 52px top header with breadcrumb and org/plan badge. NAV_ALL has 10 items: Overview, Risk Events, Users, Review Queue, Analytics, Rules, API Keys, Webhooks, Infrastructure, Beta Ops. Bottom section has Documentation + Settings links. Items are filtered by role permission — `owner_only` items (Infrastructure, Beta Ops) only show to owners. **Mobile**: sidebar collapses behind hamburger (Menu icon), slides in as overlay with dark backdrop, auto-closes on route change. **Admin Console button**: shown in header only for users with `is_platform_admin = true` — orange shield badge linking to `/admin`.
 - `src/components/AdminRoute.tsx` — platform admin guard. Waits for both `loading` and `profileLoading` from AuthContext before deciding. Unauthenticated → `/login`. Authenticated without `is_platform_admin` → `/dashboard` (hard redirect, no info leak). Only `is_platform_admin = true` reaches the Admin Console.
 - `src/components/ProtectedRoute.tsx` — auth guard, shows spinner while loading
 - `src/hooks/useWindowSize.ts` — returns `{ width, isMobile, isTablet, isDesktop }` (breakpoints: 640px / 1024px). Used across all pages for responsive inline styles.
@@ -468,7 +487,7 @@ Usage pattern:
 - **AppLayout sidebar**: filter applied conditionally via `S.logoFilter` (theme-aware)
 - **Landing footer**: `<img src="/logo-color.png" style={{ height: '112px' }} />` — no filter
 
-Current heights: Landing navbar **112px** (logo-horizontal), Login/Register **112px** (logo-horizontal), PrivacyPolicy/ToS/NotFound/ErrorBoundary **112px** (logo-horizontal), AppLayout sidebar **44px** (logo-horizontal), Demo 80px (logo-full), Docs sidebar 88px (logo-full), Landing footer 112px (logo-color).
+Current heights: Landing navbar **112px** (logo-horizontal), Login/Register **112px** (logo-horizontal), PrivacyPolicy/ToS/NotFound/ErrorBoundary **112px** (logo-horizontal), AppLayout sidebar **26px** (logo-horizontal), Demo 80px (logo-full), Docs sidebar 88px (logo-full), Landing footer 112px (logo-color).
 
 ### Landing Page (`src/pages/Landing.tsx`)
 Full redesign — always light mode (`#F8FAFC` bg). Key sections with anchor IDs:
@@ -481,7 +500,7 @@ Nav links use smooth scroll via `document.getElementById(id)?.scrollIntoView({ b
 
 Hero headline: `clamp(2.25rem, 5vw, 4rem)`, `font-bold`. Hero section has `pt-48` top padding (navbar is ~144px tall due to 112px logo).
 
-"Built for scale" strip claims: `< 50ms` latency, `300+` signals, `7` event types, `1 API call`. **Correction (2026-07-28):** the `300+` signals figure (and the DeviceID module's "persistent fingerprinting, detects emulators/rooted devices" copy) is **not accurate** — the real risk engine implements 17 signal codes (20 including feature-store-only ones), and `device_id` is an opaque client-supplied string with no fingerprinting logic anywhere in the codebase. Tracked as `docs/mps/architecture-backlog.md` TD-0017 (Risk Cloud) — copy should be corrected or the underlying capability (IP Intelligence/Device Fingerprinting, TD-0009/TD-0010) built out before repeating these claims.
+"Built for scale" strip claims: `< 50ms` latency, `20` signals, `7` event types, `1 API call`. **Corrected 2026-08-08 — TD-0017 and TD-0056 are now `Resolved` in the backlog.** The hero stat, the "Built for scale" strip and the RiskScore copy now say `20`; the DeviceID descriptor describes device linking rather than fingerprinting; and the Fintech vertical no longer claims AML/KYC. **Do not re-introduce any of these claims** — the underlying capability gaps (TD-0009 IP Intelligence, TD-0010 Device Fingerprinting, TD-0042 Compliance Cloud) are still open. Historical note (2026-07-28): the `300+` signals figure (and the DeviceID module's "persistent fingerprinting, detects emulators/rooted devices" copy) is **not accurate** — the real risk engine implements 17 signal codes (20 including feature-store-only ones), and `device_id` is an opaque client-supplied string with no fingerprinting logic anywhere in the codebase. Tracked as `docs/mps/architecture-backlog.md` TD-0017 (Risk Cloud) — copy should be corrected or the underlying capability (IP Intelligence/Device Fingerprinting, TD-0009/TD-0010) built out before repeating these claims.
 
 Footer uses **light background** (`#F8FAFC`), `logo-color.png` at 112px. CTA text sitewide is **"Start 7-Day Trial"** (not "Start for free").
 
@@ -612,28 +631,44 @@ Wraps the entire app in `main.tsx` (inside `<ThemeProvider>`). Exposes `useTheme
 ### Theme Tokens Hook (`src/lib/themeTokens.ts`)
 `useT()` — call inside any component that needs theme-aware colors. Returns:
 
+`useT()` is the runtime mirror of the CSS custom properties in `index.css` — **keep the two in lockstep.** Surfaces read canvas < recessed < surface < raised.
+
 | Token | Light | Dark | Usage |
 |---|---|---|---|
-| `T.bg` | `#F8FAFC` | `#050B14` | Page background |
-| `T.card` | `#FFFFFF` | `#0B1220` | Card background |
-| `T.deep` | `#F1F5F9` | `#07111F` | Section/sidebar bg |
-| `T.elevated` | `#F0F4F8` | `#0F1929` | Hover/elevated state |
-| `T.border` | `#E2E8F0` | `#1E2D3D` | Standard borders |
-| `T.borderLight` | `#CBD5E1` | `#243447` | Lighter borders |
-| `T.text` | `#0F172A` | `#F1F5F9` | Primary text |
-| `T.textSec` | `#64748B` | `#94A3B8` | Secondary text |
-| `T.textDim` | `#94A3B8` | `#475569` | Dimmed/tertiary text |
-| `T.trust` | `#16C784` | `#16C784` | Accent green |
-| `T.codeBg` | `#0F172A` | `#050B14` | Code block bg (always dark) |
-| `T.codeText` | `#F1F5F9` | `#F1F5F9` | Code block text (always light) |
+| `T.bg` | `#F4F6FA` | `#07080C` | Page canvas |
+| `T.card` | `#FFFFFF` | `#0C0F16` | Primary surface |
+| `T.deep` | `#EDF0F6` | `#090B10` | Recessed well inside a surface |
+| `T.elevated` | `#E7EBF3` | `#141A26` | Hover / pressed fill |
+| `T.raised` | `#FFFFFF` | `#111621` | Floating layer (menu, modal) |
+| `T.border` | `#DEE3ED` | `#1B2230` | Standard hairline |
+| `T.borderLight` | `#E8EBF3` | `#151B27` | Whisper divider |
+| `T.borderStrong` | `#C7CEDD` | `#2A3346` | Emphasised edge |
+| `T.text` | `#080B12` | `#ECF0FA` | Primary ink |
+| `T.textSec` | `#59627A` | `#94A0B8` | Secondary ink |
+| `T.textDim` | `#8B94AA` | `#626D85` | Tertiary / metadata |
+| `T.trust` | `#16C784` | `#16C784` | Brand **fill** — charts, dots, meters |
+| `T.trustText` | `#0A8F5D` | `#2DD79A` | Brand as **text** |
+| `T.codeBg` | `#0A0D14` | `#07080C` | Code block bg (always dark) |
 
-All dashboard pages (`Overview`, `Events`, `Queue`, `Rules`, `ApiKeys`, `Webhooks`, `Users`, `Settings`, `Analytics`) use `useT()`.
+**Critical — brand green as text:** `T.trust` (`#16C784`) on white is ~2.1:1 and **fails WCAG AA**. Use `T.trustText` for any green *text*; keep `T.trust` for fills, icons and chart marks. The same split exists for every semantic tone: `success`/`successText`, `warning`/`warningText`, `danger`/`dangerText`, `info`/`infoText`, `accent`/`accentText` (accent = ML domain), plus the risk ladder `riskLow|riskMed|riskHigh|riskCrit` each with a `…T` text variant.
+
+Also exported: `shSm|shMd|shLg` (elevation), `rXs…rFull` (radius), `dFast|dBase|dSlow` + `ease` (motion), `fDisplay|fBody|fMono` (type families), `hoverBg`, `overlay`.
+
+Helper functions in the same module map domain values to colours so screens stop inventing thresholds: `riskFill()`, `riskInk()`, `decisionFill()`, `decisionInk()`, `trustInk()`, `fraudInk()`.
+
+All dashboard and admin pages use `useT()`.
 
 ### AppLayout (`src/components/layout/AppLayout.tsx`)
-Sidebar and header use a theme-aware `S` object (computed from `useTheme()`). Sidebar: white in light / `#07111F` in dark. Header: `rgba(255,255,255,0.95)` in light / `rgba(7,17,31,0.95)` in dark. Sun/Moon toggle in header right.
+Sidebar and header read `useT()` directly — the old local `S` token object was removed (it was a fourth competing source of truth). Sidebar sits on `T.card`, header on `T.headerBg` with a 12px backdrop blur. Header groups are: breadcrumb (left) — then environment badge, admin link, theme toggle (right), separated by a single divider.
 
 ### CSS (`src/index.css`)
-`:root` defines **light-mode defaults** for CSS vars (`--c-bg: #F8FAFC`, etc.). `[data-theme="dark"]` block overrides them with dark values. Body `font-family: 'Inter'`. CSS utility classes (`.g-card`, `.btn-trust`, `.btn-outline`, `.nav-item`, `.g-input`, badges, etc.) use CSS vars so they adapt automatically.
+`:root` defines **light-mode defaults** for CSS vars (`--c-bg: #F4F6FA`, etc.); `[data-theme="dark"]` overrides them. An `@theme` block binds Tailwind's radius scale to the design system (`rounded-lg` = 8px, `rounded-xl` = 10px = card radius) so utilities and tokens cannot drift apart.
+
+**Fonts:** body is **DM Sans** (`--f-body`), headings and metrics are **Inter Tight** (`--f-display`), data and code are **IBM Plex Mono** (`--f-mono`) — all three loaded in `index.html`. **Inter (plain) is NOT loaded** — never write `fontFamily: 'Inter, sans-serif'`; it silently falls back to generic sans-serif.
+
+Utility classes: surfaces `.g-card` `.g-well` `.g-raised` `.g-panel`; buttons `.btn` + `.btn-{primary|secondary|ghost|danger}` + `.btn-{sm|lg|icon|block}` (legacy `.btn-trust` / `.btn-outline` still work); type scale `.t-{display|title|section|subhead|body|meta|caption|label}` and `.t-metric{|-sm|-lg}`; also `.g-table`, `.g-empty`, `.g-meter`, `.g-code`, `.g-scroll`, `.seg`, `.skeleton`, `.badge-*`, `.mono`, `.num`, `.sr-only`.
+
+A global `:focus-visible` ring and a `prefers-reduced-motion` block are defined once here and apply product-wide.
 
 ### Public pages (light)
 Landing, Login, Register use a light palette defined as the `C` constant in `Landing.tsx`. These pages are always light regardless of the global theme toggle.

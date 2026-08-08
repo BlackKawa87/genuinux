@@ -352,7 +352,10 @@ const PROBLEM_SIGNALS = [
 ]
 
 const VERTICALS = [
-  { icon: Landmark,         label: 'Fintech & Banking',    desc: 'AML, KYC, payment fraud, synthetic identity' },
+  /* No AML/KYC claim here: the Compliance Cloud is unbuilt, and naming a
+     regulated capability the product does not have is the TD-0056 exposure.
+     These are what the risk engine genuinely scores today. */
+  { icon: Landmark,         label: 'Fintech & Banking',    desc: 'Payment fraud, account takeover, synthetic identity' },
   { icon: ShoppingCart,     label: 'Retail & E-commerce',  desc: 'Promo abuse, chargebacks, fake accounts' },
   { icon: Gamepad2,         label: 'iGaming & Betting',    desc: 'Age verification, multi-accounting, bonus fraud' },
   { icon: Coins,            label: 'Crypto & DeFi',        desc: 'Wallet fraud, rug-pull protection, bot trading' },
