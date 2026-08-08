@@ -15,6 +15,7 @@ import FeedbackSection from '../../components/FeedbackSection'
 import type { RiskReason, ConfidenceLevel } from '../../lib/riskEngine'
 import { getRelatedRiskEntities, SEV_COLORS as TG_SEV } from '../../lib/trustGraph'
 import type { TrustGraphResult } from '../../lib/trustGraph'
+import { EmptyState, Button } from '../../components/ui'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1388,17 +1389,19 @@ export default function Events() {
       {/* Table */}
       <div className="g-card overflow-hidden">
         {filtered.length === 0 ? (
-          <div className="py-16 text-center">
-            <Shield size={24} className="mx-auto mb-3" style={{ color: T.border }} />
-            <p className="text-sm font-semibold mb-1.5" style={{ color: T.textDim }}>
-              {events.length === 0 ? 'No events yet' : 'No events match your filters'}
-            </p>
-            {activeFilters > 0 && (
-              <button onClick={clearFilters} className="text-xs" style={{ color: '#16C784' }}>
-                Clear filters
-              </button>
+          <EmptyState
+            bare
+            icon={Shield}
+            title={events.length === 0 ? 'No events yet' : 'No events match your filters'}
+            action={activeFilters > 0 && (
+              <Button size="sm" variant="ghost" onClick={clearFilters}>Clear filters</Button>
             )}
-          </div>
+          >
+            {events.length === 0
+              ? <>Every call to <code className="g-code">POST /api/risk/check</code> lands here with its
+                  score, decision and the signals behind it.</>
+              : <>{activeFilters} filter{activeFilters === 1 ? '' : 's'} active across {events.length.toLocaleString()} loaded events.</>}
+          </EmptyState>
         ) : (
           <div className="g-scroll" style={{ overflowX: 'auto' }}>
             {/* Numeric columns are right-aligned and share one numeral width so

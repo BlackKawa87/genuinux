@@ -33,3 +33,8 @@ npm-debug.log*
 
 # TypeScript
 *.tsbuildinfo
+
+# Compiled copies of vite.config.ts — Vite resolves .js BEFORE .ts, so a
+# committed .js silently shadows the real config.
+vite.config.js
+vite.config.d.ts

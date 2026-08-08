@@ -21,8 +21,10 @@ git commit -m "chore: session sync ${TIMESTAMP}"
 # Push
 git push origin main
 
-# Deploy
-DEPLOY_OUT=$(VERCEL_TOKEN="$VERCEL_TOKEN" npx vercel@latest deploy --prod --yes 2>&1 | tail -4)
-DEPLOY_URL=$(echo "$DEPLOY_OUT" | grep -Eo 'https://[^ ]+' | tail -1)
+# No explicit `vercel deploy` here.
+# The Vercel <-> GitHub integration already builds production on every push to
+# main, so calling the CLI as well produced TWO production deploys per commit
+# (confirmed on 2026-08-08: dpl_7hfYvanq + dpl_6hJMPwSP for the same SHA).
+# The push above is the deploy trigger.
 
-echo "{\"systemMessage\": \"✓ Committed & pushed to GitHub. Deployed to ${DEPLOY_URL:-genuinux.vercel.app}\"}"
+echo "{\"systemMessage\": \"✓ Committed & pushed to GitHub. Vercel is building production from this push.\"}"

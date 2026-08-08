@@ -8,6 +8,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useT } from '../../lib/themeTokens'
 import { useWindowSize } from '../../hooks/useWindowSize'
 import type { Rule, RuleAction, RuleStatus, ConditionGroup, ConditionOperator } from '../../types'
+import { EmptyState, Button } from '../../components/ui'
 
 // ─── Condition field definitions ──────────────────────────────────────────────
 
@@ -719,21 +720,20 @@ export default function Rules() {
 
       {/* Rules list */}
       {rules.length === 0 ? (
-        <div className="g-card py-16 text-center">
-          <Shield size={24} className="mx-auto mb-3" style={{ color: T.border }} />
-          <p className="text-sm font-semibold mb-1.5" style={{ color: T.textDim }}>No rules yet</p>
-          <p className="text-xs mb-5" style={{ color: T.textDim }}>
-            Create your first rule to customize fraud decisions for your business.
-          </p>
-          <button
-            onClick={openCreate}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold"
-            style={{ background: '#16C784', color: '#000000' }}
-          >
-            <Plus size={13} />
-            New Rule
-          </button>
-        </div>
+        <EmptyState
+          icon={Shield}
+          title="No custom rules yet"
+          action={
+            <Button variant="primary" size="sm" onClick={openCreate}>
+              <Plus size={13} />
+              New rule
+            </Button>
+          }
+        >
+          Rules run after the base risk score. The first matching active rule, by priority,
+          overrides the engine's decision — so you can enforce your own thresholds without
+          changing the model.
+        </EmptyState>
       ) : (
         <div className="g-card overflow-hidden">
           {/* Table header */}

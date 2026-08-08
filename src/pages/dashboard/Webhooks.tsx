@@ -9,6 +9,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useT } from '../../lib/themeTokens'
 import { useWindowSize } from '../../hooks/useWindowSize'
 import type { Webhook } from '../../types'
+import { EmptyState, Button } from '../../components/ui'
 
 // ─── Event catalogue ──────────────────────────────────────────────────────────
 
@@ -1118,21 +1119,20 @@ export default function Webhooks() {
       {tab === 'endpoints' && (
         <>
           {webhooks.length === 0 ? (
-            <div className="g-card py-16 text-center">
-              <Globe size={24} className="mx-auto mb-3" style={{ color: T.border }} />
-              <p className="text-sm font-semibold mb-1.5" style={{ color: T.textDim }}>No webhooks yet</p>
-              <p className="text-xs mb-5" style={{ color: T.textDim }}>
-                Register an endpoint to receive real-time risk events.
-              </p>
-              <button
-                onClick={() => { setEditingWebhook(undefined); setShowModal(true) }}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold"
-                style={{ background: '#16C784', color: '#000000' }}
-              >
-                <Plus size={13} />
-                New Webhook
-              </button>
-            </div>
+            <EmptyState
+              icon={Globe}
+              title="No webhook endpoints yet"
+              action={
+                <Button variant="primary" size="sm" onClick={() => { setEditingWebhook(undefined); setShowModal(true) }}>
+                  <Plus size={13} />
+                  New webhook
+                </Button>
+              }
+            >
+              Every scored event is POSTed to your endpoint with an HMAC-SHA256 signature in the{' '}
+              <code className="g-code">X-Genuinux-Signature</code> header. Each attempt is logged so
+              you can replay failures.
+            </EmptyState>
           ) : (
             <div className="space-y-4">
               {webhooks.map(webhook => (

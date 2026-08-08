@@ -8,7 +8,7 @@ import {
   Menu, X, Terminal, Users, Eye, MessageSquare,
   Sun, Moon,
 } from 'lucide-react'
-import { useTheme } from '../contexts/ThemeContext'
+import { useTheme } from '../contexts/useTheme'
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 
@@ -643,11 +643,10 @@ export default function Landing() {
               onMouseLeave={e => (e.currentTarget.style.color = C.textSec)}>
               Sign in
             </Link>
-            <Link to="/register"
-              className="text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-1.5 transition-all duration-150"
-              style={{ background: C.dark, color: '#FFFFFF', fontFamily: "'Inter Tight', sans-serif" }}
-              onMouseEnter={e => (e.currentTarget.style.background = '#0B1016')}
-              onMouseLeave={e => (e.currentTarget.style.background = C.dark)}>
+            {/* Same action as the hero CTA, so the same primary treatment.
+                A second, differently-coloured primary button reads as a
+                different action. */}
+            <Link to="/register" className="btn-trust text-sm px-4 py-2 gap-1.5">
               Start Free Trial
             </Link>
           </div>
@@ -678,8 +677,7 @@ export default function Landing() {
                 Sign in
               </Link>
               <Link to="/register" onClick={() => setMobileMenuOpen(false)}
-                className="flex-1 text-sm py-2.5 rounded-lg text-center font-semibold"
-                style={{ background: C.dark, color: '#FFFFFF', fontFamily: "'Inter Tight', sans-serif" }}>
+                className="btn-trust flex-1 text-sm py-2.5 justify-center">
                 Start Free Trial
               </Link>
             </div>

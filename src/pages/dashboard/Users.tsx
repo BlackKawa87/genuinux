@@ -12,6 +12,7 @@ import { useWindowSize } from '../../hooks/useWindowSize'
 import type { UserChecked, RiskEvent, Decision } from '../../types'
 import { getRelatedRiskEntities, SEV_COLORS as TG_SEV } from '../../lib/trustGraph'
 import type { TrustGraphResult } from '../../lib/trustGraph'
+import { EmptyState, Button } from '../../components/ui'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -946,21 +947,20 @@ export default function UsersPage() {
       {/* Table */}
       <div className="g-card overflow-hidden">
         {filtered.length === 0 ? (
-          <div className="py-16 text-center">
-            <Users size={24} className="mx-auto mb-3" style={{ color: T.border }} />
-            <p className="text-sm font-semibold mb-1.5" style={{ color: T.textDim }}>
-              {rows.length === 0 ? 'No users analyzed yet' : 'No users match your filters'}
-            </p>
-            {(search || susOnly) && (
-              <button
-                onClick={() => { setSearch(''); setSusOnly(false) }}
-                className="text-xs"
-                style={{ color: '#16C784' }}
-              >
+          <EmptyState
+            bare
+            icon={Users}
+            title={rows.length === 0 ? 'No users analysed yet' : 'No users match your filters'}
+            action={(search || susOnly) && (
+              <Button size="sm" variant="ghost" onClick={() => { setSearch(''); setSusOnly(false) }}>
                 Clear filters
-              </button>
+              </Button>
             )}
-          </div>
+          >
+            {rows.length === 0
+              ? 'Each end-user you check is aggregated here with their event history, distinct IPs and devices.'
+              : `Filtered out of ${rows.length.toLocaleString()} analysed users.`}
+          </EmptyState>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">

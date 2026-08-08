@@ -16,6 +16,7 @@ import { can } from '../../lib/permissions'
 import type { RiskEvent, ReviewStatus, Profile } from '../../types'
 import type { RiskReason, ConfidenceLevel } from '../../lib/riskEngine'
 import FeedbackSection from '../../components/FeedbackSection'
+import { EmptyState } from '../../components/ui'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1062,15 +1063,15 @@ export default function Queue() {
       {/* Queue table */}
       <div className="g-card overflow-hidden">
         {filtered.length === 0 ? (
-          <div className="py-16 text-center">
-            <Shield size={24} className="mx-auto mb-3" style={{ color: T.border }} />
-            <p className="text-sm font-semibold mb-1.5" style={{ color: T.textDim }}>
-              {statusF === 'pending' ? 'No pending cases — queue is clear' : 'No cases found'}
-            </p>
-            <p className="text-xs" style={{ color: T.textDim }}>
-              {statusF === 'pending' ? 'New cases appear here automatically.' : 'Try a different filter.'}
-            </p>
-          </div>
+          <EmptyState
+            bare
+            icon={Shield}
+            title={statusF === 'pending' ? 'Queue is clear' : 'No cases found'}
+          >
+            {statusF === 'pending'
+              ? 'Events the engine decides to review are queued here automatically. Nothing is waiting on a human right now.'
+              : 'No cases match this status. Try a different tab.'}
+          </EmptyState>
         ) : (
           <>
             {/* Header */}

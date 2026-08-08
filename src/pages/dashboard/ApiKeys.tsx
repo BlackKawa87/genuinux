@@ -9,6 +9,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useT } from '../../lib/themeTokens'
 import { useWindowSize } from '../../hooks/useWindowSize'
 import type { ApiKey } from '../../types'
+import { EmptyState, Button } from '../../components/ui'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -596,25 +597,20 @@ export default function ApiKeys() {
 
           {/* Empty state */}
           {keys.length === 0 && (
-            <div
-              className="g-card p-14 text-center"
-              style={{ borderStyle: 'dashed' }}
+            <EmptyState
+              icon={Key}
+              title="No API keys yet"
+              action={
+                <Button variant="primary" size="sm" onClick={() => setShowCreate(true)}>
+                  <Plus size={13} />
+                  Create your first key
+                </Button>
+              }
             >
-              <Key size={26} className="mx-auto mb-3" style={{ color: T.border }} />
-              <p className="text-sm font-semibold mb-1" style={{ color: T.textSec }}>
-                No API keys yet
-              </p>
-              <p className="text-xs mb-5" style={{ color: T.textDim }}>
-                Create your first key to start sending events to Genuinux
-              </p>
-              <button
-                onClick={() => setShowCreate(true)}
-                className="btn-trust flex items-center gap-2 px-4 py-2 text-sm rounded-lg mx-auto"
-              >
-                <Plus size={13} />
-                Create your first key
-              </button>
-            </div>
+              A key authenticates your server-side calls to{' '}
+              <code className="g-code">POST /api/risk/check</code>. The full key is shown once at
+              creation and only its SHA-256 hash is stored.
+            </EmptyState>
           )}
         </>
       )}

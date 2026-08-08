@@ -172,15 +172,21 @@ interface EmptyStateProps {
   children?: ReactNode
   icon?: ElementType
   action?: ReactNode
+  /** Drops the border and fill — for use *inside* an existing surface, so an
+      empty table does not render a box inside a box. */
+  bare?: boolean
 }
 
 /**
  * Compact and explanatory. Never a large blank box with "No data" in the
  * middle — an empty region is an opportunity to teach the next step.
  */
-export function EmptyState({ title, children, icon: Icon, action }: EmptyStateProps) {
+export function EmptyState({ title, children, icon: Icon, action, bare }: EmptyStateProps) {
   return (
-    <div className="g-empty">
+    <div
+      className={bare ? undefined : 'g-empty'}
+      style={bare ? { display: 'flex', alignItems: 'flex-start', gap: 12, padding: '20px 18px' } : undefined}
+    >
       {Icon && (
         <span className="g-empty-icon">
           <Icon size={14} />
